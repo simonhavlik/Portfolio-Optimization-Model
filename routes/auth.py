@@ -103,6 +103,7 @@ def register():
             registration_date=user.created_at
         )
 
+        login_user(user)
         session['user_id'] = user.id
         session['email'] = user.email
         session['role'] = user.role

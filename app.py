@@ -37,7 +37,7 @@ from functools import wraps
 
 from flask import Flask, render_template, request, jsonify, abort, session, redirect, send_file
 from flask_cors import CORS
-from flask_login import LoginManager, current_user, login_required
+from flask_login import LoginManager, current_user, login_required, login_user
 from werkzeug.utils import secure_filename
 import pandas as pd
 import numpy as np
@@ -167,6 +167,18 @@ def create_app() -> Flask:
         return dict(current_user=current_user)
     
     # Debug: Log authentication status for each request (only in debug mode)
+    @app.before_request
+    def sync_login_identity():
+        if request.endpoint == 'static' or current_user.is_authenticated:
+            return None
+        user_id = session.get('user_id')
+        if user_id:
+            from models.auth import User
+            user = User.query.get(user_id)
+            if user and user.is_active:
+                login_user(user)
+        return None
+
     @app.before_request
     def canonical_host():
         host = request.host.split(':')[0].lower()

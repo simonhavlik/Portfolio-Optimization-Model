@@ -213,6 +213,7 @@
 <!-- Hero Section -->
 <div class="hero-panel bg-gradient-to-r from-primary-600 to-cyan-600 rounded-2xl p-8 mb-8 text-white">
     <canvas id="hero-canvas" class="hero-canvas" aria-hidden="true"></canvas>
+    {% if report_id %}<p class="text-[11px] uppercase tracking-[0.18em] text-amber-200/70 mb-2">Saved analysis</p>{% endif %}
     <h1 class="text-4xl font-bold mb-4">Portfolio Optimization & Quantitative Analysis</h1>
     <p class="text-base opacity-80 max-w-2xl">
         Optimisation, risk decomposition, stress testing and a written assessment.
@@ -251,9 +252,15 @@
             <p class="text-slate-600">{{ example_data.meta.description or 'Weights and sectors resolved from market data' }} · {{ example_data.meta.n_assets }} holdings</p>
         </div>
         <div class="flex gap-3">
+            {% if current_user.is_authenticated %}
+            <a href="/reports" class="px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium hover:border-slate-500 transition flex items-center gap-2">
+                <i class="fas fa-clock-rotate-left"></i> Saved analyses
+            </a>
+            {% else %}
             <a href="/auth/register" class="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition flex items-center gap-2">
                 <i class="fas fa-user-plus"></i> Register to Save
             </a>
+            {% endif %}
             <button type="button" onclick="loadExamplePortfolio(); return false;" class="px-5 py-2.5 rounded-xl bg-primary-600 text-white font-medium hover:bg-primary-700 transition flex items-center gap-2">
                 <i class="fas fa-play"></i> Edit & Analyze
             </button>
