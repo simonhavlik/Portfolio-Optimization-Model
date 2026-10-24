@@ -1,7 +1,7 @@
 # Portfolio Optimizer
 
 **Quantitative portfolio analytics and risk reporting.**
-Šimon Havlík · 2026 · [optimizer.havliksimon.com](https://optimizer.havliksimon.com)
+Šimon Havlík · 2026 · [optimizer.simonhavlik.com](https://optimizer.simonhavlik.com)
 
 <p>
   <img src="https://img.shields.io/badge/Python-3.11-1f2328" alt="Python 3.11">
@@ -138,7 +138,7 @@ Environment variables of interest: `DATABASE_URL`, `DB_TYPE`, `LLM_MODEL`, `SMTP
 
 ## 8. Privacy and limitations
 
-Portfolio content is sent to the model provider for extraction and commentary; outside that inference step data is not shared, and it is never sold. The policy is published at [/privacy](https://optimizer.havliksimon.com/privacy).
+Portfolio content is sent to the model provider for extraction and commentary; outside that inference step data is not shared, and it is never sold. The policy is published at [/privacy](https://optimizer.simonhavlik.com/privacy).
 
 This is a student project. It is not investment advice, the figures are not audited, and market data are supplied by Yahoo Finance without warranty. Past performance is not indicative of future results.
 

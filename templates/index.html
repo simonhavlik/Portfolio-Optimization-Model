@@ -123,7 +123,7 @@
         ('volatility.png', 'Rolling volatility'),
         ('monthly_returns.png', 'Monthly returns'),
         ('correlation.png', 'Asset correlation'),
-        ('efficient_frontier.png', 'Efficient frontier'),
+        ('mean_variance.png', 'Mean-variance optimisation'),
         ('risk_contribution.png', 'Risk contribution'),
         ('pca.png', 'PCA variance'),
         ('rolling_correlation.png', 'Rolling correlation')
@@ -361,6 +361,34 @@
             <p class="text-xs text-slate-500 uppercase tracking-wide">CVaR (95%)</p>
             <p class="text-xl font-bold text-red-600 mt-1">{{ "%.1f"|format(example_data.metrics.cvar_95 * 100) }}%</p>
             <p class="text-xs text-slate-400">Expected Shortfall</p>
+        </div>
+    </div>
+
+
+    <!-- Report summary: risk, stress, assessment -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div class="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+            <h3 class="text-lg font-semibold text-slate-900 mb-4">Risk detail</h3>
+            <table class="w-full text-sm pr-table">
+                <tr><th>mVaR 95 / 99</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.mvar_95 * 100) }}% / {{ "%.2f"|format(example_data.advanced_risk.mvar_99 * 100) }}%</td></tr>
+                <tr><th>Average drawdown</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.avg_drawdown * 100) }}%</td></tr>
+                <tr><th>Kelly / half-Kelly</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.kelly_fraction) }} / {{ "%.2f"|format(example_data.advanced_risk.half_kelly_fraction) }}</td></tr>
+                <tr><th>Optimal leverage</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.optimal_leverage) }}x</td></tr>
+                <tr><th>Growth rate</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.growth_rate * 100) }}%</td></tr>
+            </table>
+        </div>
+        <div class="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+            <h3 class="text-lg font-semibold text-slate-900 mb-4">Stress scenarios</h3>
+            <table class="w-full text-sm">
+                {% for name, impact in example_data.stress_test.items() %}
+                <tr><th class="text-left font-normal text-slate-600">{{ name }}</th><td class="text-right {{ 'text-red-600' if impact < 0 else 'text-green-600' }}">{{ "%.2f"|format(impact * 100) }}%</td></tr>
+                {% endfor %}
+            </table>
+        </div>
+        <div class="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+            <h3 class="text-lg font-semibold text-slate-900 mb-4">Assessment</h3>
+            <p class="text-sm text-slate-600 leading-relaxed mb-3">{{ example_data.ai_insights.risk_assessment }}</p>
+            <p class="text-sm text-slate-600 leading-relaxed">{{ example_data.ai_insights.recommendation }}</p>
         </div>
     </div>
 

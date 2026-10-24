@@ -97,14 +97,14 @@ class EmailService:
         text_body = (
             f"{greeting}\n\n"
             "your Portfolio Optimizer account is approved. You can sign in at "
-            "https://optimizer.havliksimon.com/auth/login\n\n"
+            "https://optimizer.simonhavlik.com/auth/login\n\n"
             "Nothing else is required.\n\n"
             "Simon\n"
         )
         html_body = f"""<html><body style="font-family: Helvetica, Arial, sans-serif; font-size: 14px; color: #222; line-height: 1.5;">
 <p>{greeting}</p>
 <p>your Portfolio Optimizer account is approved. You can sign in at
-<a href="https://optimizer.havliksimon.com/auth/login">optimizer.havliksimon.com/auth/login</a>.</p>
+<a href="https://optimizer.simonhavlik.com/auth/login">optimizer.simonhavlik.com/auth/login</a>.</p>
 <p>Nothing else is required.</p>
 <p>Simon</p>
 </body></html>"""

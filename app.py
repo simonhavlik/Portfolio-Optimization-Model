@@ -162,6 +162,13 @@ def create_app() -> Flask:
     
     # Debug: Log authentication status for each request (only in debug mode)
     @app.before_request
+    def canonical_host():
+        host = request.host.split(':')[0].lower()
+        if host == 'optimizer.havliksimon.eu':
+            suffix = request.full_path.rstrip('?')
+            return redirect(f'https://optimizer.simonhavlik.com{suffix}', code=301)
+
+    @app.before_request
     def log_auth_status():
         if not config.DEBUG:
             return

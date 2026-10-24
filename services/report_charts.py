@@ -35,7 +35,7 @@ CHART_FILES = [
     ("monte_carlo.png", "Monte Carlo"),
     ("volatility.png", "Rolling volatility"),
     ("monthly_returns.png", "Monthly returns"),
-    ("efficient_frontier.png", "Efficient frontier"),
+    ("mean_variance.png", "Mean-variance optimisation"),
     ("risk_contribution.png", "Risk contribution"),
     ("pca.png", "PCA variance"),
     ("rolling_correlation.png", "Rolling correlation"),
@@ -230,10 +230,18 @@ def _efficient_frontier(charts):
     if current:
         ax.scatter([current.get("volatility", 0) * 100], [current.get("return", 0) * 100],
                    s=34, color=INK, zorder=4, label="Portfolio")
-        ax.legend(frameon=False, fontsize=6, loc="lower right", labelcolor=INK)
+    max_sharpe = ef.get("max_sharpe") or {}
+    if max_sharpe:
+        ax.scatter([max_sharpe.get("volatility", 0) * 100], [max_sharpe.get("return", 0) * 100],
+                   s=40, marker="s", color=BRASS, zorder=5, label="Max Sharpe")
+    min_vol = ef.get("min_vol") or {}
+    if min_vol:
+        ax.scatter([min_vol.get("volatility", 0) * 100], [min_vol.get("return", 0) * 100],
+                   s=40, marker="D", color=GREEN, zorder=5, label="Min variance")
+    ax.legend(frameon=False, fontsize=6, loc="lower right", labelcolor=INK)
     ax.set_xlabel("Volatility %", color=MUTED, fontsize=7)
     ax.set_ylabel("Return %", color=MUTED, fontsize=7)
-    _save(fig, "efficient_frontier.png")
+    _save(fig, "mean_variance.png")
 
 
 def _risk_contribution(charts):
