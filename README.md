@@ -81,6 +81,8 @@ The figures below are the same images embedded in the PDF export. They are rende
 | *Figure 9.* Mean-variance frontier with the max-Sharpe and minimum-variance portfolios. | *Figure 10.* Contribution to total risk by position. |
 | ![PCA variance](docs/charts/pca.png) | ![Rolling correlation](docs/charts/rolling_correlation.png) |
 | *Figure 11.* Explained variance by principal component. | *Figure 12.* Average pairwise rolling correlation. |
+| ![Rolling statistics](docs/charts/rolling_stats.png) | |
+| *Figure 13.* Rolling mean with 95% band, standard deviation and Sharpe ratio. | |
 
 The complete two-page export is available as **[Portfolio-Optimizer-Report.pdf](docs/Portfolio-Optimizer-Report.pdf)**.
 
