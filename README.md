@@ -30,11 +30,12 @@ three-page A4 PDF and a thirteen-sheet Excel workbook.
 5. [Architecture](#5-architecture)
 6. [Portfolio intake](#6-portfolio-intake)
 7. [Reporting and exports](#7-reporting-and-exports)
-8. [Analysis parameters](#8-analysis-parameters)
-9. [Reproducibility](#9-reproducibility)
-10. [Data sources and limitations](#10-data-sources-and-limitations)
-11. [Roadmap](#11-roadmap)
-12. [References](#12-references)
+8. [Fund leaderboard](#8-fund-leaderboard)
+9. [Analysis parameters](#9-analysis-parameters)
+10. [Reproducibility](#10-reproducibility)
+11. [Data sources and limitations](#11-data-sources-and-limitations)
+12. [Roadmap](#12-roadmap)
+13. [References](#13-references)
 
 ---
 
@@ -236,7 +237,59 @@ editable rather than being a picture of a model.
 
 ---
 
-## 8. Analysis parameters
+## 8. Fund leaderboard
+
+Ten well-known funds, one evidence base, five years to the day:
+
+**[optimizer.simonhavlik.com/leaderboard](https://optimizer.simonhavlik.com/leaderboard)**
+
+| # | Fund | Score | Sharpe | Alpha | Max DD |
+|---|---|---|---|---|---|
+| 1 | Fairfax Financial | 86.4 | 1.01 | +21.8% | −24.2% |
+| 2 | Berkshire Hathaway | 71.6 | 0.43 | +4.0% | −27.6% |
+| 3 | Scion Asset Management | 66.7 | 0.52 | +12.4% | −31.3% |
+| 4 | Markel Group | 55.6 | 0.00 | −1.5% | −29.9% |
+| 5 | Duquesne Family Office | 51.6 | 0.27 | +1.3% | −44.0% |
+| 6 | Himalaya Capital | 46.2 | 0.05 | −3.9% | −43.3% |
+| 7 | Pershing Square | 40.7 | −0.22 | −5.8% | −36.5% |
+| 8 | Valley Forge Capital | 36.4 | −0.10 | −6.2% | −41.9% |
+| 9 | Baupost Group | 28.0 | −0.29 | −10.9% | −44.3% |
+| 10 | Third Point | 22.2 | −0.51 | −17.7% | −49.9% |
+
+Two kinds of fund sit on the same board, and the difference is disclosed rather than hidden:
+
+- **Listed vehicles** (Berkshire, Markel, Fairfax, Pershing Square) are priced directly. Non-USD
+  listings are converted to dollars before comparison, or FX drift would masquerade as alpha.
+- **13F filers** (Valley Forge, Scion, Duquesne, Baupost, Himalaya, Third Point) are reconstructed
+  from their disclosed long book, **chained quarter by quarter**: each filing's weights apply from
+  its filing date to the next one, so the series never uses a book before it was public. A single
+  snapshot applied backwards would be look-ahead, and every number here would be fiction.
+
+A 13F is long US equity only — no cash, shorts, options or non-US lines. The board says so next to
+the fund name. Coverage of each parsed filing (mapped CUSIPs as a share of disclosed value) sits in
+the row detail, alongside the filing date, observation count and Calmar ratio.
+
+**Scoring.** Ten measures — Sharpe, Sortino, alpha, annual return, maximum drawdown, Calmar, CVaR
+95%, beta, volatility and concentration — are each converted to a cross-sectional percentile,
+direction-adjusted so that lower is better only where that is true, then averaged into a 0–100
+composite. The composite is a reading aid, not a recommendation; the table sorts on any column.
+
+**Exports.** Eight charts render server-side and each downloads on its own
+(`/leaderboard/chart/<key>.png`): composite score, Sharpe, alpha, maximum drawdown, crisis
+behaviour, growth of 100, risk versus return and volatility. The full table is available as CSV,
+and `/leaderboard/card.png` produces a 1080 × 1080 LinkedIn card (`?format=landscape` for
+1200 × 627). Every row opens `/leaderboard/<slug>`, the fund's own book run through this same
+analysis — the full report header, all thirteen workbook sheets, PDF and CSV.
+
+**Refresh discipline.** No page view, deploy or rebuild touches Yahoo. Prices are cached for a
+week and the board is rebuilt from that cache. Refreshes are explicit, resumable and gentle:
+twenty tickers per batch, one at a time with a pause, state persisted after every ticker, and the
+next batch picks up where the last stopped. A scheduled refresh is opt-in, runs in small batches
+overnight, and never performs a full re-download.
+
+---
+
+## 9. Analysis parameters
 
 The intake form exposes the choices a practitioner actually adjusts, with recommended defaults:
 
@@ -252,7 +305,7 @@ number of paths it is asked for and reports that number back.
 
 ---
 
-## 9. Reproducibility
+## 10. Reproducibility
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -267,7 +320,7 @@ Environment variables of interest: `DATABASE_URL`, `DB_TYPE`, `LLM_MODEL`, `SMTP
 
 ---
 
-## 10. Data sources and limitations
+## 11. Data sources and limitations
 
 Prices and fundamentals are supplied by Yahoo Finance without warranty; the implied equity risk
 premium is refreshed from Damodaran's public workbook. Fund holdings are taken from SEC EDGAR
@@ -283,7 +336,7 @@ performance is not indicative of future results.
 
 ---
 
-## 11. Roadmap
+## 12. Roadmap
 
 **Fund leaderboard.** A cross-sectional ranking of ten well-known funds and managers — Berkshire
 Hathaway, Markel, Fairfax, Pershing Square, Valley Forge, Scion, Duquesne, Baupost, Himalaya and
@@ -293,7 +346,7 @@ EDGAR. The output is a board, a per-fund page and a shareable card, refreshed as
 
 ---
 
-## 12. References
+## 13. References
 
 Black, F. and Litterman, R. (1992) 'Global portfolio optimization', *Financial Analysts Journal*,
 48(5), pp. 28–43.
