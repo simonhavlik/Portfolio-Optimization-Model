@@ -472,6 +472,12 @@ def _leaderboard_admin_ok() -> bool:
         return False
 
 
+@app.route('/vision')
+def vision_page():
+    """The thesis: why the terminal exists and where it goes."""
+    return render_template('vision.html')
+
+
 @app.route('/leaderboard')
 def leaderboard_view():
     """Cross-sectional fund ranking, cached for a week."""

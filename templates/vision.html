@@ -1,0 +1,205 @@
+{% extends "base.html" %}
+
+{% block title %}Vision — Portfolio Optimizer{% endblock %}
+{% block meta_description %}Why this exists: an institutional risk desk for portfolios that do not have one — the thesis, the system, the frontier, and where it goes next.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/vision/vision.css">
+{% endblock %}
+
+{% block content %}
+<section class="vs">
+    <div class="vs-inner">
+
+        <header class="vs-hero">
+            <div class="vs-hero-copy">
+                <p class="vs-kicker"><span class="pulse"></span>Vision<span class="sep">/</span><span class="mono">2026 — 2029</span></p>
+                <h1 class="vs-title">A risk desk for everyone<br>who manages money without one.</h1>
+                <p class="vs-lede">
+                    This started as my own question: what does my book actually look like once its own
+                    volatility is priced in? It is now a system that reads a portfolio the way an
+                    institution would — exposures, tail risk, regime behaviour — and answers in seconds,
+                    in language someone can act on.
+                </p>
+                <ul class="vs-chips">
+                    <li>Built in Prague</li>
+                    <li>Running live</li>
+                    <li>Ten funds ranked</li>
+                    <li>Forty metrics per book</li>
+                </ul>
+            </div>
+
+            <figure class="vs-portrait">
+                <img src="/static/vision/simon-pudong.jpg" alt="Šimon Havlík in Shanghai" loading="lazy" decoding="async">
+                <figcaption>
+                    <span class="mono">Pudong, Shanghai</span>
+                    <span>The desk I wanted at 22.</span>
+                </figcaption>
+            </figure>
+        </header>
+
+        <section class="vs-thesis" aria-label="The thesis">
+            <div class="vs-col" data-reveal>
+                <p class="vs-num">01</p>
+                <h2>The asymmetry</h2>
+                <p>
+                    Institutions run risk desks: people, systems and a mandate to ask uncomfortable
+                    questions before capital moves. Private investors run intuition, an app and a
+                    spreadsheet that has not been opened since spring. The gap is not information.
+                    Information is free. The gap is instrumentation.
+                </p>
+            </div>
+            <div class="vs-col" data-reveal>
+                <p class="vs-num">02</p>
+                <h2>The instrument</h2>
+                <p>
+                    One upload returns the desk's output: correlation structure, drawdown behaviour,
+                    CVaR at 95, factor beta, regime-conditional exposure — computed on the book you
+                    actually hold, not a model portfolio that happens to look good in a deck.
+                </p>
+            </div>
+            <div class="vs-col" data-reveal>
+                <p class="vs-num">03</p>
+                <h2>The frontier</h2>
+                <p>
+                    Not the backtest that flatters. The frontier you can defend: constraints you can
+                    explain to a client, worst cases you can survive, and a report you can hand to
+                    someone else without rewriting the caveats.
+                </p>
+            </div>
+        </section>
+
+        <section class="vs-map" aria-label="The system">
+            <div class="vs-map-head">
+                <p class="vs-kicker"><span class="mono">The system</span></p>
+                <p class="vs-map-lede">
+                    Five layers, one loop. Every layer exists because a question could not be answered
+                    at the layer above it.
+                </p>
+            </div>
+
+            <svg class="vs-mind" viewBox="0 0 960 420" role="img" aria-label="Architecture of the platform">
+                <defs>
+                    <linearGradient id="vsLine" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stop-color="#c8a15a" stop-opacity="0.65"/>
+                        <stop offset="100%" stop-color="#c8a15a" stop-opacity="0.12"/>
+                    </linearGradient>
+                </defs>
+
+                <g class="vs-links">
+                    <path d="M480 210 C 380 210, 330 90, 210 90" />
+                    <path d="M480 210 C 380 210, 330 210, 210 210" />
+                    <path d="M480 210 C 380 210, 330 330, 210 330" />
+                    <path d="M480 210 C 580 210, 630 90, 750 90" />
+                    <path d="M480 210 C 580 210, 630 210, 750 210" />
+                    <path d="M480 210 C 580 210, 630 330, 750 330" />
+                </g>
+
+                <g class="vs-node vs-node--core">
+                    <rect x="404" y="176" width="152" height="68" rx="2" />
+                    <text x="480" y="205" class="vs-node-title">Portfolio</text>
+                    <text x="480" y="222" class="vs-node-title">Optimizer</text>
+                    <text x="480" y="236" class="vs-node-meta">the loop</text>
+                </g>
+
+                <g class="vs-node"><rect x="96" y="62" width="196" height="56" rx="2" />
+                    <text x="112" y="84" class="vs-node-label">Inputs</text>
+                    <text x="112" y="101" class="vs-node-meta">positions · prices · filings</text>
+                </g>
+                <g class="vs-node"><rect x="96" y="182" width="196" height="56" rx="2" />
+                    <text x="112" y="204" class="vs-node-label">Risk</text>
+                    <text x="112" y="221" class="vs-node-meta">covariance · CVaR · drawdown</text>
+                </g>
+                <g class="vs-node"><rect x="96" y="302" width="196" height="56" rx="2" />
+                    <text x="112" y="324" class="vs-node-label">Estimation</text>
+                    <text x="112" y="341" class="vs-node-meta">shrunk means · regimes</text>
+                </g>
+                <g class="vs-node"><rect x="668" y="62" width="196" height="56" rx="2" />
+                    <text x="684" y="84" class="vs-node-label">Optimisation</text>
+                    <text x="684" y="101" class="vs-node-meta">MPT · parity · Black-Litterman</text>
+                </g>
+                <g class="vs-node"><rect x="668" y="182" width="196" height="56" rx="2" />
+                    <text x="684" y="204" class="vs-node-label">Evaluation</text>
+                    <text x="684" y="221" class="vs-node-meta">Sharpe · Sortino · alpha</text>
+                </g>
+                <g class="vs-node"><rect x="668" y="302" width="196" height="56" rx="2" />
+                    <text x="684" y="324" class="vs-node-label">Output</text>
+                    <text x="684" y="341" class="vs-node-meta">report · frontier · leaderboard</text>
+                </g>
+            </svg>
+
+            <div class="vs-legend">
+                <span class="mono">Left — what goes in</span>
+                <span class="mono">Right — what comes out</span>
+                <span class="mono">Centre — the loop that ties them</span>
+            </div>
+        </section>
+
+        <section class="vs-flow" aria-label="How a request moves">
+            <div class="vs-flow-head">
+                <p class="vs-kicker"><span class="mono">The run</span></p>
+                <p class="vs-flow-lede">Six stages from a spreadsheet to a decision. Everything is computed; nothing is asserted.</p>
+            </div>
+
+            <ol class="vs-steps">
+                <li data-reveal><span class="mono">01</span><b>Ingest</b><em>Tickers, weights, history</em></li>
+                <li data-reveal><span class="mono">02</span><b>Clean</b><em>Survivorship, splits, gaps</em></li>
+                <li data-reveal><span class="mono">03</span><b>Estimate</b><em>Covariance, factors, regimes</em></li>
+                <li data-reveal><span class="mono">04</span><b>Optimise</b><em>Constraints, then the frontier</em></li>
+                <li data-reveal><span class="mono">05</span><b>Stress</b><em>CVaR, crises, Monte Carlo</em></li>
+                <li data-reveal><span class="mono">06</span><b>Publish</b><em>Report, workbook, API</em></li>
+            </ol>
+        </section>
+
+        <section class="vs-road" aria-label="Where this goes">
+            <div class="vs-road-head">
+                <p class="vs-kicker"><span class="mono">2026 — 2029</span></p>
+                <p class="vs-road-lede">Three horizons. The first is running, the second is in build, the third is the point.</p>
+            </div>
+
+            <div class="vs-horizons">
+                <article data-reveal>
+                    <p class="vs-horizon">Now</p>
+                    <ul>
+                        <li>Multi-asset intake with parameters that travel with the report</li>
+                        <li>Leaderboard: ten funds, chained 13F books, eleven exports</li>
+                        <li>Excel and PDF that a client can read without you in the room</li>
+                    </ul>
+                </article>
+                <article data-reveal>
+                    <p class="vs-horizon">Next</p>
+                    <ul>
+                        <li>Factor attribution: which exposures paid, which were paid for</li>
+                        <li>Regime-conditional allocation, tested on your book not a textbook</li>
+                        <li>Benchmark construction and a public API for the analytics</li>
+                    </ul>
+                </article>
+                <article data-reveal>
+                    <p class="vs-horizon">Beyond</p>
+                    <ul>
+                        <li>Household view: accounts, mandates and currencies in one risk picture</li>
+                        <li>Allocator workspaces — diligence, monitoring, and quarterly letters</li>
+                        <li>An instrument small funds use instead of hiring their first risk analyst</li>
+                    </ul>
+                </article>
+            </div>
+        </section>
+
+        <section class="vs-close">
+            <blockquote data-reveal>
+                Risk is not volatility. It is the distance between the drawdown you planned for and
+                the one you meet.
+            </blockquote>
+            <div class="vs-cta">
+                <a class="vs-btn vs-btn--solid" href="/upload">Run your book</a>
+                <a class="vs-btn" href="/leaderboard">See the leaderboard</a>
+                <a class="vs-btn" href="/">Back to the terminal</a>
+            </div>
+        </section>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/vision/vision.js" defer></script>
+{% endblock %}
