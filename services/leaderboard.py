@@ -193,7 +193,36 @@ def _percentile_scores(rows: list[dict]) -> None:
 # board
 # --------------------------------------------------------------------------- #
 
-def build_board(force: bool = False, window_years: int = WINDOW_YEARS) -> dict:
+def collect() -> tuple[set[str], dict, dict]:
+    """Every ticker the board needs, plus the books behind the 13F funds."""
+    histories: dict[str, list] = {}
+    latest: dict[str, dict | None] = {}
+    tickers: set[str] = {BENCHMARK}
+    for fund in FUNDS:
+        if fund['kind'] == 'listed':
+            tickers.add(fund['ticker'])
+            if fund.get('fx'):
+                tickers.add(fund['fx'])
+            continue
+        filings = edgar_13f.fund_filings(fund['cik'], limit=20)
+        books = []
+        for filing in filings:
+            book = edgar_13f.book_for_filing(fund['cik'], filing)
+            book = edgar_13f.apply_aliases(book, fund.get('aliases'), ISSUER_ALIASES)
+            books.append((filing, book))
+            tickers.update(edgar_13f.weights_from_book(book).keys())
+        histories[fund['slug']] = books
+        latest[fund['slug']] = books[-1][1] if books else None
+        print(f"[leaderboard] {fund['slug']}: {len(books)} filings", flush=True)
+    return tickers, histories, latest
+
+
+def collect_universe() -> list[str]:
+    tickers, _histories, _latest = collect()
+    return sorted(tickers)
+
+
+def build_board(force: bool = False, window_years: int = WINDOW_YEARS, allow_fetch: bool = False) -> dict:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / BOARD_FILE
     seed = Path('services/leaderboard_seed.json')
@@ -211,25 +240,7 @@ def build_board(force: bool = False, window_years: int = WINDOW_YEARS) -> dict:
         except (OSError, ValueError, KeyError):
             pass
 
-    histories = {}
-    latest = {}
-    tickers = {BENCHMARK}
-    for fund in FUNDS:
-        if fund['kind'] == 'listed':
-            tickers.add(fund['ticker'])
-            if fund.get('fx'):
-                tickers.add(fund['fx'])
-            continue
-        filings = edgar_13f.fund_filings(fund['cik'], limit=20)
-        books = []
-        for filing in filings:
-            book = edgar_13f.book_for_filing(fund['cik'], filing)
-            book = edgar_13f.apply_aliases(book, fund.get('aliases'), ISSUER_ALIASES)
-            books.append((filing, book))
-            tickers.update(edgar_13f.weights_from_book(book).keys())
-        histories[fund['slug']] = books
-        latest[fund['slug']] = books[-1][1] if books else None
-        print(f"[leaderboard] {fund['slug']}: {len(books)} filings", flush=True)
+    tickers, histories, latest = collect()
 
     from services.market_data import market_data_service
     import pickle
@@ -242,8 +253,17 @@ def build_board(force: bool = False, window_years: int = WINDOW_YEARS) -> dict:
                 cached_prices = pickle.loads(price_cache.read_bytes())
         except Exception:
             cached_prices = {}
+    (CACHE_DIR / 'universe.json').write_text(json.dumps(sorted(tickers)))
+
     missing_tickers = [t for t in sorted(tickers) if t not in cached_prices]
-    batch = market_data_service.fetch_batch_data(missing_tickers, period=PRICE_PERIOD) if missing_tickers else {}
+    if missing_tickers and not allow_fetch:
+        # never hit the network implicitly: a deploy, a page view or a rebuild
+        # must not turn into an unplanned Yahoo fetch
+        print(f'[leaderboard] {len(missing_tickers)} tickers missing from cache; '
+              f'run the refresh API to fetch them', flush=True)
+        batch = {}
+    else:
+        batch = market_data_service.fetch_batch_data(missing_tickers, period=PRICE_PERIOD) if missing_tickers else {}
     missing = [t for t in tickers if batch.get(t) is None]
     for ticker in missing:  # transient batch failures: retry one by one
         try:

@@ -566,6 +566,57 @@ def fund_analysis(slug):
                            cca=None, report_id=f"fund-{slug}", show_analysis=True)
 
 
+def _refresh_authorized() -> bool:
+    if _leaderboard_admin_ok():
+        return True
+    token = request.headers.get('X-API-Key') or request.args.get('key')
+    if not token:
+        return False
+    from models.database import ApiCredential
+    row = ApiCredential.query.filter_by(provider='leaderboard_refresh', is_active=True).first()
+    return bool(row and token == row.api_key)
+
+
+@app.route('/api/leaderboard/refresh', methods=['POST'])
+def api_leaderboard_refresh():
+    """Explicit, gradual price refresh. Never called by page views or deploys."""
+    if not _refresh_authorized():
+        abort(403)
+    from services import leaderboard_refresh as refresh
+    from services.leaderboard_refresh import state as refresh_state
+
+    current = refresh_state()
+    if current.get('running'):
+        return jsonify({'ok': True, 'message': 'already running', 'state': current})
+
+    import threading
+
+    def run():
+        try:
+            refresh.refresh_all()
+        except Exception as exc:
+            refresh._save_state(running=False, last_error=str(exc))
+
+    threading.Thread(target=run, daemon=True, name='leaderboard-refresh').start()
+    return jsonify({'ok': True, 'message': 'refresh started', 'state': refresh_state()})
+
+
+@app.route('/api/leaderboard/status')
+def api_leaderboard_status():
+    if not _refresh_authorized():
+        abort(403)
+    from services.leaderboard_refresh import state as refresh_state
+    from services.leaderboard import build_board
+    payload = refresh_state()
+    try:
+        board = build_board()
+        payload['board'] = {'as_of': board.get('as_of'), 'computed_at': board.get('computed_at'),
+                            'rows': len(board.get('rows', []))}
+    except Exception:
+        payload['board'] = None
+    return jsonify(payload)
+
+
 @app.route('/leaderboard/admin')
 @login_required
 def leaderboard_admin():
@@ -621,13 +672,13 @@ def leaderboard_admin_refresh():
     if _lb_refresh_state['running']:
         return jsonify({'ok': False, 'message': 'A refresh is already running'}), 409
     import threading
-    from services.leaderboard import build_board
+    from services.leaderboard_refresh import refresh_all
 
     def run():
         _lb_refresh_state.update(running=True, started=datetime.utcnow().isoformat(),
                                  finished=None, error=None)
         try:
-            build_board(force=True)
+            refresh_all()
             _lb_refresh_state['finished'] = datetime.utcnow().isoformat()
         except Exception as exc:
             _lb_refresh_state['error'] = str(exc)
@@ -2904,8 +2955,8 @@ def debug_session():
 # =============================================================================
 
 def _start_leaderboard_scheduler():
-    """Weekly, overnight, off-peak rebuild. Manual refresh stays available."""
-    if os.getenv('ENABLE_LEADERBOARD_SCHEDULER', '1') == '0':
+    """Opt-in weekly refresh, in small paused batches. Off unless enabled."""
+    if os.getenv('ENABLE_LEADERBOARD_SCHEDULER', '0') != '1':
         return
     import threading
     import time as _time
@@ -2921,9 +2972,10 @@ def _start_leaderboard_scheduler():
                     age = datetime.utcnow() - datetime.fromtimestamp(path.stat().st_mtime)
                     stale = age > timedelta(days=7)
                 if stale and 1 <= datetime.utcnow().hour <= 4:
-                    app.logger.info('leaderboard: scheduled refresh starting')
-                    build_board(force=True)
-                    app.logger.info('leaderboard: scheduled refresh complete')
+                    from services.leaderboard_refresh import refresh_all
+                    app.logger.info('leaderboard: scheduled gradual refresh starting')
+                    refresh_all()
+                    app.logger.info('leaderboard: scheduled gradual refresh complete')
             except Exception as exc:  # never let the scheduler kill the app
                 app.logger.warning('leaderboard scheduler: %s', exc)
             _time.sleep(3600)
