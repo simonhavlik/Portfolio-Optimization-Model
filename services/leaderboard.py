@@ -291,6 +291,7 @@ def build_board(force: bool = False, window_years: int = WINDOW_YEARS, allow_fet
     for fund in FUNDS:
         try:
             series = _fund_series(fund, prices, histories.get(fund['slug'], []))
+            full = series
             series = _window(series, window_years)
             metrics = _metrics(series, benchmark) if not series.empty else {}
         except Exception as exc:  # one bad fund must not sink the board
@@ -315,7 +316,9 @@ def build_board(force: bool = False, window_years: int = WINDOW_YEARS, allow_fet
             'crisis': {},
         }
         for key, _label, start, end in CRISIS_WINDOWS:
-            row['crisis'][key] = _crisis_return(series, start, end)
+            # crises fall outside the five-year ranking window, so they are
+            # measured on the full series rather than the windowed one
+            row['crisis'][key] = _crisis_return(full, start, end)
         if fund['kind'] == '13f' and book:
             current = edgar_13f.weights_from_book(book)
             top = max(current.values()) if current else None
@@ -348,6 +351,13 @@ def build_board(force: bool = False, window_years: int = WINDOW_YEARS, allow_fet
         'crisis': [{'key': k, 'label': l, 'start': s, 'end': e} for k, l, s, e in CRISIS_WINDOWS],
     }
     path.write_text(json.dumps(payload, default=str))
+
+    try:  # pre-render the chart board alongside the ranking
+        from services.leaderboard_charts import warm
+        warm(payload, CACHE_DIR, payload.get('as_of'))
+    except Exception as exc:
+        print(f'[leaderboard] chart warm failed: {exc}', flush=True)
+
     return payload
 
 

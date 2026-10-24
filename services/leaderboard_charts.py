@@ -100,11 +100,17 @@ def _hbar(board: dict, key: str, *, metric: str | None = None, pct: bool = False
 
 
 def _crisis(board: dict) -> io.BytesIO:
-    rows = [r for r in board['rows'] if (r.get('crisis') or {}).get('covid') is not None]
-    rows.sort(key=lambda r: r['crisis'].get('y2022') or 0, reverse=True)
+    def present(row, key):
+        value = (row.get('crisis') or {}).get(key)
+        return float('nan') if value is None else value * 100
+
+    rows = [r for r in board['rows']
+            if (r.get('crisis') or {}).get('covid') is not None
+            or (r.get('crisis') or {}).get('y2022') is not None]
+    rows.sort(key=lambda r: (r['crisis'].get('y2022') if r['crisis'].get('y2022') is not None else -9), reverse=True)
     names = [r['name'] for r in rows]
-    covid = [(r['crisis'].get('covid') or 0) * 100 for r in rows]
-    bear = [(r['crisis'].get('y2022') or 0) * 100 for r in rows]
+    covid = [present(r, 'covid') for r in rows]
+    bear = [present(r, 'y2022') for r in rows]
 
     fig, ax = plt.subplots(figsize=(9.6, 4.4), dpi=150)
     fig.patch.set_facecolor(INK)

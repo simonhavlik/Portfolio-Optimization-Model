@@ -53,22 +53,36 @@ def _write_cache(name: str, data) -> None:
     _cache_path(name).write_text(json.dumps({'_cached_at': datetime.utcnow().isoformat(), 'data': data}))
 
 
+_LAST_SEC_CALL = [0.0]
+_SEC_MIN_GAP = SEC_PAUSE
+
+
 def _sec_get(url: str) -> bytes:
-    global _last_sec_call
-    wait = SEC_PAUSE - (time.time() - _last_sec_call)
-    if wait > 0:
-        time.sleep(wait)
-    _last_sec_call = time.time()
-    request = urllib.request.Request(url, headers=UA)
-    for attempt in range(3):
+    """Polite SEC fetch: minimum gap between calls, retry with backoff on 429/503."""
+    import time as _time
+    global _LAST_SEC_CALL
+    last_error = None
+    for attempt in range(5):
+        gap = _time.time() - _LAST_SEC_CALL[0]
+        if gap < _SEC_MIN_GAP:
+            _time.sleep(_SEC_MIN_GAP - gap)
+        request = urllib.request.Request(url, headers=UA)
         try:
-            return urllib.request.urlopen(request, timeout=40).read()
+            _LAST_SEC_CALL[0] = _time.time()
+            body = urllib.request.urlopen(request, timeout=40).read()
+            if body[:2] == b'\x1f\x8b':
+                import gzip
+                body = gzip.decompress(body)
+            return body
         except urllib.error.HTTPError as exc:
-            if exc.code == 429 and attempt < 2:
-                time.sleep(1.2 * (attempt + 1))
-                continue
-            raise
-    raise RuntimeError('SEC request failed')
+            last_error = exc
+            if exc.code not in (429, 503, 502, 504):
+                raise
+            _time.sleep(2.0 * (attempt + 1))
+        except Exception as exc:
+            last_error = exc
+            _time.sleep(1.5 * (attempt + 1))
+    raise last_error
 
 
 def latest_13f_index(cik: str) -> dict:
