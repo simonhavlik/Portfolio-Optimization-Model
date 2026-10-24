@@ -364,7 +364,11 @@ class ExamplePortfolioService:
     
     def compute_custom(self, holdings: list, period: str = '2y',
                        name: str = 'Your portfolio',
-                       description: str = '') -> Dict[str, Any]:
+                       description: str = '',
+                       risk_free_rate: float = 0.045,
+                       benchmark: str = 'SPY',
+                       n_simulations: int = 5000,
+                       horizon_days: int = 252) -> Dict[str, Any]:
         """Run the exact example pipeline for arbitrary holdings."""
         normalised = []
         total = sum(float(h.get('weight') or 0) for h in holdings) or 1.0
@@ -379,6 +383,10 @@ class ExamplePortfolioService:
             'description': description,
             'holdings': normalised,
             'period': period or '2y',
+            'risk_free_rate': risk_free_rate,
+            'benchmark': benchmark,
+            'n_simulations': n_simulations,
+            'horizon_days': horizon_days,
         })
 
     def refresh_cache(self) -> Dict[str, Any]:
@@ -435,7 +443,11 @@ class ExamplePortfolioService:
         tickers = [h['ticker'] for h in holdings]
         weights_dict = {h['ticker']: h['weight'] for h in holdings}
         period = portfolio.get('period', '2y')
-        
+        risk_free = float(portfolio.get('risk_free_rate') if portfolio.get('risk_free_rate') is not None else 0.045)
+        benchmark = (portfolio.get('benchmark') or 'SPY').upper()
+        n_sims = int(portfolio.get('n_simulations') or 5000)
+        horizon_days = int(portfolio.get('horizon_days') or 252)
+
         # Fetch market data
         batch_data = market_data_service.fetch_batch_data(tickers, period=period)
         valid_data = {t: d for t, d in batch_data.items() if d is not None}
@@ -453,12 +465,13 @@ class ExamplePortfolioService:
         portfolio_returns = returns_df @ weights_array
         
         # Market data for beta calculation
-        spy_data = market_data_service.fetch_historical_data('SPY', period=period)
+        spy_data = market_data_service.fetch_historical_data(benchmark, period=period)
         market_returns = spy_data.returns if spy_data else None
-        
+
         # 1. Risk Metrics
         logger.info("Computing risk metrics...")
-        risk_metrics = risk_analytics.calculate_comprehensive_metrics(portfolio_returns, market_returns)
+        risk_metrics = risk_analytics.calculate_comprehensive_metrics(
+            portfolio_returns, market_returns, risk_free_rate=risk_free)
         
         # 2. Advanced Risk
         logger.info("Computing advanced risk...")
@@ -472,11 +485,11 @@ class ExamplePortfolioService:
         # 4. Monte Carlo Simulation (reduced for memory efficiency on low-RAM deployments)
         logger.info("Running Monte Carlo...")
         mc_results = advanced_statistics.monte_carlo_simulation(
-            portfolio_returns, 
+            portfolio_returns,
             weights_array,
             initial_value=100000,
-            n_simulations=500,  # Reduced from 5000 for memory efficiency
-            n_days=126  # Reduced from 252 (6 months instead of 1 year)
+            n_simulations=n_sims,
+            n_days=horizon_days
         )
         
         # 5. Statistical Tests
@@ -528,7 +541,8 @@ class ExamplePortfolioService:
         
         # 15. Benchmarks
         logger.info("Fetching benchmark data...")
-        benchmarks = risk_analytics.get_benchmark_data(['SPY', 'VT'], period=period)
+        bench_list = [benchmark, 'VT'] if benchmark != 'VT' else [benchmark, 'SPY']
+        benchmarks = risk_analytics.get_benchmark_data(bench_list, period=period)
         
         # 16. Monthly returns
         logger.info("Computing monthly returns heatmap...")
@@ -596,7 +610,10 @@ class ExamplePortfolioService:
                 'computed_at': datetime.utcnow().isoformat(),
                 'period': period,
                 'n_assets': len(holdings),
-                'n_simulations': 5000
+                'n_simulations': n_sims,
+                'horizon_days': horizon_days,
+                'risk_free_rate': risk_free,
+                'benchmark': benchmark
             },
             'metrics': risk_metrics,
             'advanced_risk': advanced_risk_metrics,

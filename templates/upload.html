@@ -32,10 +32,15 @@
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
     <!-- Upload Panel -->
     <div class="lg:col-span-1">
-        <div class="bg-white rounded-xl shadow-lg p-6 sticky top-8">
+        <div class="bg-white rounded-xl shadow-lg p-6">
             <h2 class="text-lg font-semibold text-gray-900 mb-3">
                 <i class="fas fa-cloud-upload-alt text-primary-600 mr-2"></i>Upload Statement
             </h2>
+
+            <div class="flex items-center justify-between gap-2 mb-3 px-2.5 py-1.5 rounded-md bg-slate-50 border border-slate-200">
+                <span class="text-[11px] text-slate-500 truncate" id="settings-inline">2Y · SPY · 4.5% rf · 5,000 paths</span>
+                <a href="#analysis-settings" id="settings-jump" class="text-[11px] font-medium text-primary-600 hover:underline whitespace-nowrap">Edit</a>
+            </div>
 
             <div class="flex gap-2 mb-4">
                 <button type="button" id="tab-file" class="px-3 py-1.5 text-sm rounded-md bg-primary-600 text-white font-medium">Upload file</button>
@@ -119,6 +124,81 @@
                 <div class="mt-2 text-xs text-gray-500 text-center">
                     <span id="processing-step">Extracting text</span>
                 </div>
+            </div>
+        </div>
+
+        <!-- Analysis parameters -->
+        <div class="bg-white rounded-xl shadow-lg p-5 border border-slate-200 mt-6" id="analysis-settings">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">
+                        <i class="fas fa-sliders text-primary-600 mr-2"></i>Analysis parameters
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-1">Applied to every run started on this page.</p>
+                </div>
+                <button type="button" id="settings-reset" class="text-xs text-slate-500 hover:text-slate-800 transition">Reset</button>
+            </div>
+
+            <div class="space-y-3.5">
+                <div>
+                    <div class="flex items-center justify-between mb-1.5">
+                        <label class="block text-sm font-medium text-gray-700">Lookback window</label>
+                        <span class="text-[11px] text-gray-500" id="lookback-note">2Y covers a full cycle</span>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1" id="seg-period">
+                        <button type="button" class="px-2 py-1.5 text-xs rounded-md border border-slate-300 text-slate-600" data-value="1y">1Y</button>
+                        <button type="button" class="px-2 py-1.5 text-xs rounded-md border border-slate-300 text-slate-600" data-value="2y">2Y</button>
+                        <button type="button" class="px-2 py-1.5 text-xs rounded-md border border-slate-300 text-slate-600" data-value="3y">3Y</button>
+                        <button type="button" class="px-2 py-1.5 text-xs rounded-md border border-slate-300 text-slate-600" data-value="5y">5Y</button>
+                        <button type="button" class="px-2 py-1.5 text-xs rounded-md border border-slate-300 text-slate-600" data-value="max">Max</button>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="set-benchmark" class="block text-sm font-medium text-gray-700 mb-1.5">Benchmark</label>
+                        <select id="set-benchmark" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                            <option value="SPY">SPY — S&amp;P 500</option>
+                            <option value="QQQ">QQQ — Nasdaq 100</option>
+                            <option value="IWM">IWM — Russell 2000</option>
+                            <option value="VT">VT — World</option>
+                            <option value="DIA">DIA — Dow 30</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="set-rf" class="block text-sm font-medium text-gray-700 mb-1.5">Risk-free rate</label>
+                        <div class="relative">
+                            <input id="set-rf" type="number" min="0" max="15" step="0.1" value="4.5"
+                                   class="w-full px-3 py-2 pr-8 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                            <span class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-500">%</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="set-sims" class="block text-sm font-medium text-gray-700 mb-1.5">Monte Carlo paths</label>
+                        <select id="set-sims" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                            <option value="1000">1,000 — fast</option>
+                            <option value="5000" selected>5,000 — standard</option>
+                            <option value="10000">10,000 — dense</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="set-horizon" class="block text-sm font-medium text-gray-700 mb-1.5">Simulation horizon</label>
+                        <select id="set-horizon" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                            <option value="126">6 months</option>
+                            <option value="252" selected>12 months</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1.5">Weighting</label>
+                    <div class="grid grid-cols-2 gap-1" id="seg-weighting">
+                        <button type="button" class="px-2 py-1.5 text-xs rounded-md border border-slate-300 text-slate-600" data-value="specified">As specified</button>
+                        <button type="button" class="px-2 py-1.5 text-xs rounded-md border border-slate-300 text-slate-600" data-value="equal">Equal weight</button>
+                    </div>
+                </div>
+
+                <p class="text-[11px] text-gray-500 leading-relaxed" id="settings-summary"></p>
             </div>
         </div>
     </div>
@@ -265,11 +345,127 @@
 {% block extra_js %}
 <script>
 
+/* ---------------- analysis parameters ---------------- */
+
+const ANALYSIS_DEFAULTS = { period: '2y', benchmark: 'SPY', riskFree: 4.5, simulations: 5000, horizon: 252, weighting: 'specified' };
+const ANALYSIS_STORE = 'optimizer.analysisParams';
+
+function segValue(id) {
+    const el = document.getElementById(id);
+    const active = el ? el.querySelector('.is-active') : null;
+    return active ? active.dataset.value : null;
+}
+
+function setSeg(id, value) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.querySelectorAll('[data-value]').forEach(btn => {
+        const on = btn.dataset.value === value;
+        btn.classList.toggle('is-active', on);
+        btn.classList.toggle('bg-primary-600', on);
+        btn.classList.toggle('text-white', on);
+        btn.classList.toggle('border-primary-600', on);
+        btn.classList.toggle('text-slate-600', !on);
+        btn.classList.toggle('border-slate-300', !on);
+    });
+}
+
+function readAnalysisSettings() {
+    const rf = parseFloat(document.getElementById('set-rf').value);
+    return {
+        period: segValue('seg-period') || '2y',
+        benchmark: document.getElementById('set-benchmark').value || 'SPY',
+        riskFree: isFinite(rf) ? Math.min(Math.max(rf, 0), 15) : 4.5,
+        simulations: parseInt(document.getElementById('set-sims').value, 10) || 5000,
+        horizon: parseInt(document.getElementById('set-horizon').value, 10) || 252,
+        weighting: segValue('seg-weighting') || 'specified'
+    };
+}
+
+function saveAnalysisSettings() {
+    try { localStorage.setItem(ANALYSIS_STORE, JSON.stringify(readAnalysisSettings())); } catch (e) {}
+}
+
+function updateSettingsSummary() {
+    const s = readAnalysisSettings();
+    const lookback = { '1y': '1-year', '2y': '2-year', '3y': '3-year', '5y': '5-year', max: 'max-history' }[s.period] || '2-year';
+    const els = [
+        lookback + ' lookback',
+        s.benchmark + ' benchmark',
+        s.riskFree.toFixed(1) + '% risk-free',
+        s.simulations.toLocaleString() + ' paths / ' + (s.horizon === 126 ? '6 mo' : '12 mo'),
+        s.weighting === 'equal' ? 'equal weights' : 'weights as specified'
+    ];
+    const out = document.getElementById('settings-summary');
+    if (out) out.textContent = els.join('  ·  ');
+    const inline = document.getElementById('settings-inline');
+    if (inline) {
+        inline.textContent = s.period.toUpperCase() + ' · ' + s.benchmark + ' · ' +
+            s.riskFree.toFixed(1) + '% rf · ' + s.simulations.toLocaleString() + ' paths';
+    }
+}
+
+function applyAnalysisSettings(settings) {
+    const s = Object.assign({}, ANALYSIS_DEFAULTS, settings || {});
+    setSeg('seg-period', s.period);
+    setSeg('seg-weighting', s.weighting);
+    document.getElementById('set-benchmark').value = s.benchmark;
+    document.getElementById('set-rf').value = s.riskFree;
+    document.getElementById('set-sims').value = String(s.simulations);
+    document.getElementById('set-horizon').value = String(s.horizon);
+    updateSettingsSummary();
+}
+
+(function initAnalysisSettings() {
+    let stored = null;
+    try { stored = JSON.parse(localStorage.getItem(ANALYSIS_STORE) || 'null'); } catch (e) {}
+    applyAnalysisSettings(stored);
+
+    ['seg-period', 'seg-weighting'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('click', evt => {
+            const btn = evt.target.closest('[data-value]');
+            if (!btn) return;
+            setSeg(id, btn.dataset.value);
+            updateSettingsSummary();
+            saveAnalysisSettings();
+        });
+    });
+
+    ['set-benchmark', 'set-rf', 'set-sims', 'set-horizon'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.addEventListener('change', () => { updateSettingsSummary(); saveAnalysisSettings(); });
+        el.addEventListener('input', () => { updateSettingsSummary(); saveAnalysisSettings(); });
+    });
+
+    const reset = document.getElementById('settings-reset');
+    if (reset) reset.addEventListener('click', () => {
+        try { localStorage.removeItem(ANALYSIS_STORE); } catch (e) {}
+        applyAnalysisSettings(ANALYSIS_DEFAULTS);
+        saveAnalysisSettings();
+        showToast('Analysis parameters reset', 'success');
+    });
+})();
+
 async function openFullReport(holdings, name) {
+    const settings = readAnalysisSettings();
+    const payloadHoldings = settings.weighting === 'equal'
+        ? holdings.map(h => Object.assign({}, h, { weight: 1 }))
+        : holdings;
     const response = await fetch('/api/analyse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ holdings: holdings, name: name || 'Your portfolio' })
+        body: JSON.stringify({
+            holdings: payloadHoldings,
+            name: name || 'Your portfolio',
+            period: settings.period,
+            benchmark: settings.benchmark,
+            risk_free_rate: settings.riskFree / 100,
+            n_simulations: settings.simulations,
+            horizon_days: settings.horizon
+        })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Full analysis failed');

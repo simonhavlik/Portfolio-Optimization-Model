@@ -370,12 +370,38 @@ def analyse_custom():
     if len(clean) > 50:
         return jsonify({'error': 'Maximum 50 holdings'}), 400
 
+    period = str(data.get('period') or '2y').lower()
+    if period not in ('6mo', '1y', '2y', '3y', '5y', '10y', 'max'):
+        period = '2y'
+    try:
+        risk_free = float(data.get('risk_free_rate', 0.045))
+    except (TypeError, ValueError):
+        risk_free = 0.045
+    risk_free = min(max(risk_free, 0.0), 0.25)
+    benchmark = str(data.get('benchmark') or 'SPY').upper().strip()[:8] or 'SPY'
+    if not benchmark.isalnum():
+        benchmark = 'SPY'
+    try:
+        n_sims = int(data.get('n_simulations') or 5000)
+    except (TypeError, ValueError):
+        n_sims = 5000
+    n_sims = min(max(n_sims, 200), 20000)
+    try:
+        horizon_days = int(data.get('horizon_days') or 252)
+    except (TypeError, ValueError):
+        horizon_days = 252
+    horizon_days = min(max(horizon_days, 21), 504)
+
     try:
         analysis = example_portfolio_service.compute_custom(
             clean,
-            period=data.get('period', '2y'),
+            period=period,
             name=data.get('name') or 'Your portfolio',
             description=data.get('description') or '',
+            risk_free_rate=risk_free,
+            benchmark=benchmark,
+            n_simulations=n_sims,
+            horizon_days=horizon_days,
         )
     except Exception as exc:
         logger.error(f"Custom analysis failed: {exc}")
@@ -390,7 +416,7 @@ def analyse_custom():
     db.session.add(SavedReport(
         user_id=session['user_id'], token=token,
         name=(data.get('name') or 'Your portfolio')[:120],
-        period=data.get('period', '2y'),
+        period=period,
         holdings=clean,
         summary={
             'annualized_return': metrics.get('annualized_return'),

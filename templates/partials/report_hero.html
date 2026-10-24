@@ -1,8 +1,9 @@
 {# Dedicated report header: terminal-style title bar, return strip, tools. #}
 {% set m = example_data.metrics %}
 {% set bench_map = example_data.benchmarks or {} %}
-{% set bench_series = bench_map.get('SPY') or bench_map.get('VT') or [] %}
-{% set bench_name = 'SPY' if bench_map.get('SPY') else ('VT' if bench_map.get('VT') else '') %}
+{% set chosen_bench = example_data.meta.benchmark or 'SPY' %}
+{% set bench_series = bench_map.get(chosen_bench) or bench_map.get('SPY') or bench_map.get('VT') or [] %}
+{% set bench_name = chosen_bench if bench_map.get(chosen_bench) else ('SPY' if bench_map.get('SPY') else ('VT' if bench_map.get('VT') else '')) %}
 
 <section class="rep" aria-labelledby="rep-title">
     <div class="rep-inner">
@@ -44,7 +45,9 @@
                 <h1 id="rep-title" class="rep-title">{{ example_data.meta.name }}</h1>
                 <p class="rep-sub">
                     {{ example_data.meta.n_assets }} positions
-                    <span class="sep">&middot;</span>{{ example_data.meta.n_simulations|default(5000) }} simulations
+                    <span class="sep">&middot;</span>{{ example_data.meta.n_simulations|default(5000) }} paths
+                    <span class="sep">&middot;</span>{{ example_data.meta.benchmark|default('SPY') }} benchmark
+                    {% if example_data.meta.risk_free_rate is defined %}<span class="sep">&middot;</span>{{ "%.1f"|format(example_data.meta.risk_free_rate * 100) }}% risk-free{% endif %}
                     {% if example_data.meta.description %}<span class="sep">&middot;</span>{{ example_data.meta.description }}{% endif %}
                 </p>
             </div>

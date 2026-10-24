@@ -79,6 +79,9 @@ class RiskAnalytics:
     
     BENCHMARK_TICKERS = {
         'SPY': 'S&P 500',
+        'QQQ': 'Nasdaq 100',
+        'IWM': 'Russell 2000',
+        'DIA': 'Dow 30',
         'VT': 'FTSE All-World',
         'AGG': 'US Aggregate Bonds',
         'GLD': 'Gold'
