@@ -28,7 +28,6 @@
         var canvas = document.getElementById('hero-webgl');
         if (!canvas || !window.THREE) return;
 
-        var demo = hero.querySelector('[data-demo]');
         var scene = new THREE.Scene();
         scene.fog = new THREE.FogExp2(0x06070a, 0.085);
 
@@ -217,32 +216,6 @@
             }, { threshold: 0.05 }).observe(hero);
         }
 
-        /* parallax tilt on the demo window */
-        if (demo && !reduce && window.matchMedia('(hover: hover)').matches) {
-            var win = demo.querySelector('.demo-window');
-            /* the panel sits still; only a whisper of parallax */
-            var tilt = { x: 0, y: 0, tx: 0, ty: 0, raf: null };
-            function tiltFrame() {
-                tilt.x += (tilt.tx - tilt.x) * 0.08;
-                tilt.y += (tilt.ty - tilt.y) * 0.08;
-                win.style.transform = 'perspective(1600px) rotateY(' + (tilt.x * 0.7).toFixed(3) + 'deg) rotateX(' + (-tilt.y * 0.5).toFixed(3) + 'deg)';
-                if (Math.abs(tilt.tx - tilt.x) > 0.0005 || Math.abs(tilt.ty - tilt.y) > 0.0005) {
-                    tilt.raf = requestAnimationFrame(tiltFrame);
-                } else {
-                    tilt.raf = null;
-                }
-            }
-            demo.addEventListener('pointermove', function (e) {
-                var rect = demo.getBoundingClientRect();
-                tilt.tx = ((e.clientX - rect.left) / rect.width - 0.5) * 2;
-                tilt.ty = ((e.clientY - rect.top) / rect.height - 0.5) * 2;
-                if (!tilt.raf) tilt.raf = requestAnimationFrame(tiltFrame);
-            }, { passive: true });
-            demo.addEventListener('pointerleave', function () {
-                tilt.tx = 0; tilt.ty = 0;
-                if (!tilt.raf) tilt.raf = requestAnimationFrame(tiltFrame);
-            }, { passive: true });
-        }
     }
 
     /* ---------------- walkthrough ---------------- */

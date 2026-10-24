@@ -5,6 +5,7 @@ from io import BytesIO
 
 import numpy as np
 from openpyxl import Workbook
+from openpyxl.chart import AreaChart, BarChart, LineChart, Reference
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
@@ -276,6 +277,70 @@ def build(example_data: dict, valuation: dict, cca: dict = None) -> BytesIO:
         ws.column_dimensions["A"].width = 12
         for col in "BCDEF":
             ws.column_dimensions[col].width = 14
+
+    # Charts --------------------------------------------------------------
+    if dates and rets:
+        from openpyxl.chart.axis import ChartLines
+
+        ts = wb["Time series"]
+        last = 4 + len(dates)
+        charts_ws = wb.create_sheet("Charts")
+        _title(charts_ws, "Generated charts", "Live from the same series as the report")
+
+        perf = LineChart()
+        perf.title = "Growth of 100"
+        perf.style = 2
+        perf.height = 9.5
+        perf.width = 21
+        perf.y_axis.title = "Index"
+        perf.x_axis.title = None
+        perf.x_axis.delete = False
+        perf.y_axis.majorGridlines = ChartLines()
+        data = Reference(ts, min_col=3, min_row=4, max_row=last)
+        perf.add_data(data, titles_from_data=True)
+        if bench:
+            data_b = Reference(ts, min_col=5, min_row=4, max_row=last)
+            perf.add_data(data_b, titles_from_data=True)
+        cats = Reference(ts, min_col=1, min_row=5, max_row=last)
+        perf.set_categories(cats)
+        for series in perf.series:
+            series.smooth = False
+            series.graphicalProperties.line.width = 22000
+        perf.series[0].graphicalProperties.line.solidFill = "A8824A"
+        if len(perf.series) > 1:
+            perf.series[1].graphicalProperties.line.solidFill = "7F8A94"
+        charts_ws.add_chart(perf, "B4")
+
+        dd = AreaChart()
+        dd.title = "Drawdown"
+        dd.style = 2
+        dd.height = 8
+        dd.width = 21
+        dd.y_axis.numFmt = "0.0%"
+        dd.y_axis.majorGridlines = ChartLines()
+        ddata = Reference(ts, min_col=4, min_row=4, max_row=last)
+        dd.add_data(ddata, titles_from_data=True)
+        dd.set_categories(cats)
+        dd.series[0].graphicalProperties.solidFill = "B5544A"
+        dd.series[0].graphicalProperties.line.solidFill = "B5544A"
+        charts_ws.add_chart(dd, "B26")
+
+        if holdings:
+            ws_h = wb["Holdings"]
+            alloc = BarChart()
+            alloc.type = "bar"
+            alloc.title = "Allocation"
+            alloc.style = 2
+            alloc.height = 9
+            alloc.width = 21
+            alloc.y_axis.title = None
+            alloc.x_axis.title = None
+            data_h = Reference(ws_h, min_col=4, min_row=4, max_row=4 + len(holdings))
+            cats_h = Reference(ws_h, min_col=1, min_row=5, max_row=4 + len(holdings))
+            alloc.add_data(data_h, titles_from_data=True)
+            alloc.set_categories(cats_h)
+            alloc.series[0].graphicalProperties.solidFill = "A8824A"
+            charts_ws.add_chart(alloc, "B44")
 
     # Stress --------------------------------------------------------------
     ws = wb.create_sheet("Stress")
