@@ -915,57 +915,6 @@ html.has-hero { overflow-x: hidden; }
 
 /* ---------- nav over hero ---------- */
 
-html.has-hero body .site-nav {
-    background: transparent !important;
-    border-bottom-color: transparent !important;
-    transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
-}
-html.has-hero body .site-nav .nav-brand-text { color: #f1ede5; transition: color 0.25s ease; }
-html.has-hero body .site-nav .nav-brand-sub { color: rgba(200, 193, 178, 0.55); transition: color 0.25s ease; }
-html.has-hero body .site-nav .nav-brand-icon {
-    background: linear-gradient(145deg, #e8cd97, #b98d47) !important;
-}
-html.has-hero body .site-nav .nav-item {
-    color: rgba(236, 233, 226, 0.66) !important;
-    transition: color 0.2s ease, background 0.2s ease;
-}
-html.has-hero body .site-nav .nav-item:hover { color: #fff !important; background: rgba(255, 255, 255, 0.06) !important; }
-html.has-hero body .site-nav .nav-item i { color: rgba(200, 161, 90, 0.72) !important; }
-html.has-hero body .site-nav .nav-cta {
-    background: transparent !important;
-    border: 1px solid rgba(200, 161, 90, 0.5);
-    color: rgba(232, 205, 151, 0.95) !important;
-    box-shadow: none !important;
-    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-html.has-hero body .site-nav .nav-cta:hover {
-    background: rgba(200, 161, 90, 0.14) !important;
-    border-color: rgba(200, 161, 90, 0.85);
-    color: #fff !important;
-}
-html.has-hero body .site-nav.nav-solid .nav-cta {
-    background: #1b2430 !important;
-    border-color: transparent;
-    color: #fff !important;
-    box-shadow: 0 10px 24px -16px rgba(14, 17, 22, 0.9) !important;
-}
-html.has-hero body .site-nav .nav-burger { color: rgba(241, 237, 229, 0.85) !important; }
-html.has-hero body .site-nav .nav-burger:hover { background: rgba(255, 255, 255, 0.06) !important; }
-
-html.has-hero body .site-nav.nav-solid {
-    background: rgba(8, 10, 13, 0.86) !important;
-    border-bottom-color: rgba(236, 233, 226, 0.10) !important;
-    box-shadow: 0 18px 40px -34px rgba(0, 0, 0, 0.95);
-    backdrop-filter: saturate(140%) blur(12px);
-}
-html.has-hero body .site-nav.nav-solid .nav-brand-text { color: #f1ede5; }
-html.has-hero body .site-nav.nav-solid .nav-brand-sub { color: rgba(200, 193, 178, 0.55); }
-html.has-hero body .site-nav.nav-solid .nav-brand-icon { background: linear-gradient(145deg, #e8cd97, #b98d47) !important; }
-html.has-hero body .site-nav.nav-solid .nav-item { color: rgba(236, 233, 226, 0.7) !important; }
-html.has-hero body .site-nav.nav-solid .nav-item:hover { color: #fff !important; background: rgba(255, 255, 255, 0.06) !important; }
-html.has-hero body .site-nav.nav-solid .nav-item i { color: rgba(200, 161, 90, 0.78) !important; }
-html.has-hero body .site-nav.nav-solid .nav-burger { color: #f1ede5 !important; }
-
 /* ---------- responsive ---------- */
 
 @media (max-width: 1120px) {

@@ -782,6 +782,194 @@
             .data-loader { transition: none; }
         }
         @media print { .data-loader { display: none !important; } }
+
+        /* ================= top bar ================= */
+        .site-nav {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: rgba(8, 10, 13, 0.88);
+            border-bottom: 1px solid rgba(236, 233, 226, 0.09);
+            -webkit-backdrop-filter: saturate(140%) blur(14px);
+            backdrop-filter: saturate(140%) blur(14px);
+        }
+        .nav-inner {
+            max-width: 1400px;
+            margin: 0 auto;
+            height: 58px;
+            padding: 0 clamp(16px, 3vw, 40px);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 22px;
+        }
+
+        .nav-brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; min-width: 0; }
+        .nav-mark {
+            width: 26px; height: 26px;
+            display: grid; place-items: center;
+            border: 1px solid rgba(200, 161, 90, 0.5);
+            background: rgba(200, 161, 90, 0.06);
+            color: #e8cd97;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9.5px;
+            letter-spacing: 0.04em;
+            flex: none;
+        }
+        .nav-name {
+            font-size: 14px; font-weight: 600; letter-spacing: -0.012em;
+            color: #f1ede5; white-space: nowrap;
+        }
+        .nav-tag {
+            padding-left: 9px;
+            border-left: 1px solid rgba(236, 233, 226, 0.14);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px; letter-spacing: 0.22em; text-transform: uppercase;
+            color: rgba(236, 233, 226, 0.36);
+        }
+
+        .nav-links { display: flex; align-items: center; gap: 2px; }
+        .nav-item {
+            position: relative;
+            display: inline-flex; align-items: baseline; gap: 6px;
+            padding: 9px 11px;
+            text-decoration: none;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+            color: rgba(236, 233, 226, 0.55);
+            border-radius: 2px;
+            transition: color 0.18s ease, background 0.18s ease;
+        }
+        .nav-item .n { font-size: 8px; color: rgba(200, 161, 90, 0.55); }
+        .nav-item:hover { color: #fff; background: rgba(255, 255, 255, 0.045); }
+        .nav-item.is-active { color: #f1ede5; }
+        .nav-item.is-active::after {
+            content: '';
+            position: absolute; left: 11px; right: 11px; bottom: 5px; height: 1px;
+            background: linear-gradient(90deg, rgba(200, 161, 90, 0.15), #c8a15a);
+        }
+
+        .nav-actions { display: flex; align-items: center; gap: 13px; }
+        .nav-signin {
+            padding: 8px 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9.5px; letter-spacing: 0.14em; text-transform: uppercase;
+            color: rgba(236, 233, 226, 0.6); text-decoration: none;
+        }
+        .nav-signin:hover { color: #fff; }
+        .nav-cta {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 9px 14px;
+            background: #d8b171;
+            border: 1px solid rgba(255, 255, 255, 0.22);
+            color: #14100a; text-decoration: none;
+            font-size: 11.5px; font-weight: 600; letter-spacing: -0.01em;
+            border-radius: 2px;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 1px 0 rgba(0, 0, 0, 0.25);
+        }
+        .nav-cta .arr { transition: transform 0.18s ease; }
+        .nav-cta:hover { background: #e4c084; }
+        .nav-cta:hover .arr { transform: translateX(2px); }
+
+        .nav-burger {
+            display: none;
+            padding: 7px 9px;
+            background: transparent;
+            border: 1px solid rgba(236, 233, 226, 0.16);
+            border-radius: 2px;
+            color: rgba(241, 237, 229, 0.85);
+            cursor: pointer;
+        }
+        .nav-burger:hover { border-color: rgba(200, 161, 90, 0.6); color: #fff; }
+
+        .user-menu { position: relative; }
+        .nav-user-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 4px 9px 4px 4px;
+            background: rgba(255, 255, 255, 0.035);
+            border: 1px solid rgba(236, 233, 226, 0.12);
+            border-radius: 2px;
+            color: rgba(241, 237, 229, 0.9);
+            cursor: pointer;
+            transition: border-color 0.18s ease, background 0.18s ease;
+        }
+        .nav-user-btn:hover { border-color: rgba(200, 161, 90, 0.5); background: rgba(255, 255, 255, 0.05); }
+        .nav-avatar {
+            width: 22px; height: 22px;
+            display: grid; place-items: center;
+            background: rgba(200, 161, 90, 0.16);
+            border: 1px solid rgba(200, 161, 90, 0.35);
+            color: #e8cd97;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+        }
+        .nav-user-name { font-size: 11px; font-weight: 500; }
+        .nav-chev { font-size: 8px; color: rgba(236, 233, 226, 0.4); }
+
+        .nav-panel {
+            position: absolute;
+            right: 0; top: calc(100% + 8px);
+            width: 232px;
+            padding: 6px 0;
+            background: #0b0e12;
+            border: 1px solid rgba(236, 233, 226, 0.12);
+            box-shadow: 0 34px 70px -34px rgba(0, 0, 0, 0.95);
+            z-index: 60;
+        }
+        .nav-panel::before { content: ''; position: absolute; left: 0; right: 0; top: -10px; height: 10px; }
+        .nav-panel-head { padding: 9px 12px; border-bottom: 1px solid rgba(236, 233, 226, 0.08); }
+        .nav-panel-head .k {
+            display: block;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 7.5px; letter-spacing: 0.18em; text-transform: uppercase;
+            color: rgba(236, 233, 226, 0.35);
+        }
+        .nav-panel-head .v {
+            display: block; margin-top: 3px;
+            font-size: 11px; color: #f1ede5;
+            overflow: hidden; text-overflow: ellipsis;
+        }
+        .nav-panel-item {
+            display: flex; align-items: center; gap: 9px;
+            padding: 9px 12px;
+            font-size: 11.5px;
+            color: rgba(236, 233, 226, 0.72);
+            text-decoration: none;
+        }
+        .nav-panel-item i { width: 12px; font-size: 10px; color: rgba(200, 161, 90, 0.7); }
+        .nav-panel-item:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+        .nav-panel-item.is-danger { color: #d18e7e; }
+        .nav-panel-rule { height: 1px; background: rgba(236, 233, 226, 0.08); margin: 5px 0; }
+
+        .nav-drawer {
+            display: block;
+            background: #0a0c10;
+            border-top: 1px solid rgba(236, 233, 226, 0.08);
+            padding: 4px 0 10px;
+        }
+        .nav-drawer.hidden { display: none; }
+        .nav-drawer a {
+            display: flex; align-items: baseline; gap: 10px;
+            padding: 12px 20px;
+            text-decoration: none;
+            color: rgba(236, 233, 226, 0.78);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+            border-bottom: 1px solid rgba(236, 233, 226, 0.05);
+        }
+        .nav-drawer a .n { font-size: 7.5px; color: rgba(200, 161, 90, 0.6); }
+        .nav-drawer a:hover { background: rgba(255, 255, 255, 0.04); color: #fff; }
+        .nav-drawer a.is-danger { color: #d18e7e; }
+        .nav-drawer a.is-accent { color: #e8cd97; }
+
+        @media (max-width: 980px) {
+            .nav-links, .nav-signin, .nav-user-name, .nav-tag { display: none; }
+            .nav-burger { display: inline-flex; }
+        }
+        @media (max-width: 520px) {
+            .nav-cta { padding: 8px 11px; font-size: 10.5px; }
+            .nav-name { font-size: 12.5px; }
+        }
     </style>
     
     {% block extra_css %}{% endblock %}
@@ -800,115 +988,67 @@
 </head>
 <body class="{% block body_class %}{% endblock %} bg-slate-50 text-slate-800 min-h-screen antialiased">
     <!-- Navigation -->
-    <nav class="site-nav bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between h-16">
-                <!-- Logo -->
-                <div class="flex items-center">
-                    <a href="/" class="nav-brand flex items-center space-x-3 group">
-                        <div class="nav-brand-icon w-10 h-10 rounded-xl bg-gradient-to-br from-primary-600 to-cyan-500 flex items-center justify-center group-hover:shadow-lg transition-all duration-300">
-                            <i class="fas fa-chart-line text-white text-lg"></i>
-                        </div>
-                        <div class="flex flex-col">
-                            <span class="nav-brand-text font-bold text-lg tracking-tight text-slate-900">Portfolio <span class="text-gradient">Optimizer</span></span>
-                            <span class="nav-brand-sub text-[10px] text-slate-500 -mt-1 tracking-widest uppercase">Quantitative Analytics</span>
-                        </div>
-                    </a>
-                </div>
-                
-                <!-- Desktop Navigation -->
-                <div class="hidden md:flex items-center space-x-1">
-                    <a href="/" class="nav-link nav-item px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all">
-                        <i class="fas fa-home mr-2 text-primary-600"></i> Dashboard
-                    </a>
-                    <a href="/upload" class="nav-link nav-item px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all">
-                        <i class="fas fa-cloud-upload-alt mr-2 text-emerald-600"></i> Upload
-                    </a>
-                    <a href="/reports" class="nav-link nav-item px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all">
-                        <i class="fas fa-clock-rotate-left mr-2 text-purple-600"></i> Reports
-                    </a>
-                    <a href="/optimize" class="nav-link nav-item px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-all">
-                        <i class="fas fa-calculator mr-2 text-cyan-600"></i> Optimize
-                    </a>
-                    
-                    {% if current_user.is_authenticated %}
-                        <div class="relative group ml-4 user-menu" data-user-menu>
-                            <button type="button" class="user-menu-trigger flex items-center space-x-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition-all" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-panel">
-                                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-600 to-purple-600 flex items-center justify-center">
-                                    <i class="fas fa-user text-white text-sm"></i>
-                                </div>
-                                <span class="font-medium text-sm text-slate-700">{{ current_user.first_name or current_user.email.split('@')[0] }}</span>
-                                <i class="fas fa-chevron-down text-xs text-slate-400 group-hover:rotate-180 transition-transform"></i>
-                            </button>
-                            
-                            <div id="user-menu-panel" data-user-menu-panel class="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-2 z-50 border border-slate-200">
-                                <div class="px-4 py-3 border-b border-slate-100 bg-slate-50">
-                                    <p class="text-xs text-slate-500 uppercase tracking-wider">Signed in as</p>
-                                    <p class="text-sm font-medium text-slate-900 truncate mt-0.5">{{ current_user.email }}</p>
-                                </div>
-                                <div class="py-2">
-                                    <a href="/profile" class="flex items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-primary-600 transition-colors">
-                                        <i class="fas fa-id-card w-5 mr-3 text-primary-600"></i>Profile
-                                    </a>
-                                    {% if current_user.is_admin %}
-                                    <a href="/admin" class="flex items-center px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 hover:text-primary-600 transition-colors">
-                                        <i class="fas fa-cog w-5 mr-3 text-amber-600"></i>Admin Dashboard
-                                    </a>
-                                    {% endif %}
-                                    <div class="border-t border-slate-100 my-2"></div>
-                                    <a href="/auth/logout" class="flex items-center px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
-                                        <i class="fas fa-sign-out-alt w-5 mr-3"></i>Logout
-                                    </a>
-                                </div>
-                            </div>
-                        </div>
-                    {% else %}
-                        <div class="flex items-center space-x-3 ml-4">
-                            <a href="/auth/login" class="nav-item px-4 py-2 rounded-lg text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
-                                Sign In
-                            </a>
-                            <a href="/auth/register" class="nav-cta px-5 py-2.5 rounded-xl bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700 hover:shadow-lg hover:shadow-primary-500/25 transition-all">
-                                Get Started
-                            </a>
-                        </div>
-                    {% endif %}
-                </div>
-                
-                <!-- Mobile menu button -->
-                <div class="md:hidden flex items-center">
-                    <button id="mobile-menu-btn" class="nav-burger p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors">
-                        <i class="fas fa-bars text-xl"></i>
+    <nav class="site-nav" data-nav>
+        <div class="nav-inner">
+            <a href="/" class="nav-brand">
+                <span class="nav-mark" aria-hidden="true">PO</span>
+                <span class="nav-name">Portfolio Optimizer</span>
+                <span class="nav-tag">Terminal</span>
+            </a>
+
+            <div class="nav-links">
+                <a href="/" class="nav-item{% if request.path == '/' %} is-active{% endif %}"><span class="n">01</span>Overview</a>
+                <a href="/upload" class="nav-item{% if request.path.startswith('/upload') %} is-active{% endif %}"><span class="n">02</span>Upload</a>
+                <a href="/reports" class="nav-item{% if request.path.startswith('/report') %} is-active{% endif %}"><span class="n">03</span>Reports</a>
+                <a href="/optimize" class="nav-item{% if request.path.startswith('/optimize') %} is-active{% endif %}"><span class="n">04</span>Optimize</a>
+            </div>
+
+            <div class="nav-actions">
+                {% if current_user.is_authenticated %}
+                <div class="user-menu" data-user-menu>
+                    <button type="button" class="user-menu-trigger nav-user-btn" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-panel">
+                        <span class="nav-avatar">{{ (current_user.first_name or current_user.email)[0]|upper }}</span>
+                        <span class="nav-user-name">{{ current_user.first_name or current_user.email.split('@')[0] }}</span>
+                        <i class="fas fa-chevron-down nav-chev" aria-hidden="true"></i>
                     </button>
+
+                    <div id="user-menu-panel" data-user-menu-panel class="nav-panel">
+                        <div class="nav-panel-head">
+                            <span class="k">Signed in as</span>
+                            <span class="v">{{ current_user.email }}</span>
+                        </div>
+                        <a href="/profile" class="nav-panel-item"><i class="fas fa-id-card" aria-hidden="true"></i>Profile</a>
+                        {% if current_user.is_admin %}
+                        <a href="/admin" class="nav-panel-item"><i class="fas fa-sliders-h" aria-hidden="true"></i>Admin</a>
+                        {% endif %}
+                        <div class="nav-panel-rule"></div>
+                        <a href="/auth/logout" class="nav-panel-item is-danger"><i class="fas fa-arrow-right-from-bracket" aria-hidden="true"></i>Sign out</a>
+                    </div>
                 </div>
+                {% else %}
+                <a href="/auth/login" class="nav-signin">Sign in</a>
+                <a href="/auth/register" class="nav-cta">Get started<span class="arr" aria-hidden="true">&rarr;</span></a>
+                {% endif %}
+
+                <button id="mobile-menu-btn" class="nav-burger" aria-label="Open menu">
+                    <i class="fas fa-bars" aria-hidden="true"></i>
+                </button>
             </div>
         </div>
-        
-        <!-- Mobile Navigation -->
-        <div id="mobile-menu" class="md:hidden hidden border-t border-slate-200 bg-white">
-            <div class="px-4 py-3 space-y-2">
-                <a href="/" class="flex items-center px-4 py-3 rounded-lg text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-colors">
-                    <i class="fas fa-home w-6 mr-3 text-primary-600"></i> Dashboard
-                </a>
-                <a href="/upload" class="flex items-center px-4 py-3 rounded-lg text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-colors">
-                    <i class="fas fa-cloud-upload-alt w-6 mr-3 text-emerald-600"></i> Upload
-                </a>
-                <a href="/reports" class="flex items-center px-4 py-3 rounded-lg text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-colors">
-                    <i class="fas fa-clock-rotate-left w-6 mr-3 text-purple-600"></i> Reports
-                </a>
-                <a href="/optimize" class="flex items-center px-4 py-3 rounded-lg text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-colors">
-                    <i class="fas fa-calculator w-6 mr-3 text-cyan-600"></i> Optimize
-                </a>
-                {% if not current_user.is_authenticated %}
-                    <div class="border-t border-slate-200 pt-3 mt-3">
-                        <a href="/auth/login" class="flex items-center px-4 py-3 rounded-lg text-slate-700 hover:text-slate-900 hover:bg-slate-50 transition-colors">
-                            <i class="fas fa-lock w-6 mr-3"></i> Sign In
-                        </a>
-                        <a href="/auth/register" class="flex items-center px-4 py-3 rounded-lg bg-primary-600 text-white font-medium hover:bg-primary-700 transition-colors">
-                            <i class="fas fa-user-plus w-6 mr-3"></i> Get Started
-                        </a>
-                    </div>
-                {% endif %}
-            </div>
+
+        <div id="mobile-menu" class="nav-drawer hidden">
+            <a href="/"><span class="n">01</span>Overview</a>
+            <a href="/upload"><span class="n">02</span>Upload</a>
+            <a href="/reports"><span class="n">03</span>Reports</a>
+            <a href="/optimize"><span class="n">04</span>Optimize</a>
+            {% if current_user.is_authenticated %}
+            <a href="/profile"><span class="n">&middot;</span>Profile</a>
+            {% if current_user.is_admin %}<a href="/admin"><span class="n">&middot;</span>Admin</a>{% endif %}
+            <a href="/auth/logout" class="is-danger"><span class="n">&middot;</span>Sign out</a>
+            {% else %}
+            <a href="/auth/login"><span class="n">&middot;</span>Sign in</a>
+            <a href="/auth/register" class="is-accent"><span class="n">&middot;</span>Get started</a>
+            {% endif %}
         </div>
     </nav>
 
