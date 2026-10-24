@@ -526,7 +526,7 @@ def leaderboard_chart(key):
     board = build_board()
     cache_dir = Path('data/leaderboard_cache')
     cache_dir.mkdir(parents=True, exist_ok=True)
-    cache = cache_dir / f"chart_{key}_{board.get('as_of', 'latest')}.png"
+    cache = cache_dir / f"chart_{key}_{board.get('as_of', 'latest')}_v2.png"
     if not cache.exists():
         import threading
         lock = _chart_locks.setdefault(key, threading.Lock())

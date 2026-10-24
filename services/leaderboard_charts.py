@@ -66,10 +66,17 @@ def _decorate(ax, board: dict, title: str, sub: str) -> None:
 def _hbar(board: dict, key: str, *, metric: str | None = None, pct: bool = False,
           signed: bool = True) -> io.BytesIO:
     metric = metric or key
-    rows = [r for r in board['rows'] if (r.get('metrics') or {}).get(metric) is not None]
-    rows.sort(key=lambda r: r['metrics'][metric], reverse=True)
+
+    def measure(row):
+        # the composite lives on the row, the rest inside the metrics block
+        if metric == 'score':
+            return row.get('score')
+        return (row.get('metrics') or {}).get(metric)
+
+    rows = [r for r in board['rows'] if measure(r) is not None]
+    rows.sort(key=measure, reverse=True)
     names = [r['name'] for r in rows][::-1]
-    values = [r['metrics'][metric] for r in rows][::-1]
+    values = [measure(r) for r in rows][::-1]
 
     fig, ax = plt.subplots(figsize=(8.4, 4.6), dpi=150)
     fig.patch.set_facecolor(INK)
@@ -229,15 +236,19 @@ def render(board: dict, key: str) -> io.BytesIO:
     if key == 'riskreturn':
         return _riskreturn(board)
     if key == 'score':
-        return _hbar(board, 'score')
+        return _hbar(board, 'score', metric='score')
     if key == 'alpha':
         return _hbar(board, 'alpha', pct=True)
     if key == 'drawdown':
         return _hbar(board, 'drawdown', metric='max_drawdown', pct=True, signed=False)
     if key == 'volatility':
-        return _hbar(board, key, pct=True, signed=False)
-    if key in ('sharpe', 'sortino', 'beta'):
-        return _hbar(board, key, signed=(key != 'beta'))
+        return _hbar(board, 'volatility', metric='volatility', pct=True, signed=False)
+    if key == 'sharpe':
+        return _hbar(board, 'sharpe', metric='sharpe_ratio')
+    if key == 'sortino':
+        return _hbar(board, 'sortino', metric='sortino_ratio')
+    if key == 'beta':
+        return _hbar(board, 'beta', metric='beta', signed=False)
     raise KeyError(key)
 
 
@@ -249,7 +260,7 @@ def warm(board: dict, cache_dir, as_of: str | None = None) -> int:
     stamp = as_of or board.get('as_of', 'latest')
     written = 0
     for key in CHARTS:
-        path = cache_dir / f'chart_{key}_{stamp}.png'
+        path = cache_dir / f'chart_{key}_{stamp}_v2.png'
         if path.exists():
             continue
         try:
