@@ -216,8 +216,14 @@ def _efficient_frontier(charts):
     frontier = ef.get("frontier") or []
     if not frontier:
         return
-    fig, ax = plt.subplots(figsize=(6.0, 2.4))
+    fig, ax = plt.subplots(figsize=(6.0, 2.6))
     _style(ax)
+    random = ef.get("random_portfolios") or {}
+    if random.get("volatility") and random.get("returns"):
+        ax.scatter([v * 100 for v in random["volatility"]],
+                   [r * 100 for r in random["returns"]],
+                   s=4, alpha=0.45, c=random.get("sharpe") or None,
+                   cmap="cividis", linewidths=0, zorder=1)
     assets = ef.get("individual_assets") or []
     if assets:
         ax.scatter([a.get("volatility", 0) * 100 for a in assets],
