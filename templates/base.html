@@ -692,6 +692,26 @@
         .hero-canvas { position: absolute; left: auto; right: 0; top: 0; width: 52%; height: 100%; z-index: 0; pointer-events: none; }
         @media (max-width: 1023px) { .hero-canvas { display: none; } }
         .hero-panel > :not(.hero-canvas) { position: relative; z-index: 1; }
+
+        .hero-panel::before {
+            content: "";
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 52%;
+            height: 100%;
+            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='600' height='400' viewBox='0 0 600 400'><g stroke='%23343a42' stroke-width='1' fill='none' opacity='0.65'><path d='M60 320 L140 240 L210 270 L280 160 L360 200 L430 110 L520 150'/><path d='M80 120 L170 160 L250 90 L330 140 L410 70 L500 100'/><path d='M140 240 L170 160'/><path d='M210 270 L250 90'/><path d='M280 160 L330 140'/><path d='M360 200 L410 70'/><path d='M430 110 L500 100'/><path d='M60 320 L170 160'/><path d='M520 150 L430 110'/></g><g fill='%23c8a15a'><circle cx='60' cy='320' r='2.2'/><circle cx='140' cy='240' r='2'/><circle cx='210' cy='270' r='2'/><circle cx='280' cy='160' r='2.4'/><circle cx='360' cy='200' r='2'/><circle cx='430' cy='110' r='2.4'/><circle cx='520' cy='150' r='2'/><circle cx='80' cy='120' r='2'/><circle cx='170' cy='160' r='2'/><circle cx='250' cy='90' r='2'/><circle cx='330' cy='140' r='2'/><circle cx='410' cy='70' r='2'/><circle cx='500' cy='100' r='2'/></g></svg>");
+            background-size: cover;
+            background-position: center;
+            opacity: 0.75;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .hero-panel .hero-canvas { z-index: 1; }
+        .hero-panel > :not(.hero-canvas) { z-index: 2; }
+        @media (max-width: 1023px) {
+            .hero-panel::before { display: none; }
+        }
     </style>
     
     {% block extra_css %}{% endblock %}
