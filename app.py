@@ -298,6 +298,7 @@ def profile_view():
 
 
 @app.route('/admin')
+@admin_required
 def admin_view():
     """Admin dashboard."""
     from models.auth import User
@@ -320,6 +321,7 @@ def admin_view():
 
 
 @app.route('/admin/cache')
+@admin_required
 def admin_cache_view():
     """Cache management admin page."""
     cache_info = example_portfolio_service.get_cache_info()
@@ -2148,6 +2150,7 @@ def health_check():
 
 
 @app.route('/api/debug/session')
+@admin_required
 def debug_session():
     """Debug endpoint to check session and auth status."""
     from flask_login import current_user
