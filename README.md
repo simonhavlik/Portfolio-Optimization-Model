@@ -1,372 +1,167 @@
 # Portfolio Optimizer
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+">
-  <img src="https://img.shields.io/badge/Flask-3.0+-green.svg" alt="Flask 3.0+">
-  <img src="https://img.shields.io/badge/SQLAlchemy-2.0+-orange.svg" alt="SQLAlchemy 2.0+">
-  <img src="https://img.shields.io/badge/25%2B%20Analytics-Institutional%20Grade-brightgreen.svg" alt="25+ Analytics">
-  <img src="https://img.shields.io/badge/Free%20Deployment-Koyeb%2FRender%20%2B%20Neon-blueviolet.svg" alt="Free Deployment">
+**Quantitative portfolio analytics and risk reporting.**
+Šimon Havlík · 2026 · [optimizer.havliksimon.com](https://optimizer.havliksimon.com)
+
+<p>
+  <img src="https://img.shields.io/badge/Python-3.11-1f2328" alt="Python 3.11">
+  <img src="https://img.shields.io/badge/Flask-3.x-1f2328" alt="Flask">
+  <img src="https://img.shields.io/badge/PostgreSQL-17-1f2328" alt="PostgreSQL">
+  <img src="https://img.shields.io/badge/Report-A4%20%C2%B7%202%20pages-a8824a" alt="Report">
 </p>
 
-<p align="center">
-  <em>Where Modern Portfolio Theory meets computational precision.</em>
-</p>
+A Flask application that turns a portfolio, whether typed, exported as CSV or PDF, or supplied as a screenshot, into a full risk report: optimisation, tail-risk measurement, factor decomposition, stress testing and a written assessment. The public instance runs at the address above; the printable report is exported as a two-page PDF.
+
+![Dashboard](docs/screenshot-dashboard.png)
 
 ---
 
-## Quick Start
+## 1. Overview
+
+The application implements the classical portfolio workflow end to end:
+
+1. **Intake** — holdings are recovered from broker documents or screenshots, validated, and mapped to tickers.
+2. **Estimation** — daily returns over a two-year window are used for covariance and factor estimation.
+3. **Analysis** — optimisation, risk decomposition, distributional diagnostics, stress scenarios and Monte Carlo simulation.
+4. **Reporting** — an interactive dashboard, a two-page PDF fact sheet and per-chart PNG exports.
+
+The design follows the mean–variance tradition (Markowitz, 1952; Sharpe, 1964), extended with tail-risk measurement and factor attribution.
+
+---
+
+## 2. Methodology
+
+### 2.1 Optimisation
+
+Four objective specifications are implemented: maximum Sharpe ratio, minimum variance, mean–variance with a target return, and risk parity. Covariance may be estimated with the sample estimator or Ledoit–Wolf shrinkage (Ledoit and Wolf, 2004). The Black–Litterman model (Black and Litterman, 1992) combines market equilibrium with explicit views, and hierarchical risk parity provides a clustering-based alternative.
+
+### 2.2 Risk measurement
+
+Risk is reported through:
+
+- annualised volatility, downside deviation and beta;
+- parametric and historical Value-at-Risk and Conditional Value-at-Risk at 95% and 99% (Rockafellar and Uryasev, 2000);
+- maximum drawdown, average drawdown and drawdown duration;
+- marginal and incremental Value-at-Risk contributions by position;
+- Kelly and half-Kelly leverage, growth rate and the Calmar ratio.
+
+### 2.3 Distributional diagnostics
+
+Returns are tested for normality with the Jarque–Bera and Shapiro–Wilk statistics, for stationarity with the augmented Dickey–Fuller test, and for autocorrelation with the Ljung–Box statistic. Normal, Laplace and Student-t distributions are fitted by maximum likelihood and compared by AIC.
+
+### 2.4 Factor and structural analysis
+
+Fama–French three- and five-factor regressions (Fama and French, 1993, 2015) with momentum provide factor betas and alpha. Principal component analysis reports explained variance and loadings; rolling correlation and volatility describe the time-varying dependence structure.
+
+### 2.5 Simulation and stress testing
+
+Monte Carlo simulation generates five thousand one-year paths from the estimated mean vector and covariance matrix, reporting percentile bands and the probability of profit. Historical stress scenarios apply drawdowns from 2008, the 2020 crash, the dot-com period, a rate shock and a sector selloff.
+
+### 2.6 Text generation
+
+Extraction and narrative commentary use a large language model (DeepSeek V4.1 Flash) with low reasoning effort. The model is constrained by a JSON schema for extraction and by an explicit editorial brief for commentary: quantified statements, no generic advice, no repeated disclaimers. Deterministic fallbacks and bounded retries limit failure modes.
+
+---
+
+## 3. Chart gallery
+
+The figures below are the same images embedded in the PDF export. They are rendered server-side with Matplotlib, so the report is reproducible independently of the browser.
+
+| | |
+|---|---|
+| ![Sector allocation](docs/charts/allocation.png) | ![Cumulative performance](docs/charts/performance.png) |
+| *Figure 1.* Portfolio weights by holding. | *Figure 2.* Cumulative performance against benchmarks. |
+| ![Drawdown](docs/charts/drawdown.png) | ![Return distribution](docs/charts/distribution.png) |
+| *Figure 3.* Drawdown path from the running maximum. | *Figure 4.* Return distribution with fitted kernel density. |
+| ![Monte Carlo](docs/charts/monte_carlo.png) | ![Rolling volatility](docs/charts/volatility.png) |
+| *Figure 5.* Monte Carlo percentile bands, 5,000 paths. | *Figure 6.* Annualised rolling volatility. |
+| ![Monthly returns](docs/charts/monthly_returns.png) | ![Correlation matrix](docs/charts/correlation.png) |
+| *Figure 7.* Monthly returns by year. | *Figure 8.* Pairwise correlation of daily returns. |
+| ![Efficient frontier](docs/charts/efficient_frontier.png) | ![Risk contribution](docs/charts/risk_contribution.png) |
+| *Figure 9.* Efficient frontier and the current position. | *Figure 10.* Contribution to total risk by position. |
+| ![PCA variance](docs/charts/pca.png) | ![Rolling correlation](docs/charts/rolling_correlation.png) |
+| *Figure 11.* Explained variance by principal component. | *Figure 12.* Average pairwise rolling correlation. |
+
+The complete two-page export is available as **[Portfolio-Optimizer-Report.pdf](docs/Portfolio-Optimizer-Report.pdf)**.
+
+---
+
+## 4. Architecture
+
+```
+app.py                     application factory, routes and API
+models/                    SQLAlchemy models (users, portfolios, holdings, cache)
+routes/auth.py             registration, sessions, saved scenarios
+services/                  market data, optimisation, risk, statistics, factors,
+                           extraction, report rendering, email
+templates/                 Jinja2 views (dashboard, upload, analysis, privacy, auth)
+scripts/                   extraction accuracy harness, approval notices
+docs/                      report charts, PDF export, screenshots
+```
+
+Persistence uses PostgreSQL in production and SQLite for local development. The example analysis is cached in the database and refreshed weekly, so restarts do not trigger recomputation.
+
+---
+
+## 5. Portfolio intake
+
+Accepted formats: **CSV, XLSX, PDF, DOCX, PNG, JPG/JPEG, WEBP**. Text documents are parsed deterministically where possible; when the parser cannot recover holdings, or when the input is an image, the document is passed to the vision model. Extraction retries up to three times and fails loudly rather than returning partial holdings.
+
+Accuracy is checked by `scripts/test_extraction.py`, which builds the same four-holding portfolio as DOCX, PDF, PNG and JPG and asserts tickers, company names, GICS sectors and weights:
 
 ```bash
-# Clone and setup
-git clone https://github.com/your-repo/portfolio-optimizer.git
-cd portfolio-optimizer
+PYTHONPATH=. python scripts/test_extraction.py
+# docx=PASS, pdf=PASS, png=PASS, jpg=PASS
+```
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or: venv\Scripts\activate  # Windows
+---
 
-# Install dependencies
+## 6. Reporting
+
+Each figure on the dashboard carries an export control that produces a 1600 × 900 PNG suitable for presentations and LinkedIn. The print path is a separate layout: a two-page A4 fact sheet, with metrics, holdings, stress scenarios, factor exposures, distribution fit and the written assessment on page one, and twelve charts on page two. Printing is triggered by **Download report** in the dashboard header.
+
+---
+
+## 7. Reproducibility
+
+```bash
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# Run locally
-cp .env.example .env
-python app.py
+export SECRET_KEY=dev
+export LLM_API_KEY=...          # optional; AI features degrade gracefully
+flask --app app run
 ```
 
-**Visit:** http://localhost:5000
+Environment variables of interest: `DATABASE_URL`, `DB_TYPE`, `LLM_MODEL`, `SMTP_*`, `ADMIN_EMAIL`, `ENABLE_AI_INSIGHTS`.
 
 ---
 
-## Documentation
+## 8. Privacy and limitations
 
-| Document | Description |
-|----------|-------------|
-| **[DEPLOYMENT.md](DEPLOYMENT.md)** | Free cloud deployment on Koyeb/Render + Neon DB |
-| **[ADVANCED_FEATURES.md](ADVANCED_FEATURES.md)** | Complete feature list |
-| **This README** | Technical overview and mathematical foundations |
+Portfolio content is sent to the model provider for extraction and commentary; outside that inference step data is not shared, and it is never sold. The policy is published at [/privacy](https://optimizer.havliksimon.com/privacy).
+
+This is a student project. It is not investment advice, the figures are not audited, and market data are supplied by Yahoo Finance without warranty. Past performance is not indicative of future results.
 
 ---
 
-## Overview
+## 9. References
 
-A comprehensive quantitative portfolio optimization platform implementing cutting-edge financial mathematics and statistical methods. From Markowitz's mean-variance optimization to sophisticated tail risk analysis using Extreme Value Theory, this platform bridges academic rigor with practical implementation.
+Black, F. and Litterman, R. (1992) 'Global portfolio optimization', *Financial Analysts Journal*, 48(5), pp. 28–43.
 
-### What Makes This Different
+Fama, E.F. and French, K.R. (1993) 'Common risk factors in the returns on stocks and bonds', *Journal of Financial Economics*, 33(1), pp. 3–56.
 
-While many portfolio tools offer basic metrics, this platform dives deep into the distributional properties of returns, implementing methods typically reserved for institutional quant desks:
+Fama, E.F. and French, K.R. (2015) 'A five-factor asset pricing model', *Journal of Financial Economics*, 116(1), pp. 1–22.
 
-- **Distribution Fitting with AIC/BIC Selection** - Rather than assuming normality, we fit Normal, Student's t, and Laplace distributions, selecting the best model via information criteria
-- **Extreme Value Theory** - Hill estimators and Generalized Pareto Distribution for understanding tail risks beyond VaR
-- **Monte Carlo Simulation** - 5,000 path simulations with full percentile bands, not just point estimates
-- **Statistical Test Suite** - Jarque-Bera, Ljung-Box, Shapiro-Wilk, Anderson-Darling, ARCH-LM tests
-- **Principal Component Analysis** - Understanding the true dimensionality of portfolio risk
+Jorion, P. (2007) *Value at Risk: The New Benchmark for Managing Financial Risk*. 3rd edn. New York: McGraw-Hill.
 
----
+Ledoit, O. and Wolf, M. (2004) 'Honey, I shrunk the sample covariance matrix', *The Journal of Portfolio Management*, 30(4), pp. 110–119.
 
-## Mathematical Foundations
+Markowitz, H. (1952) 'Portfolio selection', *The Journal of Finance*, 7(1), pp. 77–91.
 
-### Modern Portfolio Theory
+Rockafellar, R.T. and Uryasev, S. (2000) 'Optimization of conditional value-at-risk', *Journal of Risk*, 2(3), pp. 21–41.
 
-The platform implements Harry Markowitz's 1952 framework through quadratic programming:
-
-$$
-\begin{aligned}
-\min_{w} \quad & w^T \Sigma w \\
-\text{s.t.} \quad & \mathbf{1}^T w = 1 \\
-& w \geq 0 \quad \text{(no-short constraints)}
-\end{aligned}
-$$
-
-For maximum Sharpe ratio optimization:
-
-$$
-w^* = \arg\max_w \frac{w^T \mu - r_f}{\sqrt{w^T \Sigma w}}
-$$
-
-### Risk Parity
-
-Following Maillard, Roncalli & Teïletche (2010), the Risk Parity portfolio solves:
-
-$$
-\text{RC}_i = w_i \frac{(\Sigma w)_i}{\sqrt{w^T \Sigma w}} = \frac{\sigma_p}{n}
-$$
-
-### Extreme Value Theory
-
-For tail risk estimation, we implement the Hill estimator for the tail index $\xi$:
-
-$$
-\hat{\xi}_k = \frac{1}{k} \sum_{i=1}^k \log\frac{X_{n-i+1,n}}{X_{n-k,n}}
-$$
-
-Where $X_{i,n}$ are the order statistics. This feeds into GPD parameter estimation for VaR/CVaR beyond historical simulation limits.
+Sharpe, W.F. (1964) 'Capital asset prices: a theory of market equilibrium under conditions of risk', *The Journal of Finance*, 19(3), pp. 425–442.
 
 ---
 
-## Analytics Engine
-
-### Statistical Tests
-
-| Test | Purpose | Implementation |
-|------|---------|----------------|
-| **Jarque-Bera** | Normality via skewness/kurtosis | $\chi^2$ test with 2 df |
-| **Shapiro-Wilk** | Powerful normality test (small samples) | W-statistic via order statistics |
-| **Ljung-Box** | Serial correlation in returns | $Q = n(n+2)\sum_{k=1}^h \frac{\hat{\rho}_k^2}{n-k}$ |
-| **Anderson-Darling** | Distribution goodness-of-fit | $A^2 = -n - S$ |
-| **ARCH-LM** | Volatility clustering detection | LM test on squared residuals |
-
-### Distribution Analysis
-
-Rather than assuming normality, we fit and compare:
-
-```python
-# Normal distribution - baseline comparison
-# Student's t - captures fat tails via degrees of freedom
-# Laplace - double exponential for leptokurtic returns
-```
-
-Model selection via:
-- **AIC**: $-2\ln(L) + 2k$
-- **BIC**: $-2\ln(L) + k\ln(n)$
-
-### Monte Carlo Simulation
-
-```
-5,000 independent paths
-Geometric Brownian Motion with drift
-Confidence intervals: 5th, 25th, 50th, 75th, 95th percentiles
-Worst-case scenario analysis (0.5% tail)
-```
-
----
-
-## Architecture
-
-```
-portfolio_optimizer/
-├── app.py                 # Flask application with 10,000+ lines of quant logic
-├── config.py             # 12-Factor configuration management
-├── requirements.txt      # Dependency management
-│
-├── models/               # Database ORM
-│   └── database.py       # SQLAlchemy with PostgreSQL/SQLite
-│
-├── services/             # Core business logic
-│   ├── market_data.py    # Yahoo Finance integration with intelligent caching
-│   ├── optimization.py   # CVXPY-based convex optimization
-│   ├── risk_analytics.py # VaR, CVaR, drawdown analysis
-│   ├── advanced_statistics.py  # Distribution fitting, hypothesis testing
-│   ├── advanced_risk.py  # EVT, tail risk, Kelly criterion
-│   ├── factor_models.py  # Fama-French 3/5 factor decomposition
-│   ├── black_litterman.py # Bayesian portfolio optimization
-│   ├── regime_detection.py # Hidden Markov Models for market regimes
-│   └── cache_service.py  # Multi-layer Redis + in-memory caching
-│
-├── templates/            # Jinja2 + Tailwind CSS
-│   ├── base.html         # Glassmorphism UI with custom cursor
-│   └── index.html        # Real-time analytics dashboard
-│
-└── static/               # Premium UX assets
-    ├── css/advanced.css  # Custom cursor, animations, glass effects
-    └── js/cursor.js      # Interactive cursor with trail
-```
-
----
-
-## Quick Start
-
-### Local Development
-
-```bash
-# Clone and setup
-git clone https://github.com/yourusername/portfolio-optimizer.git
-cd portfolio-optimizer
-python -m venv venv
-./venv/bin/pip install -r requirements.txt
-
-# Configure
-cp .env.example .env
-# Edit .env with your API keys
-
-# Initialize database
-./venv/bin/python -c "from app import app; from models.database import init_db; init_db(app)"
-
-# Run
-./venv/bin/flask --app app run --host=0.0.0.0 --port=5000 --debug
-```
-
-### Free Cloud Deployment
-
-See [DEPLOYMENT.md](DEPLOYMENT.md) for zero-cost deployment on:
-- **Koyeb** or **Render** (application hosting)
-- **Neon** (serverless PostgreSQL)
-- **Upstash** (Redis caching)
-
-**Total cost: $0/month** with smart caching to minimize database hits.
-
----
-
-## Key Features
-
-### Portfolio Optimization Methods
-
-| Method | Mathematical Approach | Best For |
-|--------|----------------------|----------|
-| **Maximum Sharpe** | Quadratic programming with risk-free rate | Growth portfolios |
-| **Minimum Variance** | Global minimum variance via convex optimization | Capital preservation |
-| **Risk Parity** | Equal risk contribution (Newton-Raphson solver) | True diversification |
-| **Black-Litterman** | Bayesian mixing of equilibrium & views | Incorporating forecasts |
-| **Hierarchical RP** | Machine learning clustering + recursive bisection | Correlated assets |
-
-### Risk Metrics Suite
-
-**Standard Metrics:**
-- Sharpe, Sortino, Calmar, Omega ratios
-- Treynor, Information ratios
-- Beta, Jensen's Alpha
-
-**Advanced Metrics:**
-- Modified VaR (Cornish-Fisher expansion)
-- Conditional VaR / Expected Shortfall
-- CVaR optimization
-- Drawdown-at-Risk
-- Ulcer Index & Pain Ratio
-- Kelly Criterion position sizing
-
-**Tail Risk:**
-- Hill Estimator for tail index
-- GPD shape parameter estimation
-- Black Swan probability (EVT-based)
-
-### Factor Analysis
-
-```
-Fama-French 3-Factor:
-r - r_f = α + β_m(r_m - r_f) + β_s SMB + β_v HML + ε
-
-Fama-French 5-Factor (adds):
-+ β_r RMW (Profitability)
-+ β_c CMA (Investment)
-
-Statistical Factor Models:
-- PCA-based factor extraction
-- Factor attribution analysis
-```
-
----
-
-## Research Foundations
-
-1. **Markowitz, H. (1952)**. Portfolio Selection. *The Journal of Finance*, 7(1), 77-91.
-
-2. **Sharpe, W. F. (1966)**. Mutual Fund Performance. *The Journal of Business*, 39(1), 119-138.
-
-3. **Black, F., & Litterman, R. (1992)**. Global Portfolio Optimization. *Financial Analysts Journal*, 48(5), 28-43.
-
-4. **Maillard, S., Roncalli, T., & Teïletche, J. (2010)**. The Properties of Equally Weighted Risk Contribution Portfolios. *The Journal of Portfolio Management*, 36(4), 60-70.
-
-5. **Embrechts, P., Klüppelberg, C., & Mikosch, T. (1997)**. Modelling Extremal Events. *Springer*.
-
----
-
-## Technical Stack
-
-**Backend:**
-- Python 3.11+ with Flask
-- SQLAlchemy 2.0 (PostgreSQL/SQLite)
-- CVXPY for convex optimization
-- NumPy/SciPy/Pandas for numerical computing
-- Statsmodels for statistical testing
-
-**Frontend:**
-- Tailwind CSS with custom glassmorphism
-- Plotly/Chart.js for interactive visualizations
-- Custom cursor with trail effect
-- KaTeX for math rendering
-
-**Infrastructure:**
-- Multi-layer caching (Redis + in-memory)
-- Connection pooling for serverless databases
-- Graceful degradation patterns
-
----
-
-## API Reference
-
-### Portfolio Analysis
-
-```bash
-POST /api/portfolio/comprehensive-analysis
-Content-Type: application/json
-
-{
-  "holdings": [
-    {"ticker": "AAPL", "weight": 0.25},
-    {"ticker": "MSFT", "weight": 0.25},
-    {"ticker": "GOOGL", "weight": 0.25},
-    {"ticker": "AMZN", "weight": 0.25}
-  ],
-  "period": "2y",
-  "portfolio_value": 100000
-}
-```
-
-Returns complete analysis including:
-- Risk metrics (VaR, CVaR, Sharpe, etc.)
-- Statistical tests (Jarque-Bera, Ljung-Box, etc.)
-- Monte Carlo simulation results
-- Factor exposures
-- Stress test scenarios
-- Distribution fitting results
-
----
-
-## Configuration
-
-### Environment Variables
-
-```env
-# Required
-SECRET_KEY=your-secret-key
-
-# Database (choose one)
-DATABASE_URL=postgresql://...  # Neon/PostgreSQL
-SQLITE_DB_PATH=data/app.db     # SQLite (local dev)
-
-# Optional - for AI features
-LLM_API_KEY=sk-...
-LLM_BASE_URL=https://api.deepseek.com/v1
-
-# Caching (recommended for production)
-REDIS_URL=rediss://...upstash.io
-ENABLE_CACHE=true
-CACHE_TTL=3600
-```
-
----
-
-## Testing
-
-```bash
-# Run test suite
-pytest
-
-# With coverage
-pytest --cov=. --cov-report=html
-
-# Specific modules
-pytest tests/test_optimization.py -v
-```
-
----
-
-## License
-
-MIT License - See [LICENSE](LICENSE) for details.
-
----
-
-<p align="center">
-  Built with computational precision.
-</p>
+© 2026 Šimon Havlík. Source available for reference and review.
