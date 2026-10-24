@@ -45,7 +45,7 @@ import numpy as np
 from config import config
 from models.database import (
     db, init_db, Portfolio, Asset, PortfolioHolding, OptimizationResult,
-    PortfolioHistory, PortfolioDocument, AppCache
+    PortfolioHistory, PortfolioDocument, AppCache, SavedReport
 )
 from services.market_data import market_data_service
 from services.optimization import (
@@ -371,8 +371,23 @@ def analyse_custom():
 
     token = uuid4().hex
     payload = _finite_json(serialize_for_template(analysis))
-    row = AppCache(key=f'custom_analysis:{token}', payload=payload, computed_at=datetime.utcnow())
-    db.session.add(row)
+    db.session.add(AppCache(key=f'custom_analysis:{token}', payload=payload,
+                            computed_at=datetime.utcnow()))
+
+    metrics = payload.get('metrics') or {}
+    db.session.add(SavedReport(
+        user_id=session['user_id'], token=token,
+        name=(data.get('name') or 'Your portfolio')[:120],
+        period=data.get('period', '2y'),
+        holdings=clean,
+        summary={
+            'annualized_return': metrics.get('annualized_return'),
+            'volatility': metrics.get('volatility'),
+            'sharpe_ratio': metrics.get('sharpe_ratio'),
+            'max_drawdown': metrics.get('max_drawdown'),
+            'n_assets': len(clean),
+        },
+    ))
     db.session.commit()
     return jsonify({'success': True, 'report_url': f'/report/{token}', 'token': token})
 
@@ -403,6 +418,37 @@ def custom_report(token):
     return render_template('index.html', example_data=example_data,
                            valuation=valuation, appendix=appendix, cca=cca,
                            report_id=token, show_analysis=True)
+
+
+
+@app.route('/reports')
+@page_login_required
+def reports_view():
+    return render_template('reports.html')
+
+
+@app.route('/api/reports', methods=['GET'])
+@login_required
+def list_reports():
+    rows = (SavedReport.query.filter_by(user_id=session['user_id'])
+            .order_by(SavedReport.created_at.desc()).limit(50).all())
+    return jsonify({'reports': [{
+        'token': row.token, 'name': row.name, 'period': row.period,
+        'created_at': row.created_at.isoformat(), 'summary': row.summary,
+        'holdings': row.holdings,
+    } for row in rows]})
+
+
+@app.route('/api/reports/<token>', methods=['DELETE'])
+@login_required
+def delete_report(token):
+    row = SavedReport.query.filter_by(token=token, user_id=session['user_id']).first_or_404()
+    cache = db.session.get(AppCache, f'custom_analysis:{token}')
+    if cache:
+        db.session.delete(cache)
+    db.session.delete(row)
+    db.session.commit()
+    return jsonify({'success': True})
 
 
 @app.route('/api/report/xlsx')
@@ -539,8 +585,8 @@ def analysis_view():
 @app.route('/analysis-comprehensive')
 @page_login_required
 def analysis_comprehensive_view():
-    """Comprehensive risk analytics view."""
-    return render_template('analysis_comprehensive.html')
+    """Legacy analytics input: superseded by the saved-reports page."""
+    return redirect('/reports')
 
 
 @app.route('/upload')

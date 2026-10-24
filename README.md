@@ -128,7 +128,7 @@ PYTHONPATH=. python scripts/test_extraction.py
 
 ## 6. Reporting
 
-Each figure on the dashboard carries an export control that produces a 1600 × 900 PNG suitable for presentations and LinkedIn. The print path is a separate layout: a three-page A4 report: fact sheet on page one, appendix with calendar-year returns, drawdowns, correlations, monthly matrix, valuation sensitivity and comparables on page two, and thirteen charts on page three. A separate Excel workbook exports the same analysis with live formulas. Printing is triggered by **Download report**; the workbook is served by **Excel model**.
+Every analysis run from upload, paste or optimize is saved and listed under **Reports**, with its metrics and a link back to the full report. Each figure on the dashboard carries an export control that produces a 1600 × 900 PNG suitable for presentations and LinkedIn. The print path is a separate layout: a three-page A4 report: fact sheet on page one, appendix with calendar-year returns, drawdowns, correlations, monthly matrix, valuation sensitivity and comparables on page two, and thirteen charts on page three. A separate Excel workbook exports the same analysis with live formulas. Printing is triggered by **Download report**; the workbook is served by **Excel model**.
 
 ---
 
