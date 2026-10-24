@@ -1005,11 +1005,11 @@ function renderAllCharts(data) {
             y: mr.years.map(String),
             type: 'heatmap',
             colorscale: [
-                [0, '#d9a49f'],
-                [0.25, '#efdcd8'],
+                [0, '#c97a70'],
+                [0.25, '#eed6d1'],
                 [0.5, '#fbfaf7'],
-                [0.75, '#dde8dc'],
-                [1, '#a9c4ad']
+                [0.75, '#d8e7d6'],
+                [1, '#7fae86']
             ],
             zmid: 0,
             text: mr.data.map(row => row.map(v => v !== null ? (v * 100).toFixed(1) + '%' : '')),
@@ -1234,9 +1234,9 @@ function renderAllCharts(data) {
             y: tickers,
             type: 'heatmap',
             colorscale: [
-                [0, '#9a6a5c'],
-                [0.5, '#f4f2ed'],
-                [1, '#4b5a6a']
+                [0, '#b5544a'],
+                [0.5, '#f7f6f2'],
+                [1, '#4f7a5c']
             ],
             zmid: 0,
             zmin: -1,
