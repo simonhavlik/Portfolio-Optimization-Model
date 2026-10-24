@@ -474,8 +474,65 @@ def _leaderboard_admin_ok() -> bool:
 
 @app.route('/vision')
 def vision_page():
-    """The thesis: why the terminal exists and where it goes."""
-    return render_template('vision.html')
+    """The argument: one desk for your book and the funds you compare it with."""
+    from services.leaderboard import build_board
+
+    board = build_board()
+    rows = [r for r in board.get('rows', []) if (r.get('metrics') or {}).get('volatility')]
+
+    # risk/return scatter, scaled to the plot box
+    points = []
+    if rows:
+        xs = [r['metrics']['volatility'] * 100 for r in rows]
+        ys = [r['metrics']['annualized_return'] * 100 for r in rows]
+        x0, x1 = min(xs) * 0.9, max(xs) * 1.08
+        y0, y1 = min(ys) - 3, max(ys) + 3
+        for row in rows:
+            m = row['metrics']
+            px = (m['volatility'] * 100 - x0) / (x1 - x0)
+            py = 1 - (m['annualized_return'] * 100 - y0) / (y1 - y0)
+            short = (row['name'].replace(' Asset Management', '')
+                     .replace(' Family Office', '').replace(' Capital', ''))
+            points.append({
+                'name': row['name'],
+                'short': short,
+                'slug': row['slug'],
+                'x': round(40 + px * 700, 1),
+                'y': round(30 + py * 290, 1),
+                'r': round(4 + (row.get('score') or 0) / 16, 1),
+                'ret': round(m['annualized_return'] * 100, 1),
+                'vol': round(m['volatility'] * 100, 1),
+                'dd': round(m['max_drawdown'] * 100, 1),
+            })
+
+        # nudge labels apart, and keep them inside the plot
+        points.sort(key=lambda d: d['y'])
+        for i, point in enumerate(points):
+            label_x = point['x'] + point['r'] + 5
+            width = len(point['short']) * 4.6
+            if label_x + width > 745:
+                label_x = point['x'] - point['r'] - 5 - width
+            point['lx'] = round(label_x, 1)
+            point['ly'] = round(point['y'] + 3, 1)
+
+        for i in range(1, len(points)):
+            prev, cur = points[i - 1], points[i]
+            if abs(cur['ly'] - prev['ly']) < 11 and abs(cur['lx'] - prev['lx']) < 110:
+                cur['ly'] = round(prev['ly'] + 11, 1)
+
+    # the sacrifice cards are chosen from the data, not written by hand
+    def pick(key, reverse=True):
+        return sorted(rows, key=lambda r: r['metrics'].get(key) or 0, reverse=reverse)[0]
+
+    best_alpha = pick('alpha')
+    worst_dd = pick('max_drawdown', reverse=False)
+    lowest_beta = pick('beta', reverse=False)
+    highest_beta = pick('beta')
+    return render_template(
+        'vision.html', board=board, points=points,
+        best_alpha=best_alpha, worst_dd=worst_dd,
+        lowest_beta=lowest_beta, highest_beta=highest_beta,
+    )
 
 
 @app.route('/leaderboard')

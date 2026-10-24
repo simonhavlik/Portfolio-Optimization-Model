@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Vision — Portfolio Optimizer{% endblock %}
-{% block meta_description %}Portfolio Optimizer extended into fund comparison: 13F books rebuilt quarter by quarter, and the roadmap to ingest every filer automatically.{% endblock %}
+{% block meta_description %}One desk for two questions: what your book should look like, and what the funds you compare it with gave up to get their numbers.{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="/static/vision/vision.css">
@@ -13,21 +13,20 @@
 
         <header class="vs-hero">
             <div class="vs-hero-copy">
-                <p class="vs-kicker"><span class="pulse"></span>Vision<span class="sep">/</span><span class="mono">roadmap</span></p>
-                <h1 class="vs-title">Your portfolio, and the funds<br>you measure it against.</h1>
+                <p class="vs-kicker"><span class="pulse"></span>Vision<span class="sep">/</span><span class="mono">one desk</span></p>
+                <h1 class="vs-title">Optimise your risk.<br>Then see what the best funds<br>paid for theirs.</h1>
                 <p class="vs-lede">
-                    This began as a risk tool for one book: upload it, get the frontier, the drawdown,
-                    the tail. The leaderboard pushed it outward — the same measurements applied to
-                    other people's portfolios, rebuilt from their 13F filings, so a fund can be read
-                    the way you read your own. What is still manual is the ingestion: ten funds chosen
-                    by hand. The plan on this page is to automate that, so any fund that files is
-                    compared on identical inputs and refreshed without anyone touching a spreadsheet.
+                    Two questions usually get answered in different rooms: what should my book look
+                    like, and what did the funds I admire give up to get their numbers? This puts them
+                    side by side — same measurements, same window, same evidence. Return is bought with
+                    volatility, alpha with concentration, protection with beta. The tool prices the
+                    sacrifice, then lets you choose.
                 </p>
                 <ul class="vs-chips">
                     <li>Risk &amp; optimisation</li>
                     <li>Fund comparison</li>
-                    <li>Ten funds live</li>
-                    <li>Automated ingestion next</li>
+                    <li>Trade-offs measured</li>
+                    <li>Ten books live</li>
                 </ul>
             </div>
 
@@ -35,159 +34,125 @@
                 <img src="/static/vision/simon-pudong.jpg" alt="Šimon Havlík in Shanghai" loading="lazy" decoding="async">
                 <figcaption>
                     <span class="mono">Pudong, Shanghai</span>
-                    <span>Where the China thesis started</span>
+                    <span>Where the Asia thesis started</span>
                 </figcaption>
             </figure>
         </header>
 
-        <section class="vs-thesis" aria-label="Why the comparison exists">
-            <div class="vs-col" data-reveal>
-                <p class="vs-num">01</p>
-                <h2>Why compare at all</h2>
-                <p>
-                    A Sharpe ratio on its own says nothing. On the book you hold, it says what you
-                    gave up by holding it. Against a fund you admire, it says whether the trade was
-                    worth making. The comparison is the product; the metric is only the unit.
-                </p>
-            </div>
-            <div class="vs-col" data-reveal>
-                <p class="vs-num">02</p>
-                <h2>What is being compared</h2>
-                <p>
-                    Quarterly 13F filings: long US equity, disclosed values, a 45-day lag. Weights
-                    are taken at each filing and chained from its filing date, then priced daily. What
-                    you see is the return of the book the manager actually disclosed — not a backtest
-                    of a strategy he describes.
-                </p>
-            </div>
-            <div class="vs-col" data-reveal>
-                <p class="vs-num">03</p>
-                <h2>Where it is going</h2>
-                <p>
-                    Every active filer ingested on a schedule, not ten chosen by hand. Cohorts by size
-                    and style, so a $400m manager is not ranked against Berkshire. A per-fund page as
-                    detailed as the one you get for your own book.
-                </p>
-            </div>
+        <section class="vs-statement" aria-label="The premise">
+            <p data-reveal>
+                Every portfolio is a set of sacrifices. Most tools show you the return.
+                <span>This one prices the sacrifice.</span>
+            </p>
         </section>
 
-        <section class="vs-map" aria-label="The data path">
+        <section class="vs-scatter-wrap" aria-label="Risk against return">
             <div class="vs-map-head">
-                <p class="vs-kicker"><span class="mono">The path a filing takes</span></p>
+                <p class="vs-kicker"><span class="mono">Risk against return</span></p>
                 <p class="vs-map-lede">
-                    Six stages, each one already code. The work left is removing the assumptions that
-                    keep it at ten funds.
+                    Ten books, five years to {{ board.as_of }}. Bubble size is the composite score; hover
+                    a name for its worst drawdown.
                 </p>
             </div>
 
-            <svg class="vs-mind" viewBox="0 0 960 420" role="img" aria-label="Data path from EDGAR to the board">
-                <defs>
-                    <linearGradient id="vsLine" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stop-color="#c8a15a" stop-opacity="0.65"/>
-                        <stop offset="100%" stop-color="#c8a15a" stop-opacity="0.12"/>
-                    </linearGradient>
-                </defs>
-
-                <g class="vs-links">
-                    <path d="M480 210 C 380 210, 330 90, 210 90" />
-                    <path d="M480 210 C 380 210, 330 210, 210 210" />
-                    <path d="M480 210 C 380 210, 330 330, 210 330" />
-                    <path d="M480 210 C 580 210, 630 90, 750 90" />
-                    <path d="M480 210 C 580 210, 630 210, 750 210" />
-                    <path d="M480 210 C 580 210, 630 330, 750 330" />
+            <svg class="vs-scatter" viewBox="0 0 780 350" role="img" aria-label="Annualised volatility against annualised return for ten funds">
+                <g class="vs-grid">
+                    {% for i in range(5) %}
+                    <line x1="40" y1="{{ 30 + i * 72.5 }}" x2="740" y2="{{ 30 + i * 72.5 }}" />
+                    <line x1="{{ 40 + i * 175 }}" y1="30" x2="{{ 40 + i * 175 }}" y2="320" />
+                    {% endfor %}
                 </g>
 
-                <g class="vs-node vs-node--core">
-                    <rect x="378" y="170" width="204" height="80" rx="2" />
-                    <text x="480" y="200" class="vs-node-title">Book</text>
-                    <text x="480" y="218" class="vs-node-title">reconstruction</text>
-                    <text x="480" y="236" class="vs-node-meta">weight × price × time</text>
-                </g>
+                <line class="vs-axis" x1="40" y1="320" x2="740" y2="320" />
+                <line class="vs-axis" x1="40" y1="30" x2="40" y2="320" />
 
-                <g class="vs-node"><rect x="96" y="62" width="196" height="56" rx="2" />
-                    <text x="112" y="84" class="vs-node-label">Submissions</text>
-                    <text x="112" y="101" class="vs-node-meta">CIK → 13F-HR list</text>
+                {% for p in points %}
+                <g class="vs-dot" style="animation-delay: {{ loop.index0 * 90 }}ms">
+                    <circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ p.r }}" />
+                    <text x="{{ p.lx }}" y="{{ p.ly }}" class="vs-dot-label">{{ p.short }}</text>
+                    <title>{{ p.name }} — return {{ p.ret }}%, volatility {{ p.vol }}%, max drawdown {{ p.dd }}%</title>
                 </g>
-                <g class="vs-node"><rect x="96" y="182" width="196" height="56" rx="2" />
-                    <text x="112" y="204" class="vs-node-label">Information table</text>
-                    <text x="112" y="221" class="vs-node-meta">issuer · CUSIP · value</text>
-                </g>
-                <g class="vs-node"><rect x="96" y="302" width="196" height="56" rx="2" />
-                    <text x="112" y="324" class="vs-node-label">Security master</text>
-                    <text x="112" y="341" class="vs-node-meta">CUSIP → ticker · aliases</text>
-                </g>
-                <g class="vs-node"><rect x="668" y="62" width="196" height="56" rx="2" />
-                    <text x="684" y="84" class="vs-node-label">Chained returns</text>
-                    <text x="684" y="101" class="vs-node-meta">weights fixed at filing date</text>
-                </g>
-                <g class="vs-node"><rect x="668" y="182" width="196" height="56" rx="2" />
-                    <text x="684" y="204" class="vs-node-label">Metrics</text>
-                    <text x="684" y="221" class="vs-node-meta">Sharpe · alpha · CVaR · beta</text>
-                </g>
-                <g class="vs-node"><rect x="668" y="302" width="196" height="56" rx="2" />
-                    <text x="684" y="324" class="vs-node-label">Board</text>
-                    <text x="684" y="341" class="vs-node-meta">rank · charts · per-fund page</text>
-                </g>
+                {% endfor %}
+
+                <text x="40" y="345" class="vs-axis-label">VOLATILITY, %</text>
+                <text x="740" y="345" class="vs-axis-label" text-anchor="end">ANNUALISED RETURN, %</text>
             </svg>
+        </section>
 
-            <div class="vs-legend">
-                <span class="mono">Filing side — EDGAR, no API key, 10 requests a second</span>
-                <span class="mono">Market side — daily closes, cached a week</span>
+        <section class="vs-cards" aria-label="What the return cost">
+            <div class="vs-card" data-reveal>
+                <p class="vs-card-tag">Highest alpha</p>
+                <p class="vs-card-name">{{ best_alpha.name }}</p>
+                <p class="vs-card-fig">+{{ '%.1f'|format(best_alpha.metrics.alpha * 100) }}%<span>alpha a year</span></p>
+                <p class="vs-card-cost">paid with a {{ '%.1f'|format(best_alpha.metrics.max_drawdown * 100) }}% drawdown</p>
+            </div>
+            <div class="vs-card" data-reveal>
+                <p class="vs-card-tag">Deepest hole</p>
+                <p class="vs-card-name">{{ worst_dd.name }}</p>
+                <p class="vs-card-fig">{{ '%.1f'|format(worst_dd.metrics.max_drawdown * 100) }}%<span>peak to trough</span></p>
+                <p class="vs-card-cost">survived, and compounded through it</p>
+            </div>
+            <div class="vs-card" data-reveal>
+                <p class="vs-card-tag">Cheapest ride</p>
+                <p class="vs-card-name">{{ lowest_beta.name }}</p>
+                <p class="vs-card-fig">{{ '%.2f'|format(lowest_beta.metrics.beta) }}<span>beta to the index</span></p>
+                <p class="vs-card-cost">the market moves, this book moves less</p>
+            </div>
+            <div class="vs-card" data-reveal>
+                <p class="vs-card-tag">Fully exposed</p>
+                <p class="vs-card-name">{{ highest_beta.name }}</p>
+                <p class="vs-card-fig">{{ '%.2f'|format(highest_beta.metrics.beta) }}<span>beta to the index</span></p>
+                <p class="vs-card-cost">the return of being in the market, not beside it</p>
             </div>
         </section>
 
-        <section class="vs-flow" aria-label="Roadmap">
+        <section class="vs-flow" aria-label="Your book, same frame">
             <div class="vs-flow-head">
-                <p class="vs-kicker"><span class="mono">Roadmap</span></p>
+                <p class="vs-kicker"><span class="mono">Your book, same frame</span></p>
                 <p class="vs-flow-lede">
-                    Written as engineering, in order. Each phase removes a manual step rather than
-                    adding a feature.
+                    Three steps, one comparison. Nothing about a fund is measured differently from your
+                    own portfolio.
                 </p>
             </div>
-
-            <ol class="vs-steps vs-steps--road">
-                <li data-reveal><span class="mono">shipped</span><b>Single-filer pipeline</b><em>EDGAR → XML → CUSIP map → weighted book</em></li>
-                <li data-reveal><span class="mono">shipped</span><b>Twenty-quarter chaining</b><em>weights apply from the filing date</em></li>
-                <li data-reveal><span class="mono">next</span><b>Mass ingestion</b><em>every active filer, incremental by quarter</em></li>
-                <li data-reveal><span class="mono">next</span><b>Automatic validation</b><em>coverage, amendments, orphan CUSIPs</em></li>
-                <li data-reveal><span class="mono">later</span><b>Universe ranking</b><em>cohorts by size and style, not by hand</em></li>
-                <li data-reveal><span class="mono">later</span><b>Scheduled publication</b><em>rebuild, export, notify</em></li>
+            <ol class="vs-steps vs-steps--three">
+                <li data-reveal><span class="mono">01</span><b>Upload</b><em>positions, period, benchmark</em></li>
+                <li data-reveal><span class="mono">02</span><b>Read</b><em>frontier · drawdown · CVaR · beta</em></li>
+                <li data-reveal><span class="mono">03</span><b>Compare</b><em>the board, on identical inputs</em></li>
             </ol>
         </section>
 
-        <section class="vs-road" aria-label="Phases in detail">
+        <section class="vs-road" aria-label="Roadmap">
             <div class="vs-road-head">
-                <p class="vs-kicker"><span class="mono">The work</span></p>
-                <p class="vs-road-lede">What each phase actually requires, and what it unlocks.</p>
+                <p class="vs-kicker"><span class="mono">Roadmap</span></p>
+                <p class="vs-road-lede">
+                    The board is curated today. Automation removes the curation, not the comparison.
+                </p>
             </div>
 
             <div class="vs-horizons">
                 <article data-reveal>
                     <p class="vs-horizon">Shipped</p>
                     <ul>
-                        <li>Filings pulled per CIK, information tables parsed namespace-agnostically</li>
-                        <li>CUSIPs mapped to tickers; coverage reported per filing, not assumed</li>
-                        <li>Books chained so a weight never applies before its filing date</li>
-                        <li>Ten funds ranked on ten measures, with a per-fund page and CSV export</li>
+                        <li>Risk engine: frontier, drawdown, CVaR, factors, Monte Carlo</li>
+                        <li>13F books reconstructed quarter by quarter, weights fixed at filing</li>
+                        <li>Ten funds ranked on ten measures, with per-fund pages and CSV export</li>
                     </ul>
                 </article>
                 <article data-reveal>
                     <p class="vs-horizon">Next — mass ingestion</p>
                     <ul>
-                        <li>Walk every active 13F filer instead of a curated list</li>
-                        <li>Incremental pulls: newest quarter only, cached by accession number</li>
-                        <li>Amendments deduplicated by period; restatements preferred over originals</li>
-                        <li>Validation gates: coverage below threshold, unmapped CUSIPs, value jumps</li>
-                        <li>Throttled at the SEC's rate limit with backoff, so a crawl cannot be banned</li>
+                        <li>Walk every active 13F filer rather than a chosen list</li>
+                        <li>Incremental quarterly pulls, amendments deduplicated by period</li>
+                        <li>Validation gates: coverage, orphan CUSIPs, implausible value jumps</li>
+                        <li>Throttled to the SEC limit with backoff, so a crawl cannot be banned</li>
                     </ul>
                 </article>
                 <article data-reveal>
                     <p class="vs-horizon">Later — cohorts &amp; cadence</p>
                     <ul>
-                        <li>Cohorts by AUM and style, so a $400m manager is not ranked against Berkshire</li>
-                        <li>Persistence: does the ranking survive a rolling window, or is it one good year</li>
-                        <li>Book-level factor exposure — what a manager actually owns, not what he says</li>
-                        <li>Scheduled rebuild overnight, exports regenerated, changes diffed quarter on quarter</li>
+                        <li>Cohorts by AUM and style: a $400m manager is not ranked against Berkshire</li>
+                        <li>Persistence tests: does the ranking survive a rolling window</li>
+                        <li>Scheduled overnight rebuild, exports regenerated, changes diffed</li>
                     </ul>
                 </article>
             </div>
@@ -196,18 +161,17 @@
         <section class="vs-constraints" aria-label="Constraints that shape the design">
             <p class="vs-kicker"><span class="mono">Constraints</span></p>
             <ul class="vs-limits">
-                <li><b>45-day lag</b><span>13Fs arrive a month and a half after quarter end; the board is a record, not a signal.</span></li>
-                <li><b>Long US equity only</b><span>No shorts, options, cash or non-US lines are disclosed, so a book is a floor on exposure.</span></li>
-                <li><b>Ratios, not shares</b><span>Weights come from disclosed values; splits and corporate actions are handled through the price series.</span></li>
-                <li><b>No back-fill</b><span>Every metric is computed from filings public at the time, or it would be look-ahead and worthless.</span></li>
+                <li><b>45-day lag</b><span>13Fs arrive six weeks after quarter end; the board is a record, not a signal.</span></li>
+                <li><b>Long equity only</b><span>No shorts, options, cash or non-US lines are disclosed, so a book is a floor on exposure.</span></li>
+                <li><b>Values, not shares</b><span>Weights come from disclosed values; splits are handled through the price series.</span></li>
+                <li><b>No back-fill</b><span>Every metric uses filings public at the time, or it would be look-ahead.</span></li>
             </ul>
         </section>
 
         <section class="vs-close">
             <blockquote data-reveal>
-                My friends open one page, see where each fund stands against the others, and argue
-                about it with the numbers in front of them — while the pipeline refreshes itself every
-                quarter. That is the whole ambition: the comparison tool we kept building by hand.
+                My friends open one page, see what each fund paid for its return, and hold their own
+                book against it — with the numbers in front of them.
             </blockquote>
             <div class="vs-cta">
                 <a class="vs-btn vs-btn--solid" href="/leaderboard">The board as it stands</a>
