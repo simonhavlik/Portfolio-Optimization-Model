@@ -1004,17 +1004,11 @@ function renderAllCharts(data) {
             x: mr.months || ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
             y: mr.years.map(String),
             type: 'heatmap',
-            colorscale: [
-                [0, '#c97a70'],
-                [0.25, '#eed6d1'],
-                [0.5, '#fbfaf7'],
-                [0.75, '#d8e7d6'],
-                [1, '#7fae86']
-            ],
+            colorscale: [[0, '#7f1d1d'], [0.5, '#2f2f2f'], [1, '#14532d']],
             zmid: 0,
             text: mr.data.map(row => row.map(v => v !== null ? (v * 100).toFixed(1) + '%' : '')),
             texttemplate: '%{text}',
-            textfont: { size: 9, color: '#22262b' },
+            textfont: { size: 9, color: '#ffffff' },
             colorbar: { thickness: 8, len: 0.6, outlinewidth: 0 },
             hovertemplate: '%{y} %{x}: %{z:.1%}<extra></extra>'
         }], {
@@ -1233,11 +1227,7 @@ function renderAllCharts(data) {
             x: tickers,
             y: tickers,
             type: 'heatmap',
-            colorscale: [
-                [0, '#b5544a'],
-                [0.5, '#f7f6f2'],
-                [1, '#4f7a5c']
-            ],
+            colorscale: [[0, '#7f1d1d'], [0.5, '#2f2f2f'], [1, '#14532d']],
             zmid: 0,
             zmin: -1,
             zmax: 1,
