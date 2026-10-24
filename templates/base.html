@@ -386,7 +386,7 @@
             #comprehensive-analysis > div { break-inside: avoid; }
             .h-64 { height: 27mm !important; }
             .h-80 { height: 30mm !important; }
-            .h-96 { height: 33mm !important; }
+            .h-96 { height: 30mm !important; }
             #comprehensive-analysis > div .grid { display: none !important; }
             #comprehensive-analysis > div > h2,
             #comprehensive-analysis > div > h3 { font-size: 9pt !important; margin-bottom: 1mm !important; }
@@ -494,6 +494,8 @@
         .bg-white { background-color: var(--surface) !important; border-color: var(--line) !important; }
         .bg-slate-50, .bg-gray-50, .bg-slate-100, .bg-gray-100 { background-color: #12151a !important; }
         .bg-slate-900, .bg-gray-900 { background-color: #0a0b0d !important; }
+        .bg-slate-200, .bg-gray-200 { background-color: #1a1f26 !important; }
+        .bg-slate-300, .bg-gray-300 { background-color: #232a33 !important; }
 
         .text-slate-900, .text-gray-900, .text-slate-800, .text-gray-800 { color: #ece9e2 !important; }
         .text-slate-700, .text-gray-700, .text-slate-600, .text-gray-600 { color: #b9b4aa !important; }
@@ -579,8 +581,12 @@
         .text-indigo-600, .text-indigo-700 { color: #a3a8d6 !important; }
         .text-cyan-600 { color: #86bfc4 !important; }
 
-        .bg-gradient-to-br.from-primary-50 {
-            background-image: linear-gradient(145deg, #12151a, #171b22) !important;
+        .bg-gradient-to-br.from-primary-50,
+        .bg-gradient-to-r.from-primary-50,
+        .bg-gradient-to-r.from-indigo-50,
+        .bg-gradient-to-br.from-indigo-50 {
+            background-image: linear-gradient(130deg, #12151a 0%, #151a21 100%) !important;
+            border: 1px solid var(--line);
         }
 
         #comprehensive-analysis > div { border: 1px solid var(--line); }
@@ -650,9 +656,9 @@
 <style media="print">
   #print-report .pr-charts-page { break-before: page !important; page-break-before: always !important; }
   #print-report .pr-charts-page .pr-head { display: block !important; }
-  #print-report .pr-charts { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 1.5mm 6mm !important; }
+  #print-report .pr-charts { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 0.8mm 6mm !important; }
   #print-report .pr-charts figure { margin: 0 !important; break-inside: avoid !important; }
-  #print-report .pr-charts img { display: block !important; width: 100% !important; height: 35mm !important; object-fit: contain !important; border: 0.3pt solid #e3ded2 !important; background: #fff !important; }
+  #print-report .pr-charts img { display: block !important; width: 100% !important; height: 30mm !important; object-fit: contain !important; border: 0.3pt solid #e3ded2 !important; background: #fff !important; }
   #print-report .pr-charts figcaption { font-size: 6.8pt; color: #666; margin-top: 0.8mm; }
 </style>
 </head>

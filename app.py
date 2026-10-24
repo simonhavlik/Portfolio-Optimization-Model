@@ -33,6 +33,7 @@ import math
 import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
+from functools import wraps
 
 from flask import Flask, render_template, request, jsonify, abort, session, redirect
 from flask_cors import CORS
@@ -204,6 +205,30 @@ def create_app() -> Flask:
 app = create_app()
 
 
+def page_login_required(view):
+    """Redirect browsers to the sign-in page instead of returning JSON 401."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(f"/auth/login?next={request.path}")
+        return view(*args, **kwargs)
+    return wrapped
+
+
+def page_admin_required(view):
+    """Admin-only HTML pages: sign-in redirect, then a real 403."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(f"/auth/login?next={request.path}")
+        from models.auth import User
+        user = User.query.get(session['user_id'])
+        if not user or not user.is_admin:
+            abort(403)
+        return view(*args, **kwargs)
+    return wrapped
+
+
 def allowed_file(filename):
     """Check if file extension is allowed."""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -279,21 +304,21 @@ def portfolio_detail(portfolio_id):
 
 
 @app.route('/optimize')
-@login_required
+@page_login_required
 def optimize_view():
     """Portfolio optimization interface."""
     return render_template('optimize.html')
 
 
 @app.route('/analysis')
-@login_required
+@page_login_required
 def analysis_view():
     """AI analysis view."""
     return render_template('analysis.html')
 
 
 @app.route('/analysis-comprehensive')
-@login_required
+@page_login_required
 def analysis_comprehensive_view():
     """Comprehensive risk analytics view."""
     return render_template('analysis_comprehensive.html')
@@ -362,7 +387,7 @@ def profile_view():
 
 
 @app.route('/admin')
-@admin_required
+@page_admin_required
 def admin_view():
     """Admin dashboard."""
     from models.auth import User
@@ -385,7 +410,7 @@ def admin_view():
 
 
 @app.route('/admin/cache')
-@admin_required
+@page_admin_required
 def admin_cache_view():
     """Cache management admin page."""
     cache_info = example_portfolio_service.get_cache_info()

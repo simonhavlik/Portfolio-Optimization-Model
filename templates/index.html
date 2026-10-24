@@ -32,10 +32,10 @@
         <h2>Risk detail</h2>
         <table class="pr-table">
           <tr><th>mVaR 95 / 99</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.mvar_95 * 100) }}% / {{ "%.2f"|format(example_data.advanced_risk.mvar_99 * 100) }}%</td></tr>
-          <tr><th>Average drawdown</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.avg_drawdown * 100) }}%</td></tr>
-          <tr><th>Kelly / half-Kelly</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.kelly_fraction) }} / {{ "%.2f"|format(example_data.advanced_risk.half_kelly_fraction) }}</td></tr>
-          <tr><th>Optimal leverage</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.optimal_leverage) }}x</td></tr>
-          <tr><th>Growth rate</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.growth_rate * 100) }}%</td></tr>
+          <tr><th class="text-left font-normal text-slate-600">Average drawdown</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.avg_drawdown * 100) }}%</td></tr>
+          <tr><th class="text-left font-normal text-slate-600">Kelly / half-Kelly</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.kelly_fraction) }} / {{ "%.2f"|format(example_data.advanced_risk.half_kelly_fraction) }}</td></tr>
+          <tr><th class="text-left font-normal text-slate-600">Optimal leverage</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.optimal_leverage) }}x</td></tr>
+          <tr><th class="text-left font-normal text-slate-600">Growth rate</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.growth_rate * 100) }}%</td></tr>
         </table>
       </section>
 
@@ -126,7 +126,8 @@
         ('mean_variance.png', 'Mean-variance optimisation'),
         ('risk_contribution.png', 'Risk contribution'),
         ('pca.png', 'PCA variance'),
-        ('rolling_correlation.png', 'Rolling correlation')
+        ('rolling_correlation.png', 'Rolling correlation'),
+        ('rolling_stats.png', 'Rolling statistics, 63d')
       ] %}
       <figure>
         <img src="/static/report/{{ image }}" alt="{{ caption }}">
@@ -369,12 +370,12 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div class="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
             <h3 class="text-lg font-semibold text-slate-900 mb-4">Risk detail</h3>
-            <table class="w-full text-sm pr-table">
-                <tr><th>mVaR 95 / 99</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.mvar_95 * 100) }}% / {{ "%.2f"|format(example_data.advanced_risk.mvar_99 * 100) }}%</td></tr>
-                <tr><th>Average drawdown</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.avg_drawdown * 100) }}%</td></tr>
-                <tr><th>Kelly / half-Kelly</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.kelly_fraction) }} / {{ "%.2f"|format(example_data.advanced_risk.half_kelly_fraction) }}</td></tr>
-                <tr><th>Optimal leverage</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.optimal_leverage) }}x</td></tr>
-                <tr><th>Growth rate</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.growth_rate * 100) }}%</td></tr>
+            <table class="w-full text-sm">
+                <tr><th class="text-left font-normal text-slate-600">mVaR 95 / 99</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.mvar_95 * 100) }}% / {{ "%.2f"|format(example_data.advanced_risk.mvar_99 * 100) }}%</td></tr>
+                <tr><th class="text-left font-normal text-slate-600">Average drawdown</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.avg_drawdown * 100) }}%</td></tr>
+                <tr><th class="text-left font-normal text-slate-600">Kelly / half-Kelly</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.kelly_fraction) }} / {{ "%.2f"|format(example_data.advanced_risk.half_kelly_fraction) }}</td></tr>
+                <tr><th class="text-left font-normal text-slate-600">Optimal leverage</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.optimal_leverage) }}x</td></tr>
+                <tr><th class="text-left font-normal text-slate-600">Growth rate</th><td class="text-right">{{ "%.2f"|format(example_data.advanced_risk.growth_rate * 100) }}%</td></tr>
             </table>
         </div>
         <div class="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
@@ -917,7 +918,13 @@
     layout.colorway = layout.colorway || ['#c8a15a', '#8fa3b8', '#c07a6a', '#7fa08a', '#a99bc4', '#d9c9a8', '#7f8a94', '#b98f62'];
     layout.xaxis = Object.assign(axisDefaults(), layout.xaxis || {});
     layout.yaxis = Object.assign(axisDefaults(), layout.yaxis || {});
-    layout.legend = Object.assign({ font: { color: '#b9b4aa' } }, layout.legend || {});
+    layout.legend = Object.assign({
+      font: { color: '#b9b4aa' }, bgcolor: 'rgba(0,0,0,0)',
+      bordercolor: 'rgba(0,0,0,0)', borderwidth: 0
+    }, layout.legend || {});
+    layout.hoverlabel = Object.assign({
+      bgcolor: '#12151a', bordercolor: '#2a2f37', font: { color: '#ece9e2' }
+    }, layout.hoverlabel || {});
     return originalNewPlot.call(this, id, data, layout, config);
   };
 })();

@@ -36,6 +36,7 @@ CHART_FILES = [
     ("volatility.png", "Rolling volatility"),
     ("monthly_returns.png", "Monthly returns"),
     ("mean_variance.png", "Mean-variance optimisation"),
+    ("rolling_stats.png", "Rolling statistics"),
     ("risk_contribution.png", "Risk contribution"),
     ("pca.png", "PCA variance"),
     ("rolling_correlation.png", "Rolling correlation"),
@@ -306,6 +307,47 @@ def _rolling_correlation(charts):
     ax.set_ylabel("Avg correlation", color=MUTED, fontsize=7)
     _save(fig, "rolling_correlation.png")
 
+
+
+def _rolling_stats(charts):
+    rs = charts.get("rolling_stats_63d") or {}
+    mean = rs.get("mean") or []
+    if not mean:
+        return
+
+    def arr(values):
+        return np.array([np.nan if v is None else float(v) for v in values or []], dtype=float)
+
+    mean, lo, hi = arr(mean), arr(rs.get("mean_lower")), arr(rs.get("mean_upper"))
+    std, sharpe = arr(rs.get("std")), arr(rs.get("sharpe"))
+    length = min(len(mean), len(lo), len(hi), len(std), len(sharpe))
+    mean, lo, hi, std, sharpe = mean[:length], lo[:length], hi[:length], std[:length], sharpe[:length]
+    valid = np.where(np.isfinite(mean))[0]
+    if valid.size == 0:
+        return
+    start = max(0, valid[0] - 2)
+    x = np.arange(start, length)
+
+    fig, ax = plt.subplots(figsize=(6.0, 2.6))
+    _style(ax)
+    ax.plot(x, mean[start:] * 100, color=INK, linewidth=1.0, label="Mean return")
+    ax.fill_between(x, lo[start:] * 100, hi[start:] * 100, color=GRID, alpha=0.55,
+                    label="95% band")
+    ax.plot(x, std[start:] * 100, color=BRASS, linewidth=0.9, label="Std dev")
+    ax.set_ylabel("%", color=MUTED, fontsize=7)
+
+    ax2 = ax.twinx()
+    ax2.plot(x, sharpe[start:], color=GREEN, linewidth=0.9, alpha=0.85, label="Sharpe")
+    ax2.tick_params(colors=MUTED, labelsize=6, length=0)
+    for spine in ax2.spines.values():
+        spine.set_visible(False)
+
+    handles, labels = ax.get_legend_handles_labels()
+    handles2, labels2 = ax2.get_legend_handles_labels()
+    ax.legend(handles + handles2, labels + labels2, frameon=False, fontsize=6,
+              labelcolor=INK, ncol=2, loc="upper left")
+    _save(fig, "rolling_stats.png")
+
 def generate(example_data, force=False):
     """Render every report image; skip when the set is fresh."""
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -331,6 +373,7 @@ def generate(example_data, force=False):
         (_risk_contribution, (charts,)),
         (_pca, (charts,)),
         (_rolling_correlation, (charts,)),
+        (_rolling_stats, (charts,)),
     ]
     for func, args in jobs:
         try:

@@ -9,7 +9,7 @@ Implements approval-based registration workflow.
 from datetime import datetime, timedelta
 from functools import wraps
 import secrets
-from flask import Blueprint, request, jsonify, session, current_app
+from flask import Blueprint, request, jsonify, session, current_app, redirect
 from flask_login import login_user, logout_user
 from sqlalchemy import or_
 from models.database import db
@@ -186,12 +186,14 @@ def login():
     })
 
 
-@auth_bp.route('/logout', methods=['POST'])
+@auth_bp.route('/logout', methods=['GET', 'POST'])
 @login_required
 def logout():
-    """Log out user."""
+    """Log out user; GET is the navigation path, POST is the API."""
     logout_user()  # Flask-Login logout
     session.clear()
+    if request.method == 'GET':
+        return redirect('/')
     return jsonify({'success': True, 'message': 'Logged out'})
 
 
