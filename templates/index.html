@@ -11,13 +11,21 @@
         Institutional-grade quantitative analysis with Monte Carlo simulation, 
         distribution fitting, factor decomposition, and extreme value theory.
     </p>
-    <div class="mt-6 flex flex-wrap gap-4">
+    {% if example_data %}
+    <p class="text-sm opacity-75 mt-3">
+        {{ example_data.meta.name }} · computed {{ example_data.meta.computed_at[:10] }} · period {{ example_data.meta.period }} · {{ example_data.meta.n_assets }} assets
+    </p>
+    {% endif %}
+    <div class="mt-6 flex flex-wrap gap-3 no-print">
         <a href="/upload" class="bg-white text-primary-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition shadow-lg">
             <i class="fas fa-cloud-upload-alt mr-2"></i>Upload Portfolio
         </a>
         <a href="/analysis-comprehensive" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
-            <i class="fas fa-chart-area mr-2"></i>Advanced Analytics
+            <i class="fas fa-flask mr-2"></i>Run Custom Analysis
         </a>
+        <button type="button" onclick="window.print()" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
+            <i class="fas fa-file-pdf mr-2"></i>Download report
+        </button>
     </div>
 </div>
 
@@ -178,29 +186,6 @@
 {% if example_data %}
 <!-- Pre-computed Analysis Dashboard -->
 <div id="comprehensive-analysis" class="space-y-6 mb-8">
-
-    <!-- Analysis Header -->
-    <div class="gradient-bg rounded-2xl p-8 text-white">
-        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-            <div>
-                <h2 class="text-3xl font-bold mb-2">Quantitative Analysis Results</h2>
-                <p class="text-lg opacity-90">{{ example_data.meta.name }}</p>
-                <p class="text-sm opacity-75 mt-2">
-                    <i class="fas fa-database mr-1"></i>Analysis computed: {{ example_data.meta.computed_at[:10] }} | 
-                    <i class="fas fa-chart-line mr-1"></i>Period: {{ example_data.meta.period }} | 
-                    <i class="fas fa-layer-group mr-1"></i>{{ example_data.meta.n_assets }} assets
-                </p>
-            </div>
-            <div class="flex gap-3 no-print">
-                <button type="button" onclick="window.print()" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
-                    <i class="fas fa-file-pdf mr-2"></i>Download report
-                </button>
-                <a href="/analysis-comprehensive" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
-                    <i class="fas fa-flask mr-2"></i>Run Custom Analysis
-                </a>
-            </div>
-        </div>
-    </div>
 
     <!-- Key Metrics Cards -->
     <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
