@@ -13,6 +13,7 @@ from io import BytesIO
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import openpyxl
 
 from services.portfolio_extractor import extract
 
@@ -103,6 +104,14 @@ def build_docx(path):
         archive.writestr("word/document.xml", document)
 
 
+def build_xlsx(path):
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    for row in _rows():
+        sheet.append(row)
+    workbook.save(path)
+
+
 def normalise_sector(value):
     value = (value or "").strip().lower()
     return SECTOR_ALIASES.get(value, value)
@@ -148,6 +157,7 @@ def main():
         ("pdf", "portfolio.pdf", build_pdf),
         ("png", "portfolio.png", build_png),
         ("jpg", "portfolio.jpg", build_jpg),
+        ("xlsx", "portfolio.xlsx", build_xlsx),
     ]
     results = {}
     for label, filename, builder in builders:

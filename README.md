@@ -113,7 +113,7 @@ Accuracy is checked by `scripts/test_extraction.py`, which builds the same four-
 
 ```bash
 PYTHONPATH=. python scripts/test_extraction.py
-# docx=PASS, pdf=PASS, png=PASS, jpg=PASS
+# docx=PASS, pdf=PASS, png=PASS, jpg=PASS, xlsx=PASS
 ```
 
 ---

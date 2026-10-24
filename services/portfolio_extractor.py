@@ -159,6 +159,22 @@ def _docx_text(file_bytes: bytes) -> str:
     return re.sub(r"[ \t]+", " ", text).strip()
 
 
+def _xlsx_text(file_bytes: bytes) -> str:
+    try:
+        import openpyxl
+        workbook = openpyxl.load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
+        lines = []
+        for sheet in workbook.worksheets:
+            for row in sheet.iter_rows(values_only=True):
+                cells = [str(cell) for cell in row if cell is not None]
+                if cells:
+                    lines.append("\t".join(cells))
+        return "\n".join(lines)
+    except Exception as exc:
+        logger.warning("XLSX text extraction failed: %s", exc)
+        return ""
+
+
 def _pdf_text(file_bytes: bytes) -> str:
     try:
         import pdfplumber
@@ -175,6 +191,8 @@ def _text_for(filename: str, file_bytes: bytes) -> str:
         return _docx_text(file_bytes)
     if ext == "pdf":
         return _pdf_text(file_bytes)
+    if ext in {"xlsx", "xls"}:
+        return _xlsx_text(file_bytes)
     if ext in {"txt", "csv"}:
         return file_bytes.decode("utf-8", "ignore")
     return ""
@@ -186,10 +204,20 @@ def extract_with_llm(file_bytes: bytes, mime: str) -> ParsedPortfolio:
 
 def extract_document(file_bytes: bytes, filename: str, broker_hint: Optional[str]) -> ParsedPortfolio:
     ext = filename.lower().rsplit(".", 1)[-1]
-    if ext not in {"docx", "pdf"}:
+    if ext not in {"docx", "pdf", "xlsx", "xls"}:
         from services.document_parser import document_parser
         parsed = document_parser.parse(file_bytes, filename, broker_hint)
         if len(parsed.holdings) >= 2:
+            return parsed
+    elif ext in {"xlsx", "xls"}:
+        from services.document_parser import document_parser
+        parsed = document_parser.parse(file_bytes, filename, broker_hint)
+        complete = (
+            len(parsed.holdings) >= 2
+            and all(h.ticker and h.asset_class for h in parsed.holdings)
+            and any(h.market_value for h in parsed.holdings)
+        )
+        if complete:
             return parsed
 
     text = _text_for(filename, file_bytes)
