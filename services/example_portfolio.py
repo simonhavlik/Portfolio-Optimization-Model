@@ -362,6 +362,25 @@ class ExamplePortfolioService:
         
         return result
     
+    def compute_custom(self, holdings: list, period: str = '2y',
+                       name: str = 'Your portfolio',
+                       description: str = '') -> Dict[str, Any]:
+        """Run the exact example pipeline for arbitrary holdings."""
+        normalised = []
+        total = sum(float(h.get('weight') or 0) for h in holdings) or 1.0
+        for holding in holdings:
+            ticker = str(holding.get('ticker') or '').upper().strip()
+            weight = float(holding.get('weight') or 0) / total
+            if ticker and weight > 0:
+                normalised.append({'ticker': ticker, 'weight': weight,
+                                   'sector': holding.get('sector')})
+        return self._compute_analysis({
+            'name': name or 'Your portfolio',
+            'description': description,
+            'holdings': normalised,
+            'period': period or '2y',
+        })
+
     def refresh_cache(self) -> Dict[str, Any]:
         """
         Force recompute and refresh the cache.
@@ -402,27 +421,28 @@ class ExamplePortfolioService:
             logger.error(f"Failed to clear cache: {e}")
             return False
     
-    def _compute_analysis(self) -> Dict[str, Any]:
+    def _compute_analysis(self, portfolio: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Compute comprehensive portfolio analysis.
         This is the HEAVY operation - takes ~10 seconds.
         Only called at startup or manual refresh.
         """
-        logger.info("Computing example portfolio analysis...")
+        portfolio = portfolio or EXAMPLE_PORTFOLIO
+        logger.info("Computing portfolio analysis...")
         start_time = datetime.utcnow()
-        
-        holdings = EXAMPLE_PORTFOLIO['holdings']
+
+        holdings = portfolio['holdings']
         tickers = [h['ticker'] for h in holdings]
         weights_dict = {h['ticker']: h['weight'] for h in holdings}
-        period = EXAMPLE_PORTFOLIO['period']
+        period = portfolio.get('period', '2y')
         
         # Fetch market data
         batch_data = market_data_service.fetch_batch_data(tickers, period=period)
         valid_data = {t: d for t, d in batch_data.items() if d is not None}
         
-        if len(valid_data) < 5:
+        if len(valid_data) < 2:
             logger.error(f"Insufficient data for example portfolio: {len(valid_data)} tickers")
-            return self._get_fallback_data()
+            return self._get_fallback_data(portfolio)
         
         # Build returns DataFrame
         returns_df = pd.DataFrame({t: d.returns for t, d in valid_data.items()}).dropna()
@@ -571,8 +591,8 @@ class ExamplePortfolioService:
         # Combine all results
         result = {
             'meta': {
-                'name': EXAMPLE_PORTFOLIO['name'],
-                'description': EXAMPLE_PORTFOLIO['description'],
+                'name': portfolio.get('name') or EXAMPLE_PORTFOLIO['name'],
+                'description': portfolio.get('description') or EXAMPLE_PORTFOLIO['description'],
                 'computed_at': datetime.utcnow().isoformat(),
                 'period': period,
                 'n_assets': len(holdings),
@@ -628,17 +648,20 @@ class ExamplePortfolioService:
         
         return result
     
-    def _get_fallback_data(self) -> Dict[str, Any]:
+    def _get_fallback_data(self, portfolio: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Return minimal fallback data if computation fails."""
+        portfolio = portfolio or EXAMPLE_PORTFOLIO
         return {
             'meta': {
-                'name': EXAMPLE_PORTFOLIO['name'],
-                'description': EXAMPLE_PORTFOLIO['description'],
+                'name': portfolio.get('name') or EXAMPLE_PORTFOLIO['name'],
+                'description': portfolio.get('description') or EXAMPLE_PORTFOLIO['description'],
                 'computed_at': datetime.utcnow().isoformat(),
-                'error': 'Failed to compute full analysis'
+                'error': 'Failed to compute full analysis',
+                'period': portfolio.get('period', '2y'),
+                'n_assets': len(portfolio.get('holdings') or []),
             },
             'metrics': {},
-            'holdings': EXAMPLE_PORTFOLIO['holdings'],
+            'holdings': portfolio.get('holdings') or EXAMPLE_PORTFOLIO['holdings'],
             'charts': {}
         }
 

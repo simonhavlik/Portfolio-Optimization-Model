@@ -232,7 +232,7 @@
         <button type="button" onclick="window.print()" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
             <i class="fas fa-file-pdf mr-2"></i>Download report
         </button>
-        <a href="/api/report/xlsx" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
+        <a href="/api/report/xlsx{% if report_id %}?report={{ report_id }}{% endif %}" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
             <i class="fas fa-file-excel mr-2"></i>Excel model
         </a>
     </div>
@@ -247,8 +247,8 @@
 <div id="example" class="bg-white rounded-xl shadow-lg p-6 mb-8 card-hover border border-slate-200 print-hide">
     <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
         <div>
-            <h2 class="text-2xl font-bold text-slate-900">Example: Diversified Growth Portfolio</h2>
-            <p class="text-slate-600">$100,000 portfolio across 15 holdings with auto-detected sectors</p>
+            <h2 class="text-2xl font-bold text-slate-900">{{ example_data.meta.name }}</h2>
+            <p class="text-slate-600">{{ example_data.meta.description or 'Weights and sectors resolved from market data' }} · {{ example_data.meta.n_assets }} holdings</p>
         </div>
         <div class="flex gap-3">
             <a href="/auth/register" class="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-medium hover:bg-emerald-700 transition flex items-center gap-2">
@@ -1179,7 +1179,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Render all charts when page loads
 document.addEventListener('DOMContentLoaded', () => {
     {% if example_data and example_data.charts %}
-    fetch('/api/example-charts', { headers: { 'Accept': 'application/json' } })
+    fetch('/api/example-charts{% if report_id %}?report={{ report_id }}{% endif %}', { headers: { 'Accept': 'application/json' } })
         .then(response => response.ok ? response.json() : Promise.reject(response.status))
         .then(renderAllCharts)
         .catch(error => console.error('Chart data failed to load', error));

@@ -45,7 +45,7 @@ import numpy as np
 from config import config
 from models.database import (
     db, init_db, Portfolio, Asset, PortfolioHolding, OptimizationResult,
-    PortfolioHistory, PortfolioDocument
+    PortfolioHistory, PortfolioDocument, AppCache
 )
 from services.market_data import market_data_service
 from services.optimization import (
@@ -57,6 +57,8 @@ from services.portfolio_extractor import extract as extract_portfolio
 from services.rate_limit import rate_limit
 from services.valuation import portfolio_valuation
 from services.report_appendix import build_appendix
+from services.example_portfolio import serialize_for_template, _finite_json
+from uuid import uuid4
 from services import cca as cca_service
 from services.risk_analytics import risk_analytics, RiskMetrics
 from services.advanced_statistics import advanced_statistics
@@ -305,10 +307,17 @@ def _json_safe(value):
 @app.route('/api/example-charts')
 def example_charts():
     """Chart payload for the example portfolio, fetched after first paint."""
+    report = request.args.get('report')
     try:
-        example_data = example_portfolio_service.get_analysis()
+        if report:
+            row = db.session.get(AppCache, f'custom_analysis:{report}')
+            if not row:
+                return jsonify({'error': 'unknown report'}), 404
+            example_data = row.payload
+        else:
+            example_data = example_portfolio_service.get_analysis()
     except Exception as e:
-        logger.error(f"Error loading example portfolio charts: {e}")
+        logger.error(f"Error loading portfolio charts: {e}")
         return jsonify({'error': 'unavailable'}), 503
 
     if not example_data or not example_data.get('charts'):
@@ -330,12 +339,83 @@ def example_charts():
     return response
 
 
+
+@app.route('/api/analyse', methods=['POST'])
+@login_required
+@rate_limit('analyse', 6, 3600)
+def analyse_custom():
+    """Run the full report engine for user-supplied holdings."""
+    data = request.get_json() or {}
+    holdings = data.get('holdings') or []
+    clean = []
+    for holding in holdings:
+        ticker = str(holding.get('ticker') or '').upper().strip()
+        weight = holding.get('weight')
+        if ticker and isinstance(weight, (int, float)) and weight > 0:
+            clean.append({'ticker': ticker, 'weight': float(weight), 'sector': holding.get('sector')})
+    if len(clean) < 2:
+        return jsonify({'error': 'At least two holdings are required'}), 400
+    if len(clean) > 50:
+        return jsonify({'error': 'Maximum 50 holdings'}), 400
+
+    try:
+        analysis = example_portfolio_service.compute_custom(
+            clean,
+            period=data.get('period', '2y'),
+            name=data.get('name') or 'Your portfolio',
+            description=data.get('description') or '',
+        )
+    except Exception as exc:
+        logger.error(f"Custom analysis failed: {exc}")
+        return jsonify({'error': str(exc)}), 500
+
+    token = uuid4().hex
+    payload = _finite_json(serialize_for_template(analysis))
+    row = AppCache(key=f'custom_analysis:{token}', payload=payload, computed_at=datetime.utcnow())
+    db.session.add(row)
+    db.session.commit()
+    return jsonify({'success': True, 'report_url': f'/report/{token}', 'token': token})
+
+
+@app.route('/report/<token>')
+@login_required
+def custom_report(token):
+    row = db.session.get(AppCache, f'custom_analysis:{token}')
+    if not row or not row.payload:
+        abort(404)
+    example_data = row.payload
+    valuation = None
+    appendix = None
+    cca = None
+    try:
+        valuation = portfolio_valuation(example_data.get('holdings', []),
+                                        example_data.get('metrics', {}).get('beta', 1.0))
+    except Exception as exc:
+        logger.warning(f"Custom valuation unavailable: {exc}")
+    try:
+        appendix = build_appendix(example_data)
+    except Exception as exc:
+        logger.warning(f"Custom appendix unavailable: {exc}")
+    try:
+        cca = cca_service.build_cca(example_data.get('holdings', []), None)
+    except Exception as exc:
+        logger.warning(f"Custom CCA unavailable: {exc}")
+    return render_template('index.html', example_data=example_data,
+                           valuation=valuation, appendix=appendix, cca=cca,
+                           report_id=token, show_analysis=True)
+
+
 @app.route('/api/report/xlsx')
 def report_xlsx():
     """Excel workbook with the analysis in sell-side layout."""
     from services.xlsx_report import build as build_xlsx
 
-    example_data = example_portfolio_service.get_analysis()
+    report = request.args.get('report')
+    if report:
+        row = db.session.get(AppCache, f'custom_analysis:{report}')
+        example_data = row.payload if row else None
+    else:
+        example_data = example_portfolio_service.get_analysis()
     if not example_data:
         return jsonify({'error': 'Analysis unavailable'}), 503
     valuation = portfolio_valuation(example_data.get('holdings', []),

@@ -546,7 +546,7 @@ document.getElementById('analysis-form').addEventListener('submit', async (e) =>
     document.getElementById('results-section').classList.add('hidden');
     const progress = Progress.start(document.getElementById('analysis-progress'),
         ['Downloading prices', 'Computing returns', 'Risk and factor models',
-         'Distribution tests', 'Rendering the report'], 30);
+         'Distribution tests', 'Rendering the full report'], 40);
     
     try {
         const response = await apiCall('/api/portfolio/comprehensive-analysis', {
@@ -558,6 +558,14 @@ document.getElementById('analysis-form').addEventListener('submit', async (e) =>
             })
         });
         
+        progress.finish('Opening the full report');
+        const analysis = await fetch('/api/analyse', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ holdings, name: 'Custom portfolio',
+                                   period: document.getElementById('period').value })
+        });
+        const payload = await analysis.json();
+        if (analysis.ok) { window.location.href = payload.report_url; return; }
         displayResults(response);
         progress.finish('Analysis complete');
         

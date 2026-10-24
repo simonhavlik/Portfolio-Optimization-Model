@@ -274,7 +274,7 @@ document.getElementById('advanced-optimize-form').addEventListener('submit', asy
     button.disabled = true;
     const progress = Progress.start(document.getElementById('optimize-progress'),
         ['Downloading prices', 'Estimating covariance', 'Solving the optimisation',
-         'Computing risk contributions', 'Writing the review'], 25);
+         'Computing risk contributions', 'Rendering the full report'], 40);
     
     try {
         const response = await apiCall('/api/optimize', {
@@ -295,6 +295,17 @@ document.getElementById('advanced-optimize-form').addEventListener('submit', asy
         });
         
         currentResult = response;
+        const weights = response.optimization.weights || {};
+        const holdings = Object.entries(weights).map(([ticker, weight]) => ({ ticker, weight }));
+        if (holdings.length >= 2) {
+            progress.finish('Opening the full report');
+            const analysis = await fetch('/api/analyse', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ holdings, name: 'Optimised portfolio' })
+            });
+            const payload = await analysis.json();
+            if (analysis.ok) { window.location.href = payload.report_url; return; }
+        }
         displayResults(response);
         progress.finish('Optimisation complete');
 

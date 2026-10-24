@@ -264,6 +264,29 @@
 
 {% block extra_js %}
 <script>
+
+async function openFullReport(holdings, name) {
+    const response = await fetch('/api/analyse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ holdings: holdings, name: name || 'Your portfolio' })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Full analysis failed');
+    window.location.href = data.report_url;
+}
+
+function holdingsFromExtraction(extracted) {
+    const rows = extracted.holdings || [];
+    const total = rows.reduce((sum, h) => sum + (h.market_value || 0), 0);
+    const even = rows.length ? 1 / rows.length : 0;
+    return rows.map(h => ({
+        ticker: h.ticker,
+        weight: total > 0 ? (h.market_value || 0) / total : (h.weight || even),
+        sector: h.asset_class || h.sector || null
+    })).filter(h => h.ticker);
+}
+
 let currentPortfolioId = null;
 let currentDocumentId = null;
 let extractedData = null;
@@ -389,7 +412,7 @@ document.getElementById('paste-analyse').addEventListener('click', async () => {
     const text = document.getElementById('paste-input').value.trim();
     if (text.length < 8) { showToast('Paste a few holdings first', 'error'); return; }
     const progress = Progress.start(document.getElementById('upload-progress'),
-        ['Reading holdings', 'Resolving tickers and sectors', 'Fetching market data', 'Computing risk', 'Writing the review'], 25);
+        ['Reading holdings', 'Resolving tickers and sectors', 'Fetching market data', 'Running the full analysis', 'Rendering the report'], 45);
     const button = document.getElementById('paste-analyse');
     button.disabled = true;
     try {
@@ -403,6 +426,11 @@ document.getElementById('paste-analyse').addEventListener('click', async () => {
         currentPortfolioId = data.portfolio_id;
         extractedData = data.extracted_data;
         currentAiReview = data.ai_review || '';
+        const pastedHoldings = holdingsFromExtraction(data.extracted_data);
+        if (pastedHoldings.length >= 2) {
+            await openFullReport(pastedHoldings, 'Pasted portfolio');
+            return;
+        }
         displayResults(data);
         if (currentAiReview) document.getElementById('ai-content').innerHTML = formatMarkdown(currentAiReview);
         if (currentPortfolioId) loadRiskTimeline(currentPortfolioId);
@@ -432,27 +460,17 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         formData.append('portfolio_id', existingPortfolio);
     }
     
-    // Show processing status
+    // Show processing status with elapsed time
     document.getElementById('upload-btn').disabled = true;
-    document.getElementById('processing-status').classList.remove('hidden');
-    
-    const steps = ['Extracting text from document...', 'Identifying holdings with AI...', 
-                   'Fetching market data...', 'Calculating risk metrics...'];
-    let stepIndex = 0;
-    const stepInterval = setInterval(() => {
-        if (stepIndex < steps.length) {
-            document.getElementById('processing-step').textContent = steps[stepIndex];
-            stepIndex++;
-        }
-    }, 2000);
+    const progress = Progress.start(document.getElementById('upload-progress'),
+        ['Reading the file', 'Extracting holdings', 'Resolving tickers and sectors',
+         'Fetching market data', 'Running the full analysis'], 45);
     
     try {
         const response = await fetch('/api/upload', {
             method: 'POST',
             body: formData
         });
-        
-        clearInterval(stepInterval);
         
         if (response.status === 401) {
             window.location.href = '/auth/register?next=/upload';
@@ -469,6 +487,16 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         extractedData = data.extracted_data;
         currentAiReview = data.ai_review || '';
         
+        const fullHoldings = holdingsFromExtraction(extractedData);
+        if (fullHoldings.length >= 2) {
+            try {
+                await openFullReport(fullHoldings, extractedData.broker ? `Portfolio from ${extractedData.broker}` : 'Your portfolio');
+                return;
+            } catch (error) {
+                console.warn('Full report failed, showing extraction only', error);
+            }
+        }
+
         displayResults(data);
 
         if (currentAiReview) {
@@ -481,11 +509,9 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         showToast('Document analyzed successfully!', 'success');
         
     } catch (error) {
+        progress.fail(error.message);
         showToast(error.message, 'error');
         document.getElementById('upload-btn').disabled = false;
-    } finally {
-        document.getElementById('processing-status').classList.add('hidden');
-        clearInterval(stepInterval);
     }
 });
 
