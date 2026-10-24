@@ -862,6 +862,57 @@
         </div>
     </footer>
 
+
+    <script>
+        // Simple progress panel with elapsed time and estimate
+        window.Progress = {
+            start(container, steps, estimateSeconds) {
+                if (!container) return { finish() {}, fail() {} };
+                container.classList.remove('hidden');
+                const estimate = Math.max(3, estimateSeconds || 20);
+                const started = Date.now();
+                let index = 0;
+                container.innerHTML = `
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-sm font-medium" data-role="step">${steps[0]}</span>
+                        <span class="text-xs font-mono" data-role="clock">0s / ~${estimate}s</span>
+                    </div>
+                    <div class="h-1.5 w-full rounded bg-slate-200 overflow-hidden">
+                        <div class="h-full bg-primary-600 transition-all" data-role="bar" style="width:4%"></div>
+                    </div>
+                    <div class="mt-2 text-xs text-slate-500" data-role="hint"></div>`;
+                const bar = container.querySelector('[data-role="bar"]');
+                const clock = container.querySelector('[data-role="clock"]');
+                const stepLabel = container.querySelector('[data-role="step"]');
+                const timer = setInterval(() => {
+                    const elapsed = (Date.now() - started) / 1000;
+                    const ratio = Math.min(0.95, elapsed / estimate);
+                    bar.style.width = `${Math.max(4, ratio * 100).toFixed(1)}%`;
+                    clock.textContent = `${Math.round(elapsed)}s / ~${estimate}s`;
+                    const next = Math.min(steps.length - 1, Math.floor(ratio * steps.length));
+                    if (next !== index) { index = next; stepLabel.textContent = steps[index]; }
+                }, 250);
+                const stop = () => clearInterval(timer);
+                return {
+                    finish(message) {
+                        stop();
+                        bar.style.width = '100%';
+                        stepLabel.textContent = message || 'Done';
+                        clock.textContent = `${Math.round((Date.now() - started) / 1000)}s`;
+                        setTimeout(() => container.classList.add('hidden'), 1200);
+                    },
+                    fail(message) {
+                        stop();
+                        bar.style.width = '100%';
+                        bar.classList.remove('bg-primary-600');
+                        bar.classList.add('bg-red-500');
+                        stepLabel.textContent = message || 'Failed';
+                        clock.textContent = `${Math.round((Date.now() - started) / 1000)}s`;
+                    }
+                };
+            }
+        };
+    </script>
     <!-- Toast Container -->
     <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
 

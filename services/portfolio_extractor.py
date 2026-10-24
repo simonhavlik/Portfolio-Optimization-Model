@@ -233,6 +233,13 @@ def extract_document(file_bytes: bytes, filename: str, broker_hint: Optional[str
     return document_parser.parse(file_bytes, filename, broker_hint)
 
 
+def extract_text(text: str) -> ParsedPortfolio:
+    """Parse holdings pasted as text."""
+    if not text or len(text.strip()) < 8:
+        raise ValueError("Nothing to parse")
+    return _to_portfolio(_ask_json(_text_messages(text)))
+
+
 def extract(file_bytes: bytes, filename: str, broker_hint: Optional[str] = None) -> ParsedPortfolio:
     ext = filename.lower().rsplit(".", 1)[-1]
     if ext in IMAGE_TYPES:

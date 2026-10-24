@@ -33,10 +33,26 @@
     <!-- Upload Panel -->
     <div class="lg:col-span-1">
         <div class="bg-white rounded-xl shadow-lg p-6 sticky top-8">
-            <h2 class="text-lg font-semibold text-gray-900 mb-4">
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">
                 <i class="fas fa-cloud-upload-alt text-primary-600 mr-2"></i>Upload Statement
             </h2>
-            
+
+            <div class="flex gap-2 mb-4">
+                <button type="button" id="tab-file" class="px-3 py-1.5 text-sm rounded-md bg-primary-600 text-white font-medium">Upload file</button>
+                <button type="button" id="tab-paste" class="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700">Paste holdings</button>
+            </div>
+
+            <div id="paste-panel" class="hidden space-y-3 mb-4">
+                <textarea id="paste-input" rows="6" class="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                    placeholder="AAPL 30%&#10;MSFT 25%&#10;NVDA 25%&#10;JPM 20%"></textarea>
+                <p class="text-xs text-gray-500">Paste a broker statement, a table or plain ticker and weight pairs.</p>
+                <button type="button" id="paste-analyse" class="w-full bg-primary-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-primary-700 transition">
+                    <i class="fas fa-wand-magic-sparkles mr-2"></i>Analyse pasted holdings
+                </button>
+            </div>
+
+            <div id="upload-progress" class="hidden mb-4 rounded-lg border border-slate-200 bg-white p-4"></div>
+
             <form id="upload-form" class="space-y-4">
                 <!-- File Drop Zone -->
                 <div 
@@ -351,6 +367,54 @@ function handleFile(file) {
     document.getElementById('file-info').classList.remove('hidden');
     document.getElementById('upload-btn').disabled = false;
 }
+
+
+// Paste tab
+const tabFile = document.getElementById('tab-file');
+const tabPaste = document.getElementById('tab-paste');
+const pastePanel = document.getElementById('paste-panel');
+const uploadForm = document.getElementById('upload-form');
+function setTab(paste) {
+    pastePanel.classList.toggle('hidden', !paste);
+    uploadForm.classList.toggle('hidden', paste);
+    tabPaste.className = paste ? 'px-3 py-1.5 text-sm rounded-md bg-primary-600 text-white font-medium'
+                               : 'px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700';
+    tabFile.className = paste ? 'px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700'
+                              : 'px-3 py-1.5 text-sm rounded-md bg-primary-600 text-white font-medium';
+}
+tabFile.addEventListener('click', () => setTab(false));
+tabPaste.addEventListener('click', () => setTab(true));
+
+document.getElementById('paste-analyse').addEventListener('click', async () => {
+    const text = document.getElementById('paste-input').value.trim();
+    if (text.length < 8) { showToast('Paste a few holdings first', 'error'); return; }
+    const progress = Progress.start(document.getElementById('upload-progress'),
+        ['Reading holdings', 'Resolving tickers and sectors', 'Fetching market data', 'Computing risk', 'Writing the review'], 25);
+    const button = document.getElementById('paste-analyse');
+    button.disabled = true;
+    try {
+        const response = await fetch('/api/upload-text', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+        const data = await response.json();
+        if (response.status === 401) { window.location.href = '/auth/register?next=/upload'; return; }
+        if (!response.ok) throw new Error(data.error || 'Could not analyse');
+        currentPortfolioId = data.portfolio_id;
+        extractedData = data.extracted_data;
+        currentAiReview = data.ai_review || '';
+        displayResults(data);
+        if (currentAiReview) document.getElementById('ai-content').innerHTML = formatMarkdown(currentAiReview);
+        if (currentPortfolioId) loadRiskTimeline(currentPortfolioId);
+        progress.finish('Analysis ready');
+        showToast('Portfolio analysed', 'success');
+    } catch (error) {
+        progress.fail(error.message);
+        showToast(error.message, 'error');
+    } finally {
+        button.disabled = false;
+    }
+});
 
 // Form submission
 document.getElementById('upload-form').addEventListener('submit', async (e) => {

@@ -347,6 +347,95 @@ def report_xlsx():
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
+
+@app.route('/api/upload-text', methods=['POST'])
+@rate_limit('upload_hour', 2, 3600)
+@login_required
+def upload_text():
+    """Analyse holdings pasted as text."""
+    from services.rate_limit import allow
+    from services.portfolio_extractor import extract_text
+
+    if not allow(f"weekly:user:{session['user_id']}", 3, 604800):
+        return jsonify({
+            'error': 'Weekly limit reached (3 analyses). Email me@simonhavlik.com for more.',
+            'contact': 'me@simonhavlik.com',
+        }), 429
+
+    data = request.get_json() or {}
+    text = (data.get('text') or '').strip()
+    if len(text) < 8:
+        return jsonify({'error': 'Paste a few holdings first'}), 400
+
+    try:
+        parsed = extract_text(text)
+    except Exception as exc:
+        logger.warning(f"Paste parsing failed: {exc}")
+        return jsonify({'error': 'Could not read holdings from that text'}), 400
+
+    if not parsed.holdings:
+        return jsonify({'error': 'No holdings recognised'}), 400
+
+    risk_metrics = None
+    tickers = [h.ticker for h in parsed.holdings if h.ticker]
+    if len(tickers) >= 2:
+        risk_metrics = calculate_portfolio_risk_metrics(tickers, date.today())
+
+    portfolio = Portfolio(user_id=session.get('user_id'), name='Pasted portfolio',
+                          description='Holdings pasted as text')
+    db.session.add(portfolio)
+    db.session.flush()
+
+    total = parsed.account_value or sum((h.market_value or 0) for h in parsed.holdings) or 100000
+    for holding in parsed.holdings:
+        asset = Asset.query.filter_by(ticker=holding.ticker).first()
+        if not asset:
+            asset = Asset(ticker=holding.ticker, name=holding.name or holding.ticker,
+                          asset_class=holding.asset_class or 'Equity',
+                          sector=holding.asset_class)
+            db.session.add(asset)
+            db.session.flush()
+        weight = (holding.market_value or 0) / total if total else 0
+        db.session.add(PortfolioHolding(portfolio_id=portfolio.id, asset_id=asset.id,
+                                        current_weight=weight, shares=holding.shares))
+
+    if risk_metrics:
+        db.session.add(PortfolioHistory(
+            portfolio_id=portfolio.id, snapshot_date=date.today(),
+            portfolio_value=total, **risk_metrics,
+            holdings_snapshot={h.ticker: {'value': h.market_value} for h in parsed.holdings},
+            source='paste'))
+    db.session.commit()
+
+    positions = []
+    for holding in parsed.holdings:
+        weight = (holding.market_value or 0) / total if total else 0
+        positions.append({'ticker': holding.ticker, 'weight': round(weight, 4),
+                          'sector': holding.asset_class})
+    review_metrics = {}
+    if risk_metrics:
+        review_metrics = {
+            'annualized_return': round(risk_metrics.get('expected_return', 0), 4),
+            'volatility': round(risk_metrics.get('volatility', 0), 4),
+            'sharpe': round(risk_metrics.get('sharpe_ratio', 0), 3),
+            'max_drawdown': round(risk_metrics.get('max_drawdown', 0), 4),
+            'var_95': round(risk_metrics.get('var_95', 0), 4),
+        }
+    review = ''
+    try:
+        review = ai_service.generate_portfolio_review(positions, review_metrics)
+    except Exception as exc:
+        logger.warning(f"Paste review unavailable: {exc}")
+
+    return jsonify({
+        'success': True,
+        'portfolio_id': portfolio.id,
+        'extracted_data': parsed.to_dict(),
+        'ai_review': review,
+        'message': f"Extracted {len(parsed.holdings)} holdings",
+    })
+
+
 @app.route('/portfolio/<int:portfolio_id>')
 def portfolio_detail(portfolio_id):
     """Portfolio detail view."""
@@ -1911,14 +2000,33 @@ def optimize_portfolio():
         # Generate efficient frontier data
         ef_data = optimizer.efficient_frontier(n_points=50, constraints=constraints)
         
+        result_dict = result.to_dict()
+        review = ''
+        try:
+            positions = [
+                {'ticker': ticker, 'weight': float(weight)}
+                for ticker, weight in (result_dict.get('weights') or {}).items()
+                if float(weight) > 0
+            ]
+            review_metrics = {
+                'expected_return': result_dict.get('expected_return'),
+                'volatility': result_dict.get('volatility'),
+                'sharpe_ratio': result_dict.get('sharpe_ratio'),
+                'max_drawdown': result_dict.get('max_drawdown'),
+            }
+            review = ai_service.generate_portfolio_review(positions, review_metrics)
+        except Exception as exc:
+            logger.warning(f"Optimization review unavailable: {exc}")
+
         response = {
             'success': True,
-            'optimization': result.to_dict(),
+            'optimization': result_dict,
             'efficient_frontier': ef_data.to_dict(orient='records'),
             'failed_tickers': failed_tickers,
             'method': method.value,
             'period': period,
             'risk_free_rate': risk_free_rate,
+            'ai_review': review,
         }
         
         return jsonify(sanitize_for_json(response))

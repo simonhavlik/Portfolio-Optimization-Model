@@ -264,6 +264,9 @@ def _deterministic_review(holdings, metrics):
         )
     if metrics:
         risk_bits = []
+        expected = metrics.get('annualized_return') or metrics.get('expected_return')
+        if expected:
+            risk_bits.append(f"expected return {expected * 100:.1f}%")
         volatility = metrics.get('volatility')
         if volatility:
             risk_bits.append(f"volatility {volatility * 100:.1f}%")

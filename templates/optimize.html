@@ -16,6 +16,7 @@
                 <i class="fas fa-sliders-h text-primary-600 mr-2"></i>Configuration
             </h2>
             
+            <p class="text-xs text-slate-500 mb-3">Add at least two tickers, choose an objective, then run. The solver fetches prices, estimates the covariance matrix and writes the review.</p>
             <form id="advanced-optimize-form" class="space-y-6">
                 <!-- Assets -->
                 <div>
@@ -102,6 +103,7 @@
                     <i class="fas fa-play mr-2"></i>Run Optimization
                 </button>
             </form>
+            <div id="optimize-progress" class="hidden mt-4 rounded-lg border border-slate-200 bg-white p-4"></div>
         </div>
     </div>
     
@@ -270,6 +272,9 @@ document.getElementById('advanced-optimize-form').addEventListener('submit', asy
     const button = e.target.querySelector('button[type="submit"]');
     button.innerHTML = '<div class="loading-spinner inline-block mr-2"></div> Running...';
     button.disabled = true;
+    const progress = Progress.start(document.getElementById('optimize-progress'),
+        ['Downloading prices', 'Estimating covariance', 'Solving the optimisation',
+         'Computing risk contributions', 'Writing the review'], 25);
     
     try {
         const response = await apiCall('/api/optimize', {
@@ -291,8 +296,14 @@ document.getElementById('advanced-optimize-form').addEventListener('submit', asy
         
         currentResult = response;
         displayResults(response);
-        
-        if (document.getElementById('enable-ai').checked) {
+        progress.finish('Optimisation complete');
+
+        const aiSection = document.getElementById('ai-analysis');
+        const aiContent = document.getElementById('ai-content');
+        if (response.ai_review && aiContent) {
+            aiContent.textContent = response.ai_review;
+            if (aiSection) aiSection.classList.remove('hidden');
+        } else if (document.getElementById('enable-ai').checked) {
             generateAIAnalysis(response);
         }
         
@@ -300,6 +311,7 @@ document.getElementById('advanced-optimize-form').addEventListener('submit', asy
         
     } catch (error) {
         console.error(error);
+        progress.fail(error.message || 'Optimisation failed');
     } finally {
         button.innerHTML = '<i class="fas fa-play mr-2"></i>Run Optimization';
         button.disabled = false;
