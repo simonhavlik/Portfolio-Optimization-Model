@@ -305,6 +305,11 @@ def build_board(force: bool = False, window_years: int = WINDOW_YEARS) -> dict:
             row['metrics']['concentration'] = None
         row['observations'] = int(len(series))
         row['start'] = series.index.min().date().isoformat() if not series.empty else None
+        if not series.empty:
+            curve = (1 + series).cumprod()
+            weekly = curve.resample('W').last().dropna()
+            row['curve'] = [round(float(v), 4) for v in weekly.tolist()]
+            row['curve_dates'] = [d.date().isoformat() for d in weekly.index]
         rows.append(row)
 
     _percentile_scores(rows)

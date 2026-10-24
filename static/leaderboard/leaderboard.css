@@ -80,7 +80,7 @@
 .lb-meta b { color: rgba(236, 233, 226, 0.78); font-weight: 500; }
 .lb-meta-note { margin-left: auto; color: rgba(200, 161, 90, 0.55); }
 
-.lb-charts { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr); gap: 12px; margin: 16px 0; }
+.lb-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0; }
 .lb-chart { margin: 0; border: 1px solid var(--line); background: linear-gradient(180deg, rgba(13, 16, 20, 0.85), rgba(8, 10, 13, 0.85)); }
 .lb-chart figcaption {
     display: flex; align-items: center; justify-content: space-between;
@@ -88,6 +88,20 @@
     font-size: 8.5px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(236, 233, 226, 0.45);
 }
 .lb-legend { color: rgba(236, 233, 226, 0.3); }
+.lb-chart-img { display: block; }
+.lb-chart-img img { display: block; width: 100%; height: auto; }
+.lb-dl {
+    padding: 2px 7px; border: 1px solid rgba(200, 161, 90, 0.4); border-radius: 2px;
+    color: rgba(232, 205, 151, 0.9); font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5px; letter-spacing: 0.12em; text-transform: uppercase; text-decoration: none;
+}
+.lb-dl:hover { background: rgba(200, 161, 90, 0.16); color: #fff; }
+.detail-link {
+    display: inline-block; margin-top: 14px; padding: 7px 11px;
+    border: 1px solid rgba(200, 161, 90, 0.45); border-radius: 2px;
+    color: #e8cd97; font-size: 11px; text-decoration: none;
+}
+.detail-link:hover { background: rgba(200, 161, 90, 0.14); color: #fff; }
 .lb-canvas { padding: 8px; }
 .lb-canvas svg { display: block; width: 100%; height: auto; }
 

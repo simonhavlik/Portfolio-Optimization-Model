@@ -56,7 +56,8 @@
             <thead>
                 <tr>
                     <th>Fund</th><th>Type</th><th>Filing used</th><th>Latest filing</th>
-                    <th>Status</th><th>Holdings</th><th>Coverage</th><th>Score</th>
+                    <th>Status</th><th>EDGAR history</th><th>Ingested</th>
+                    <th>Holdings</th><th>Coverage</th><th>Score</th>
                 </tr>
             </thead>
             <tbody>
@@ -71,6 +72,8 @@
                         {% elif fund.kind == '13f' %}<span class="badge badge--ok">current</span>
                         {% else %}<span class="badge">priced</span>{% endif %}
                     </td>
+                    <td>{% if fund.kind == '13f' %}{{ fund.available }} filings · {{ fund.earliest }} → {{ fund.latest }}{% else %}priced series{% endif %}</td>
+                    <td>{% if fund.kind == '13f' %}{{ fund.ingested }} / {{ fund.parseable }} XML{% else %}—{% endif %}</td>
                     <td>{{ fund.holdings or '—' }}</td>
                     <td>{% if fund.coverage is not none %}{{ "%.0f"|format(fund.coverage * 100) }}%{% else %}—{% endif %}</td>
                     <td>{{ fund.score or '—' }}</td>
@@ -80,6 +83,7 @@
         </table>
 
         <p class="admin-note">A refresh re-downloads every 13F filing in the window, re-maps CUSIPs, reprices the tickers and rebuilds the board. It runs in the background and can take several minutes; the public page keeps serving the previous board until the new one is written. Scheduled refreshes run weekly overnight.</p>
+        <p class="admin-note"><b>On history depth.</b> The EDGAR column is everything on file for the filer — Baupost and Third Point go back to 1999. Only filings from 2013 onward carry a structured XML information table; earlier filings are plain-text or HTML tables and need a different parser. The board chains the twenty most recent quarters so a rebuild stays bounded; the admin view shows the full record we have access to.</p>
     </div>
 </section>
 {% endblock %}

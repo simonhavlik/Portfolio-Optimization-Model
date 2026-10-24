@@ -304,6 +304,12 @@
                     <span class="live"><i aria-hidden="true"></i>live</span>
                 </div>
 
+                <div class="demo-tabs" role="tablist" aria-label="Product areas">
+                    <button type="button" class="d-tab is-active" data-tab="0" role="tab" aria-selected="true">Analysis</button>
+                    <button type="button" class="d-tab" data-tab="1" role="tab" aria-selected="false">Leaderboard</button>
+                    <button type="button" class="d-tab" data-tab="2" role="tab" aria-selected="false">Vision</button>
+                </div>
+
                 <div class="demo-body">
                     <!-- 01 · ingest -->
                     <section class="stage stage--ingest is-active" data-stage="0" aria-label="Step 1, ingest portfolio">
@@ -519,6 +525,21 @@
                         </div>
 
                         <footer class="console"><span class="prompt" aria-hidden="true">&rsaquo;</span><span class="line">ranked on Sharpe, Sortino, alpha, drawdown, beta and CVaR &middot; updated monthly</span></footer>
+                    </section>
+
+                    <!-- 06 · vision -->
+                    <section class="stage stage--vision" data-stage="5" aria-label="Why this exists">
+                        <div class="vision">
+                            <figure class="vision-photo">
+                                <img src="/static/vision/simon-pudong.jpg" alt="Šimon Havlík in front of the Shanghai skyline" loading="lazy" decoding="async">
+                            </figure>
+                            <div class="vision-copy">
+                                <p class="s-k">Why I built this</p>
+                                <h2 class="vision-title">I wanted the analysis I do for my own book to take a minute, not a week.</h2>
+                                <p class="vision-body">So I built it. One upload decomposes exposure, drawdown and tail risk across every position, stresses the strategy against volatility regimes rather than a flattering backtest, and pushes the book toward a frontier I can defend &mdash; for me, and for the friends who trust me with theirs.</p>
+                                <p class="vision-sign">Šimon Havlík<span class="sep">&middot;</span>Prague</p>
+                            </div>
+                        </div>
                     </section>
                 </div>
 

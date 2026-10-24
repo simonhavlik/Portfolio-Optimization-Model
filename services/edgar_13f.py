@@ -123,21 +123,39 @@ def _parse_information_table(raw: bytes) -> list[dict]:
     return rows
 
 
-def fund_filings(cik: str, limit: int = 28) -> list[dict]:
-    """Every 13F-HR on file, oldest first, de-duplicated by period."""
+def _submission_arrays(payload: dict) -> list[dict]:
+    """All filing rows, newest chunks included, as flat records."""
+    rows = []
+    blocks = [payload['filings']['recent']]
+    for extra in payload['filings'].get('files', []) or []:
+        try:
+            blocks.append(json.loads(_sec_get(
+                f"https://data.sec.gov/submissions/{extra['name']}")))
+        except Exception:
+            continue
+    for block in blocks:
+        forms = block.get('form', [])
+        for form, accession, filed, period in zip(forms, block.get('accessionNumber', []),
+                                                  block.get('filingDate', []),
+                                                  block.get('reportDate', [])):
+            if form.startswith('13F-HR'):
+                rows.append({'form': form, 'accession': accession, 'filed': filed, 'period': period})
+    return rows
+
+
+def fund_filings(cik: str, limit: int | None = 28) -> list[dict]:
+    """Every 13F-HR on file, oldest first, de-duplicated by period.
+
+    ``limit=None`` returns the complete EDGAR record for the filer.
+    """
     cik10 = cik.zfill(10)
     payload = json.loads(_sec_get(f'https://data.sec.gov/submissions/CIK{cik10}.json'))
-    recent = payload['filings']['recent']
     seen: dict[str, dict] = {}
-    for form, accession, filed, period in zip(recent['form'], recent['accessionNumber'],
-                                              recent['filingDate'], recent['reportDate']):
-        if not form.startswith('13F-HR'):
-            continue
-        # newest first, so the first filing seen for a period wins (amendments supersede)
-        if period not in seen:
-            seen[period] = {'form': form, 'accession': accession, 'filed': filed, 'period': period}
+    for row in _submission_arrays(payload):
+        if row['period'] and row['period'] not in seen:
+            seen[row['period']] = row
     ordered = sorted(seen.values(), key=lambda f: f['period'])
-    return ordered[-limit:]
+    return ordered if limit is None else ordered[-limit:]
 
 
 def book_for_filing(cik: str, filing: dict) -> dict:

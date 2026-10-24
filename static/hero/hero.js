@@ -318,11 +318,22 @@
         var rotateLines = [];
         try { rotateLines = JSON.parse(rotateEl ? rotateEl.getAttribute('data-rotate') : '[]'); } catch (e) { rotateLines = []; }
 
-        var idx = 0;
+        /* three areas, each with its own steps; the walkthrough finishes a tab
+           before moving to the next one, then wraps back to the analysis. */
+        var TABS = [
+            { id: 'analysis', stages: [0, 1, 2, 3], steps: ['Ingest', 'Compute', 'Optimise', 'Report'], dur: dur },
+            { id: 'board', stages: [4, 4], steps: ['Rank', 'Compare'], dur: Math.round(dur * 0.95) },
+            { id: 'vision', stages: [5], steps: ['Why'], dur: Math.round(dur * 1.5) }
+        ];
+        var tabIndex = 0;
+        var stepIndex = 0;
         var timer = null;
         var inView = false;
         var elapsedRaf = null;
         var sharpeRaf = null;
+        var boardStage = demo.querySelector('[data-stage="4"]');
+        var tabButtons = Array.prototype.slice.call(demo.querySelectorAll('.d-tab[data-tab]'));
+        var stepsHost = demo.querySelector('.demo-steps');
 
         function stopTimers() {
             clearTimeout(timer);
@@ -336,21 +347,20 @@
             if (!elapsedEl) return;
             var t0 = performance.now();
             var cap = Math.round(dur / 1000) + 3;
+            elapsedEl.textContent = '00:00';
             (function tick(now) {
                 var s = Math.min(cap, Math.floor((now - t0) / 1000));
                 elapsedEl.textContent = '00:' + String(s).padStart(2, '0');
                 elapsedRaf = requestAnimationFrame(tick);
             })(performance.now());
-            elapsedEl.textContent = '00:00';
         }
 
         function runSharpe() {
             if (sharpeRaf) cancelAnimationFrame(sharpeRaf);
             if (!sharpeEl) return;
             var t0 = performance.now();
-            var span = 1500;
             (function tick(now) {
-                var p = Math.min(1, (now - t0) / span);
+                var p = Math.min(1, (now - t0) / 1500);
                 var eased = 1 - Math.pow(1 - p, 3);
                 sharpeEl.textContent = (1.42 * eased).toFixed(2);
                 if (p < 1) sharpeRaf = requestAnimationFrame(tick);
@@ -368,54 +378,76 @@
             }, 2100);
         }
 
-        function go(n) {
-            stopTimers();
-            idx = ((n % stages.length) + stages.length) % stages.length;
-
-            stages.forEach(function (s, k) {
-                s.classList.remove('is-active');
-                if (k === idx) s.setAttribute('aria-hidden', 'false');
-                else s.setAttribute('aria-hidden', 'true');
+        function renderSteps() {
+            var config = TABS[tabIndex];
+            if (!stepsHost) return;
+            stepsHost.style.gridTemplateColumns = 'repeat(' + config.steps.length + ', minmax(0, 1fr))';
+            stepsHost.innerHTML = config.steps.map(function (label, i) {
+                return '<button type="button" class="step' + (i === stepIndex ? ' is-active' : '') + '" data-step="' + i +
+                    '" role="tab" aria-selected="' + (i === stepIndex) + '"><span class="n">0' + (i + 1) +
+                    '</span><span class="t">' + label + '</span><i class="fill" aria-hidden="true"></i></button>';
+            }).join('');
+            Array.prototype.forEach.call(stepsHost.querySelectorAll('.step'), function (btn) {
+                btn.addEventListener('click', function () {
+                    go(tabIndex, parseInt(btn.getAttribute('data-step'), 10));
+                });
             });
-            steps.forEach(function (s, k) {
-                s.classList.toggle('is-active', k === idx);
-                s.setAttribute('aria-selected', k === idx ? 'true' : 'false');
-                s.tabIndex = k === idx ? 0 : -1;
-            });
-
-            /* restart the CSS animations cleanly */
-            void demo.offsetWidth;
-            stages[idx].classList.add('is-active');
-
-            if (idx === 1) runElapsed();
-            if (idx === 2) runSharpe();
-            if (idx === 0 && sharpeEl) sharpeEl.textContent = '1.42';
-            if (idx === 0 && elapsedEl) elapsedEl.textContent = '00:00';
-            runConsole();
-
-            scheduleNext();
         }
 
-        /* one place decides when the next step runs, so nothing can stall it */
+        function activateTab(index) {
+            tabButtons.forEach(function (btn, i) {
+                var on = i === index;
+                btn.classList.toggle('is-active', on);
+                btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+        }
+
         function scheduleNext() {
             clearTimeout(timer);
             timer = null;
             if (reduce || !inView || document.hidden) return;
-            timer = setTimeout(function () { go(idx + 1); }, dur);
+            var delay = TABS[tabIndex].dur;
+            timer = setTimeout(function () {
+                var config = TABS[tabIndex];
+                if (stepIndex + 1 < config.steps.length) go(tabIndex, stepIndex + 1);
+                else go((tabIndex + 1) % TABS.length, 0);
+            }, delay);
         }
 
-        steps.forEach(function (btn, k) {
-            btn.addEventListener('click', function () {
-                go(k);
+        function go(nextTab, nextStep) {
+            stopTimers();
+            tabIndex = ((nextTab % TABS.length) + TABS.length) % TABS.length;
+            var config = TABS[tabIndex];
+            stepIndex = Math.min(Math.max(nextStep || 0, 0), config.steps.length - 1);
+            var stageIndex = config.stages[stepIndex];
+
+            stages.forEach(function (stage, i) {
+                stage.classList.remove('is-active');
+                stage.setAttribute('aria-hidden', i === stageIndex ? 'false' : 'true');
             });
-            btn.addEventListener('keydown', function (e) {
-                if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-                    e.preventDefault();
-                    var next = k + (e.key === 'ArrowRight' ? 1 : -1);
-                    go(next);
-                    steps[((next % steps.length) + steps.length) % steps.length].focus();
-                }
-            });
+            if (boardStage) {
+                boardStage.classList.toggle('is-compare', tabIndex === 1 && stepIndex === 1);
+            }
+
+            void demo.offsetWidth;
+            if (stages[stageIndex]) stages[stageIndex].classList.add('is-active');
+
+            activateTab(tabIndex);
+            renderSteps();
+            demo.style.setProperty('--dur', config.dur + 'ms');
+
+            if (stageIndex === 1) runElapsed();
+            if (stageIndex === 2) runSharpe();
+            if (stageIndex === 0) {
+                if (sharpeEl) sharpeEl.textContent = '1.42';
+                if (elapsedEl) elapsedEl.textContent = '00:00';
+            }
+            runConsole();
+            scheduleNext();
+        }
+
+        tabButtons.forEach(function (btn, i) {
+            btn.addEventListener('click', function () { go(i, 0); });
         });
 
         if (window.IntersectionObserver) {
@@ -436,12 +468,11 @@
             }
         });
 
-        /* watchdog: if the walkthrough ever goes quiet while visible, restart it */
         setInterval(function () {
             if (!document.hidden && inView && !reduce && !timer) scheduleNext();
         }, 2500);
 
-        go(0);
+        go(0, 0);
     }
 
     function start() {

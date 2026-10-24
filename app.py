@@ -514,6 +514,58 @@ def leaderboard_card_image():
                      download_name=f"fund-leaderboard-{fmt}-{board.get('as_of', 'latest')}.png")
 
 
+@app.route('/leaderboard/chart/<key>.png')
+def leaderboard_chart(key):
+    from pathlib import Path
+    from services.leaderboard import build_board
+    from services.leaderboard_charts import CHARTS, render
+
+    if key not in CHARTS:
+        abort(404)
+    board = build_board()
+    cache_dir = Path('data/leaderboard_cache')
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache = cache_dir / f"chart_{key}_{board.get('as_of', 'latest')}.png"
+    if not cache.exists():
+        stream = render(board, key)
+        cache.write_bytes(stream.getvalue())
+    return send_file(cache, mimetype='image/png', max_age=86400)
+
+
+@app.route('/leaderboard/<slug>')
+def fund_analysis(slug):
+    """The fund's own book, run through the standard portfolio analysis."""
+    from services.leaderboard import _fund_book, _weights, _window
+    from services.leaderboard_funds import ISSUER_ALIASES, by_slug
+    from services import edgar_13f
+
+    fund = by_slug(slug)
+    if not fund:
+        abort(404)
+
+    cache_key = f'fund_analysis:{slug}'
+    row = db.session.get(AppCache, cache_key)
+    payload = row.payload if row and row.payload else None
+    if not payload:
+        if fund['kind'] == 'listed':
+            holdings = [{'ticker': fund['ticker'], 'weight': 1.0}]
+        else:
+            book = _fund_book(fund)
+            weights = _weights(fund, book)
+            holdings = [{'ticker': t, 'weight': w} for t, w in weights.items()]
+        if len(holdings) < 2:
+            abort(404)
+        analysis = example_portfolio_service.compute_custom(
+            holdings, period='5y', name=fund['name'],
+            description=fund['blurb'][:160], benchmark='SPY')
+        payload = _finite_json(serialize_for_template(analysis))
+        db.session.add(AppCache(key=cache_key, payload=payload, computed_at=datetime.utcnow()))
+        db.session.commit()
+
+    return render_template('index.html', example_data=payload, valuation=None, appendix=None,
+                           cca=None, report_id=f"fund-{slug}", show_analysis=True)
+
+
 @app.route('/leaderboard/admin')
 @login_required
 def leaderboard_admin():
@@ -528,19 +580,30 @@ def leaderboard_admin():
     funds = []
     for fund in FUNDS:
         row = rows.get(fund['slug'], {})
-        latest_filing = None
+        latest_filing = earliest_filing = None
+        available = parseable = ingested = 0
         if fund['kind'] == '13f':
+            from pathlib import Path
             try:
-                filings = edgar_13f.fund_filings(fund['cik'], limit=1)
-                latest_filing = filings[0]['period'] if filings else None
+                filings = edgar_13f.fund_filings(fund['cik'], limit=None)
+                available = len(filings)
+                latest_filing = filings[-1]['period'] if filings else None
+                earliest_filing = filings[0]['period'] if filings else None
+                # structured XML information tables start with the 2013 filings
+                parseable = len([f for f in filings if f['period'] >= '2013-01-01'])
+                ingested = len(list(Path('data/leaderboard_cache').glob(f"13f_book_{fund['cik']}_*.json")))
             except Exception:
-                latest_filing = None
+                pass
         funds.append({
             'slug': fund['slug'],
             'name': fund['name'],
             'kind': fund['kind'],
             'used': row.get('filing'),
             'latest': latest_filing,
+            'earliest': earliest_filing,
+            'available': available,
+            'parseable': parseable,
+            'ingested': ingested,
             'stale': bool(latest_filing and row.get('filing') and latest_filing > row['filing']),
             'holdings': row.get('holdings'),
             'coverage': row.get('coverage'),
@@ -621,6 +684,8 @@ def report_xlsx():
     report = request.args.get('report')
     if report:
         row = db.session.get(AppCache, f'custom_analysis:{report}')
+        if not row and report.startswith('fund-'):
+            row = db.session.get(AppCache, f'fund_analysis:{report[5:]}')
         example_data = row.payload if row else None
     else:
         example_data = example_portfolio_service.get_analysis()
@@ -645,6 +710,8 @@ def report_csv():
     report = request.args.get('report')
     if report:
         row = db.session.get(AppCache, f'custom_analysis:{report}')
+        if not row and report.startswith('fund-'):
+            row = db.session.get(AppCache, f'fund_analysis:{report[5:]}')
         example_data = row.payload if row else None
     else:
         example_data = example_portfolio_service.get_analysis()

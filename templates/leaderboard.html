@@ -40,14 +40,26 @@
         </div>
 
         <div class="lb-charts">
-            <figure class="lb-chart lb-chart--scatter">
-                <figcaption><span class="mono">Risk vs return</span><span class="mono lb-legend">bubble = composite score</span></figcaption>
-                <div id="lb-scatter" class="lb-canvas"></div>
+            {% for key, label in [
+                ('score', 'Composite score'),
+                ('sharpe', 'Sharpe ratio'),
+                ('alpha', 'Alpha vs benchmark'),
+                ('drawdown', 'Maximum drawdown'),
+                ('crisis', 'Crisis behaviour'),
+                ('growth', 'Growth of 100'),
+                ('riskreturn', 'Risk versus return'),
+                ('volatility', 'Volatility')
+            ] %}
+            <figure class="lb-chart">
+                <figcaption>
+                    <span class="mono">{{ label }}</span>
+                    <a class="lb-dl" href="/leaderboard/chart/{{ key }}.png" download>PNG</a>
+                </figcaption>
+                <a class="lb-chart-img" href="/leaderboard/chart/{{ key }}.png" target="_blank" rel="noopener">
+                    <img src="/leaderboard/chart/{{ key }}.png" alt="{{ label }} across the ten funds" loading="lazy" decoding="async">
+                </a>
             </figure>
-            <figure class="lb-chart lb-chart--bars">
-                <figcaption><span class="mono">Sharpe ratio</span><span class="mono lb-legend">radio {{ "%.1f"|format(board.risk_free * 100) }}%</span></figcaption>
-                <div id="lb-bars" class="lb-canvas"></div>
-            </figure>
+            {% endfor %}
         </div>
 
         <div class="lb-table-wrap">
@@ -103,6 +115,9 @@
                                         <div><dt>Coverage</dt><dd>{{ "%.0f"|format(row.coverage * 100) if row.coverage is not none else '—' }}%</dd></div>
                                         <div><dt>Observations</dt><dd>{{ row.observations }} days from {{ row.start or '—' }}</dd></div>
                                     </dl>
+                                    <a class="detail-link" href="/leaderboard/{{ row.slug }}">
+                                        Open the full portfolio analysis <span aria-hidden="true">&rarr;</span>
+                                    </a>
                                 </div>
                                 <div class="detail-metrics">
                                     <div><span>Calmar</span><b>{{ "%.2f"|format(m.calmar_ratio) if m.calmar_ratio is defined else '—' }}</b></div>
