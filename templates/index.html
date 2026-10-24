@@ -139,6 +139,35 @@
   </div>
 
 
+  <div class="pr-charts-page">
+    <header class="pr-head">
+      <h1>Charts</h1>
+      <p>{{ example_data.meta.name }} &middot; {{ example_data.meta.computed_at[:10] }} &middot; {{ example_data.meta.period }}</p>
+    </header>
+    <div class="pr-charts">
+      {% for image, caption in [
+        ('allocation.png', 'Sector allocation'),
+        ('performance.png', 'Cumulative performance'),
+        ('drawdown.png', 'Drawdown'),
+        ('distribution.png', 'Return distribution'),
+        ('monte_carlo.png', 'Monte Carlo, 5,000 paths'),
+        ('volatility.png', 'Rolling volatility'),
+        ('monthly_returns.png', 'Monthly returns'),
+        ('correlation.png', 'Asset correlation'),
+        ('mean_variance.png', 'Mean-variance optimisation'),
+        ('risk_contribution.png', 'Risk contribution'),
+        ('pca.png', 'PCA variance'),
+        ('rolling_correlation.png', 'Rolling correlation'),
+        ('rolling_stats.png', 'Rolling statistics, 63d')
+      ] %}
+      <figure>
+        <img src="/static/report/{{ image }}" alt="{{ caption }}">
+        <figcaption>{{ caption }}</figcaption>
+      </figure>
+      {% endfor %}
+    </div>
+  </div>
+
   <div class="pr-appendix-page">
     <header class="pr-head">
       <h1>Appendix: key time series</h1>
@@ -210,34 +239,7 @@
     </div>
     {% endif %}
   </div>
-  <div class="pr-charts-page">
-    <header class="pr-head">
-      <h1>Charts</h1>
-      <p>{{ example_data.meta.name }} &middot; {{ example_data.meta.computed_at[:10] }} &middot; {{ example_data.meta.period }}</p>
-    </header>
-    <div class="pr-charts">
-      {% for image, caption in [
-        ('allocation.png', 'Sector allocation'),
-        ('performance.png', 'Cumulative performance'),
-        ('drawdown.png', 'Drawdown'),
-        ('distribution.png', 'Return distribution'),
-        ('monte_carlo.png', 'Monte Carlo, 5,000 paths'),
-        ('volatility.png', 'Rolling volatility'),
-        ('monthly_returns.png', 'Monthly returns'),
-        ('correlation.png', 'Asset correlation'),
-        ('mean_variance.png', 'Mean-variance optimisation'),
-        ('risk_contribution.png', 'Risk contribution'),
-        ('pca.png', 'PCA variance'),
-        ('rolling_correlation.png', 'Rolling correlation'),
-        ('rolling_stats.png', 'Rolling statistics, 63d')
-      ] %}
-      <figure>
-        <img src="/static/report/{{ image }}" alt="{{ caption }}">
-        <figcaption>{{ caption }}</figcaption>
-      </figure>
-      {% endfor %}
-    </div>
-  </div>
+
 </div>
 
 {% if report_id %}
