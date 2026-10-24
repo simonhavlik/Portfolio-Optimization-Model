@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy - Portfolio Optimizer{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl">
+    <h1 class="text-3xl font-bold mb-2">Privacy</h1>
+    <p class="text-sm text-slate-500 mb-6">Last updated: 24 October 2026</p>
+
+    <div class="space-y-5 text-slate-700 leading-relaxed">
+        <p><strong>Portfolio Optimizer is a student side project.</strong> It is not a financial service,
+        not a broker, and not investment advice. It exists to demonstrate portfolio analytics and to be
+        useful to people who want a second pair of eyes on their holdings.</p>
+
+        <h2 class="text-xl font-semibold pt-2">What is stored</h2>
+        <p>When you create an account we store your email address, an optional name, a password hash,
+        and the portfolios and analyses you save. Uploaded files and extracted holdings are stored so
+        the analysis can be produced and revisited.</p>
+
+        <h2 class="text-xl font-semibold pt-2">How it is used</h2>
+        <p>Your data is used to run the analytics you asked for: extracting holdings, computing risk
+        metrics, generating the written review, and keeping your saved portfolios available to you.
+        We do not sell your data and we do not use it for advertising.</p>
+
+        <h2 class="text-xl font-semibold pt-2">AI processing</h2>
+        <p>Extraction and commentary use large language models. To do that, the relevant portfolio
+        content is sent to the model provider outside this server's infrastructure. Outside of that
+        inference step, your data is not shared with third parties. Infrastructure providers that host
+        the application and database process data on our behalf only.</p>
+
+        <h2 class="text-xl font-semibold pt-2">Security and retention</h2>
+        <p>Passwords are hashed, transport is encrypted, and public endpoints are rate limited. Data is
+        kept while your account exists. You can ask for your account and its portfolios to be deleted by
+        writing to <a class="text-primary-600 hover:underline" href="mailto:optimizer@simonhavlik.com">optimizer@simonhavlik.com</a>.</p>
+
+        <h2 class="text-xl font-semibold pt-2">Liability</h2>
+        <p>The service is provided as is, without warranty, and without liability for decisions made
+        using it. Markets carry risk; nothing here is a recommendation to buy or sell. You are
+        responsible for verifying figures before acting on them.</p>
+
+        <h2 class="text-xl font-semibold pt-2">Contact</h2>
+        <p>Questions about this policy: <a class="text-primary-600 hover:underline" href="mailto:optimizer@simonhavlik.com">optimizer@simonhavlik.com</a>.</p>
+    </div>
+</div>
+{% endblock %}

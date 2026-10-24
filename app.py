@@ -111,7 +111,7 @@ def sanitize_for_json(obj: Any) -> Any:
 
 # Upload configuration
 UPLOAD_FOLDER = 'data/uploads'
-ALLOWED_EXTENSIONS = {'pdf', 'csv', 'xlsx', 'xls', 'png', 'jpg', 'jpeg', 'webp'}
+ALLOWED_EXTENSIONS = {'pdf', 'csv', 'xlsx', 'xls', 'docx', 'png', 'jpg', 'jpeg', 'webp'}
 
 # Initialize Flask app
 def create_app() -> Flask:
@@ -294,10 +294,14 @@ def analysis_comprehensive_view():
 
 @app.route('/upload')
 def upload_view():
-    """Document upload interface (sign-in required)."""
-    if 'user_id' not in session:
-        return redirect('/auth/login')
+    """Document upload interface; visitors see an account invite."""
     return render_template('upload.html')
+
+
+@app.route('/privacy')
+def privacy_view():
+    """Privacy policy."""
+    return render_template('privacy.html')
 
 
 @app.route('/auth/login')

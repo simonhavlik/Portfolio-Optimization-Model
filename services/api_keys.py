@@ -15,6 +15,17 @@ _cache: dict = {"provider": None, "value": None, "read_at": 0.0}
 
 def get_credential(provider: str = "deepseek") -> dict:
     """Return the active credential for a provider, falling back to env config."""
+    try:
+        from flask import has_app_context
+        if not has_app_context():
+            return {
+                "api_key": config.LLM_API_KEY,
+                "base_url": config.LLM_BASE_URL,
+                "model": config.LLM_MODEL,
+            }
+    except Exception:
+        pass
+
     now = time.monotonic()
     if _cache["provider"] == provider and now - _cache["read_at"] < _CACHE_TTL:
         return _cache["value"]

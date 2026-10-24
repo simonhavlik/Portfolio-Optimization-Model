@@ -150,7 +150,7 @@
     </p>
     {% endif %}
     <div class="mt-6 flex flex-wrap gap-3 no-print">
-        <a href="/upload" class="bg-white text-primary-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition shadow-lg">
+        <a href="/upload" class="cta-invite bg-white text-primary-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition shadow-lg">
             <i class="fas fa-cloud-upload-alt mr-2"></i>Upload Portfolio
         </a>
         <a href="/analysis-comprehensive" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
@@ -873,6 +873,59 @@
 
 {% block extra_js %}
 <script>
+// Dark chart defaults + per-chart PNG export
+(function () {
+  if (!window.Plotly) return;
+  const axisDefaults = () => ({
+    gridcolor: '#242830', zerolinecolor: '#2e333c', linecolor: '#2e333c',
+    tickfont: { color: '#a9a49a' }, title: { font: { color: '#a9a49a' } }
+  });
+  const originalNewPlot = Plotly.newPlot;
+  Plotly.newPlot = function (id, data, layout, config) {
+    layout = layout || {};
+    layout.paper_bgcolor = 'rgba(0,0,0,0)';
+    layout.plot_bgcolor = 'rgba(0,0,0,0)';
+    layout.font = Object.assign({ color: '#d8d3c8', family: 'Inter, system-ui, sans-serif', size: 11 }, layout.font || {});
+    layout.colorway = layout.colorway || ['#c8a15a', '#8fa3b8', '#c07a6a', '#7fa08a', '#a99bc4', '#d9c9a8', '#7f8a94', '#b98f62'];
+    layout.xaxis = Object.assign(axisDefaults(), layout.xaxis || {});
+    layout.yaxis = Object.assign(axisDefaults(), layout.yaxis || {});
+    layout.legend = Object.assign({ font: { color: '#b9b4aa' } }, layout.legend || {});
+    return originalNewPlot.call(this, id, data, layout, config);
+  };
+})();
+
+function addChartExportButtons() {
+  document.querySelectorAll('[id^="chart-"], #correlation-heatmap').forEach(el => {
+    if (el.dataset.exportBound) return;
+    el.dataset.exportBound = '1';
+    const host = el.parentElement;
+    if (!host) return;
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'chart-export';
+    button.title = 'Export PNG';
+    button.setAttribute('aria-label', 'Export chart as PNG');
+    button.innerHTML = '<i class="fas fa-download"></i>';
+    button.addEventListener('click', async (event) => {
+      event.stopPropagation();
+      try {
+        const url = await Plotly.toImage(el, { format: 'png', width: 1600, height: 900, scale: 2 });
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = (el.id || 'chart').replace('chart-', '') + '.png';
+        link.click();
+      } catch (error) { console.error('Export failed', error); }
+    });
+    host.appendChild(button);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  addChartExportButtons();
+  new MutationObserver(() => addChartExportButtons()).observe(document.body, { childList: true, subtree: true });
+});
+
 // Render all charts when page loads
 document.addEventListener('DOMContentLoaded', () => {
     {% if example_data and example_data.charts %}

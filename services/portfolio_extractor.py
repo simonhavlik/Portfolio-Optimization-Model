@@ -1,9 +1,11 @@
-"""Extract holdings from screenshots, CSV, PDF or Excel files."""
+"""Extract holdings from screenshots, CSV, PDF, DOCX or Excel files."""
 
 import base64
 import json
 import logging
 import re
+import zipfile
+from io import BytesIO
 from typing import Any, Dict, Optional
 
 from services.ai_insights import LLMClient
@@ -12,7 +14,7 @@ from services.document_parser import ExtractedHolding, ParsedPortfolio
 logger = logging.getLogger(__name__)
 
 IMAGE_TYPES = {"png", "jpg", "jpeg", "webp", "gif"}
-DOCUMENT_TYPES = {"pdf", "csv", "txt", "xlsx", "xls"}
+DOCUMENT_TYPES = {"pdf", "csv", "txt", "xlsx", "xls", "docx"}
 
 MIME = {
     "png": "image/png",
@@ -23,28 +25,31 @@ MIME = {
 }
 
 NOTIONAL = 100000.0
+MAX_ATTEMPTS = 3
 
 SYSTEM = (
     "You extract portfolio holdings from statements, broker screenshots and exports. "
     "You never invent a holding. If a field is unreadable, omit it."
 )
 
-PROMPT = """Extract every holding from this document.
-
-Return ONLY a JSON object:
-{
+SCHEMA = """{
   "currency": "USD",
   "account_value": 100000,
   "holdings": [
     {"ticker": "AAPL", "name": "Apple Inc", "weight": 0.12, "value": 12000, "shares": 50, "sector": "Technology"}
   ]
-}
+}"""
 
-Rules:
-- ticker: exchange symbol in capitals (BRK.B is allowed). Drop currency suffixes.
-- weight: fraction of the portfolio, 0 to 1. If the document gives percentages, divide by 100.
+RULES = """Rules:
+- ticker: the exchange symbol in capitals (BRK.B is allowed). Drop currency suffixes.
+- name: the full company name exactly as printed. Never strip letters that happen to match
+  the ticker: "JPMorgan Chase" stays "JPMorgan Chase", not "Morgan Chase".
+- sector: GICS-style sector (Technology, Financials, Healthcare, Consumer Discretionary,
+  Consumer Staples, Industrials, Energy, Utilities, Real Estate, Communication Services,
+  Materials). Use the document when given, otherwise assign the most plausible GICS sector.
+- weight: fraction of the portfolio, 0 to 1. Percentages must be divided by 100.
 - value or shares: include only when the document shows them.
-- If weights are missing but values are present, leave weight out; totals will be normalised.
+- If weights are missing but values are present, leave weight out; totals are normalised.
 - Do not add commentary, totals, cash rows or disclaimers. JSON only."""
 
 
@@ -103,33 +108,107 @@ def _to_portfolio(payload: Dict[str, Any]) -> ParsedPortfolio:
     )
 
 
-def extract_with_llm(file_bytes: bytes, filename: str, mime: str) -> ParsedPortfolio:
+def _ask_json(messages: list) -> Dict[str, Any]:
+    """Call the model with a small retry budget; no token cap."""
+    client = LLMClient(temperature=0.1)
+    last_error = None
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            raw = client.chat(messages, temperature=0.1)
+            payload = json.loads(_strip_json(raw))
+            if payload.get("holdings"):
+                return payload
+            last_error = ValueError("no holdings in response")
+        except Exception as exc:  # malformed JSON, transport error, empty answer
+            last_error = exc
+            logger.warning("Extraction attempt %s/%s failed: %s", attempt, MAX_ATTEMPTS, exc)
+    raise ValueError(f"Extraction failed after {MAX_ATTEMPTS} attempts: {last_error}")
+
+
+def _vision_messages(file_bytes: bytes, mime: str) -> list:
     encoded = base64.b64encode(file_bytes).decode("ascii")
-    messages = [
+    prompt = f"Extract every holding from this document.\n\nReturn ONLY a JSON object:\n{SCHEMA}\n\n{RULES}"
+    return [
         {"role": "system", "content": SYSTEM},
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": PROMPT},
+                {"type": "text", "text": prompt},
                 {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{encoded}"}},
             ],
         },
     ]
-    client = LLMClient(temperature=0.1, max_tokens=4000)
-    raw = client.chat(messages, temperature=0.1, max_tokens=4000)
-    return _to_portfolio(json.loads(_strip_json(raw)))
+
+
+def _text_messages(text: str) -> list:
+    prompt = (
+        "Extract every holding from this document text.\n\n"
+        f"Return ONLY a JSON object:\n{SCHEMA}\n\n{RULES}\n\nDOCUMENT:\n{text[:20000]}"
+    )
+    return [
+        {"role": "system", "content": SYSTEM},
+        {"role": "user", "content": prompt},
+    ]
+
+
+def _docx_text(file_bytes: bytes) -> str:
+    with zipfile.ZipFile(BytesIO(file_bytes)) as archive:
+        xml = archive.read("word/document.xml").decode("utf-8", "ignore")
+    xml = xml.replace("</w:p>", "\n").replace("</w:tr>", "\n")
+    text = re.sub(r"<[^>]+>", " ", xml)
+    return re.sub(r"[ \t]+", " ", text).strip()
+
+
+def _pdf_text(file_bytes: bytes) -> str:
+    try:
+        import pdfplumber
+        with pdfplumber.open(BytesIO(file_bytes)) as pdf:
+            return "\n".join(page.extract_text() or "" for page in pdf.pages).strip()
+    except Exception as exc:
+        logger.warning("PDF text extraction failed: %s", exc)
+        return ""
+
+
+def _text_for(filename: str, file_bytes: bytes) -> str:
+    ext = filename.lower().rsplit(".", 1)[-1]
+    if ext == "docx":
+        return _docx_text(file_bytes)
+    if ext == "pdf":
+        return _pdf_text(file_bytes)
+    if ext in {"txt", "csv"}:
+        return file_bytes.decode("utf-8", "ignore")
+    return ""
+
+
+def extract_with_llm(file_bytes: bytes, mime: str) -> ParsedPortfolio:
+    return _to_portfolio(_ask_json(_vision_messages(file_bytes, mime)))
 
 
 def extract_document(file_bytes: bytes, filename: str, broker_hint: Optional[str]) -> ParsedPortfolio:
-    from services.document_parser import document_parser
+    ext = filename.lower().rsplit(".", 1)[-1]
+    if ext not in {"docx", "pdf"}:
+        from services.document_parser import document_parser
+        parsed = document_parser.parse(file_bytes, filename, broker_hint)
+        if len(parsed.holdings) >= 2:
+            return parsed
 
+    text = _text_for(filename, file_bytes)
+    if text:
+        try:
+            return _to_portfolio(_ask_json(_text_messages(text)))
+        except Exception as exc:
+            logger.warning("Text extraction fallback failed: %s", exc)
+
+    if ext == "docx":
+        raise ValueError("No readable holdings in the document")
+    from services.document_parser import document_parser
     return document_parser.parse(file_bytes, filename, broker_hint)
 
 
 def extract(file_bytes: bytes, filename: str, broker_hint: Optional[str] = None) -> ParsedPortfolio:
     ext = filename.lower().rsplit(".", 1)[-1]
     if ext in IMAGE_TYPES:
-        return extract_with_llm(file_bytes, filename, MIME[ext])
+        return extract_with_llm(file_bytes, MIME[ext])
     if ext in DOCUMENT_TYPES:
         return extract_document(file_bytes, filename, broker_hint)
     raise ValueError(f"Unsupported file type: {ext}")

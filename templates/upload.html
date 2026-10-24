@@ -4,9 +4,29 @@
 
 {% block content %}
 <div class="mb-6">
-    <h1 class="text-3xl font-bold text-gray-900">AI Document Analysis</h1>
-    <p class="text-gray-600 mt-2">Upload your brokerage statements and let AI extract your portfolio with historical risk tracking</p>
+    <h1 class="text-3xl font-bold text-gray-900">Upload your portfolio</h1>
+    <p class="text-gray-600 mt-2 max-w-2xl">
+        A screenshot, a PDF export, a CSV, an Excel file or a DOCX. We read the holdings, fetch the
+        market data and build the risk report, including the written review.
+    </p>
+    <p class="text-xs text-gray-500 mt-2">
+        Portfolio content is sent to the model provider for extraction and commentary.
+        <a href="/privacy" class="underline hover:text-primary-600">How your data is handled</a>.
+    </p>
 </div>
+
+{% if not current_user.is_authenticated %}
+<div class="mb-6 rounded-xl border border-slate-200 bg-white p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div>
+        <p class="font-semibold text-gray-900">Create a free account to analyze this portfolio</p>
+        <p class="text-sm text-gray-600 mt-1">Three analyses a week, saved portfolios, and the PDF report.</p>
+    </div>
+    <div class="flex gap-3">
+        <a href="/auth/register?next=/upload" class="cta-invite px-5 py-2.5 rounded-lg bg-primary-600 text-white font-semibold">Create account</a>
+        <a href="/auth/login?next=/upload" class="px-5 py-2.5 rounded-lg border border-slate-300 text-slate-700 font-medium">Sign in</a>
+    </div>
+</div>
+{% endif %}
 
 <!-- Upload Section -->
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -26,8 +46,8 @@
                     <i class="fas fa-file-upload text-4xl text-gray-400 mb-3"></i>
                     <p class="text-gray-600 font-medium">Drop your file here</p>
                     <p class="text-sm text-gray-500 mt-1">or click to browse</p>
-                    <p class="text-xs text-gray-400 mt-2">PDF, CSV, Excel or a screenshot (max 16MB)</p>
-                    <input type="file" id="file-input" class="hidden" accept=".pdf,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.webp">
+                    <p class="text-xs text-gray-400 mt-2">PDF, CSV, Excel, DOCX or a screenshot (max 16MB)</p>
+                    <input type="file" id="file-input" class="hidden" accept=".pdf,.csv,.xlsx,.xls,.docx,.png,.jpg,.jpeg,.webp">
                 </div>
                 
                 <!-- Selected File -->
@@ -370,6 +390,10 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         
         clearInterval(stepInterval);
         
+        if (response.status === 401) {
+            window.location.href = '/auth/register?next=/upload';
+            return;
+        }
         if (!response.ok) {
             const error = await response.json();
             throw new Error(error.error || 'Upload failed');
