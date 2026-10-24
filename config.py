@@ -45,7 +45,7 @@ class Config:
     LLM_BASE_URL: str = "https://api.deepseek.com/v1"
     LLM_MODEL: str = "deepseek-flash"
     LLM_TEMPERATURE: float = 0.7
-    LLM_MAX_TOKENS: int = 8000
+    LLM_MAX_TOKENS: int = 0
     
     # Optimization Parameters
     DEFAULT_RISK_FREE_RATE: float = 0.05
@@ -147,7 +147,7 @@ def load_config() -> Config:
         LLM_BASE_URL=os.getenv('LLM_BASE_URL', 'https://api.deepseek.com/v1'),
         LLM_MODEL=os.getenv('LLM_MODEL', 'deepseek-flash'),
         LLM_TEMPERATURE=float(os.getenv('LLM_TEMPERATURE', '0.7')),
-        LLM_MAX_TOKENS=int(os.getenv('LLM_MAX_TOKENS', '8000')),
+        LLM_MAX_TOKENS=int(os.getenv('LLM_MAX_TOKENS', '0')),
         DEFAULT_RISK_FREE_RATE=float(os.getenv('DEFAULT_RISK_FREE_RATE', '0.05')),
         DEFAULT_CONFIDENCE_LEVEL=float(os.getenv('DEFAULT_CONFIDENCE_LEVEL', '0.95')),
         MAX_PORTFOLIO_ASSETS=int(os.getenv('MAX_PORTFOLIO_ASSETS', '50')),

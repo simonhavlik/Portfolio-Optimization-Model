@@ -116,7 +116,7 @@ class LLMClient:
         base_url: Optional[str] = None,
         model: Optional[str] = None,
         temperature: float = 0.7,
-        max_tokens: int = 2000
+        max_tokens: Optional[int] = None
     ):
         """
         Initialize LLM client.
@@ -192,7 +192,7 @@ class LLMClient:
                 model=self.model,
                 messages=messages,
                 temperature=temperature or self.temperature,
-                max_tokens=max_tokens or self.max_tokens,
+                **({"max_tokens": max_tokens or self.max_tokens} if (max_tokens or self.max_tokens) else {}),
                 extra_body={"reasoning_effort": "low"},
             )
             
@@ -209,7 +209,7 @@ class LLMClient:
             model=model or self.model,
             messages=messages,
             temperature=temperature,
-            max_tokens=max_tokens or self.max_tokens,
+            **({"max_tokens": max_tokens or self.max_tokens} if (max_tokens or self.max_tokens) else {}),
             extra_body={"reasoning_effort": "low"},
         )
         return response.choices[0].message.content
@@ -319,7 +319,7 @@ Style:
         try:
             return self.llm.complete(prompt, system_prompt=
                 "You are a buy-side portfolio analyst writing internal notes. "
-                "Every sentence must add information.", temperature=0.2, max_tokens=8000).strip()
+                "Every sentence must add information.", temperature=0.2).strip()
         except Exception as exc:
             logger.error("Portfolio review failed: %s", exc)
             return ""

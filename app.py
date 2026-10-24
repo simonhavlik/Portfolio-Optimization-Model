@@ -289,8 +289,9 @@ def analysis_comprehensive_view():
 
 
 @app.route('/upload')
+@login_required
 def upload_view():
-    """Document upload interface, open to visitors without an account."""
+    """Document upload interface (sign-in required)."""
     return render_template('upload.html')
 
 
@@ -476,7 +477,8 @@ def admin_cache_clear():
 # =============================================================================
 
 @app.route('/api/upload', methods=['POST'])
-@rate_limit('upload', 4, 3600)
+@rate_limit('upload_hour', 2, 3600)
+@login_required
 def upload_document():
     """
     Upload and parse portfolio document (PDF, CSV, Excel).
@@ -489,6 +491,15 @@ def upload_document():
     Returns:
         Extracted portfolio data with holdings and metrics
     """
+    from services.rate_limit import allow
+    weekly_limit = 3
+    if not allow(f"weekly:user:{session['user_id']}", weekly_limit, 604800):
+        return jsonify({
+            'error': f'Weekly limit reached ({weekly_limit} analyses). '
+                     f'Email optimizer@simonhavlik.com for more.',
+            'contact': 'optimizer@simonhavlik.com'
+        }), 429
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
     
