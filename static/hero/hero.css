@@ -137,11 +137,11 @@ html.has-hero { overflow-x: hidden; }
     position: relative;
     z-index: 4;
     display: grid;
-    grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.14fr);
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
     align-items: center;
-    gap: clamp(28px, 4vw, 64px);
+    gap: clamp(28px, 3.4vw, 56px);
     width: 100%;
-    max-width: 1240px;
+    max-width: 1360px;
     margin: 0 auto;
     padding: clamp(40px, 6vh, 76px) clamp(20px, 4vw, 56px) clamp(28px, 5vh, 52px);
     flex: 1 1 auto;
@@ -149,7 +149,7 @@ html.has-hero { overflow-x: hidden; }
 
 /* ---------- copy ---------- */
 
-.hero-copy { max-width: 560px; }
+.hero-copy { max-width: 520px; }
 
 .hero-eyebrow {
     display: flex;
@@ -196,7 +196,7 @@ html.has-hero { overflow-x: hidden; }
 }
 
 .hero-sub {
-    margin: 0 0 26px;
+    margin: 0 0 30px;
     max-width: 47ch;
     font-size: clamp(0.95rem, 1.05vw, 1.05rem);
     line-height: 1.62;
@@ -383,7 +383,7 @@ html.has-hero { overflow-x: hidden; }
 .demo-body {
     position: relative;
     flex: 1 1 auto;
-    min-height: clamp(252px, 36vh, 340px);
+    min-height: clamp(288px, 42vh, 418px);
     background:
         linear-gradient(to right, rgba(236, 233, 226, 0.035) 1px, transparent 1px) 0 0 / 44px 44px,
         linear-gradient(to bottom, rgba(236, 233, 226, 0.035) 1px, transparent 1px) 0 0 / 44px 44px;
@@ -417,7 +417,7 @@ html.has-hero { overflow-x: hidden; }
     text-transform: uppercase;
     color: rgba(200, 161, 90, 0.72);
 }
-.s-t { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: -0.015em; color: rgba(241, 237, 229, 0.95); }
+.s-t { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: -0.015em; color: rgba(241, 237, 229, 0.95); }
 
 .chip {
     flex: none;
@@ -444,7 +444,7 @@ html.has-hero { overflow-x: hidden; }
     margin-top: auto;
     border-top: 1px solid var(--line-soft);
     font-family: 'JetBrains Mono', monospace;
-    font-size: 9px;
+    font-size: 9.5px;
     color: rgba(236, 233, 226, 0.54);
     white-space: nowrap;
     overflow: hidden;
@@ -512,11 +512,11 @@ html.has-hero { overflow-x: hidden; }
 .tickers { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; justify-content: center; gap: 5px; min-width: 0; }
 .tickers li {
     display: grid;
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    grid-template-columns: 48px minmax(0, 1fr) 48px;
     align-items: center;
     gap: 8px;
     font-family: 'JetBrains Mono', monospace;
-    font-size: 9.5px;
+    font-size: 10.5px;
     opacity: 0;
 }
 .stage.is-active .tickers li { animation: rowIn 0.4s ease both; animation-delay: calc(var(--i) * 0.09s + 0.12s); }
@@ -722,7 +722,7 @@ html.has-hero { overflow-x: hidden; }
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 8px 10px 10px;
+    padding: 9px 11px 11px;
     border: 0;
     border-left: 1px solid var(--line-soft);
     background: transparent;
@@ -733,7 +733,7 @@ html.has-hero { overflow-x: hidden; }
 .step:first-child { border-left: 0; }
 .step:hover { background: rgba(255, 255, 255, 0.03); }
 .step .n { font-family: 'JetBrains Mono', monospace; font-size: 7.5px; letter-spacing: 0.14em; color: rgba(236, 233, 226, 0.32); }
-.step .t { font-size: 10.5px; font-weight: 500; color: rgba(236, 233, 226, 0.64); }
+.step .t { font-size: 11px; font-weight: 500; color: rgba(236, 233, 226, 0.64); }
 .step .fill {
     position: absolute;
     left: 0; bottom: 0;
@@ -859,7 +859,7 @@ html.has-hero body .site-nav.nav-solid .nav-burger { color: #475569 !important; 
     .hero-inner { grid-template-columns: 1fr; gap: 30px; padding-top: clamp(32px, 5vh, 56px); align-items: start; }
     .hero-copy { max-width: 640px; }
     .hero-h1 { font-size: clamp(2.2rem, 6vw, 3.2rem); }
-    .demo-body { min-height: 300px; }
+    .demo-body { min-height: 340px; }
 }
 
 @media (max-width: 720px) {
@@ -924,7 +924,7 @@ html.has-hero body .site-nav.nav-solid .nav-burger { color: #475569 !important; 
     .hero-cta { margin-bottom: 10px; }
     .hero-jump { margin-bottom: 22px; }
     .hero-stats { padding-top: 13px; }
-    .demo-body { min-height: clamp(230px, 31vh, 300px); }
+    .demo-body { min-height: clamp(266px, 37vh, 372px); }
     .stage { padding: 12px 14px 10px; gap: 10px; }
 }
 
