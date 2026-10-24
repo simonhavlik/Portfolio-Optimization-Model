@@ -152,6 +152,21 @@
             width: 100%;
         }
 
+        /* Account menu: keep it open while the pointer crosses the gap,
+           and let it be driven by click / keyboard as well as hover. */
+        [data-user-menu-panel] { display: none; }
+        [data-user-menu]:hover [data-user-menu-panel],
+        [data-user-menu].is-open [data-user-menu-panel] { display: block; }
+        [data-user-menu-panel]::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: -14px;
+            height: 14px;
+        }
+        [data-user-menu].is-open [data-user-menu-trigger] { background-color: #e2e8f0; }
+
         /* Smooth transitions */
         .transition-all {
             transition-property: all;
@@ -807,8 +822,8 @@
                     </a>
                     
                     {% if current_user.is_authenticated %}
-                        <div class="relative group ml-4">
-                            <button class="flex items-center space-x-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition-all">
+                        <div class="relative group ml-4 user-menu" data-user-menu>
+                            <button type="button" class="user-menu-trigger flex items-center space-x-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition-all" aria-haspopup="true" aria-expanded="false" aria-controls="user-menu-panel">
                                 <div class="w-8 h-8 rounded-full bg-gradient-to-br from-primary-600 to-purple-600 flex items-center justify-center">
                                     <i class="fas fa-user text-white text-sm"></i>
                                 </div>
@@ -816,7 +831,7 @@
                                 <i class="fas fa-chevron-down text-xs text-slate-400 group-hover:rotate-180 transition-transform"></i>
                             </button>
                             
-                            <div class="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-2 hidden group-hover:block z-50 border border-slate-200">
+                            <div id="user-menu-panel" data-user-menu-panel class="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl py-2 z-50 border border-slate-200">
                                 <div class="px-4 py-3 border-b border-slate-100 bg-slate-50">
                                     <p class="text-xs text-slate-500 uppercase tracking-wider">Signed in as</p>
                                     <p class="text-sm font-medium text-slate-900 truncate mt-0.5">{{ current_user.email }}</p>
@@ -1078,6 +1093,46 @@
                 });
             }
         });
+    </script>
+
+    <script>
+    (function () {
+        var menu = document.querySelector('[data-user-menu]');
+        if (!menu) return;
+        var trigger = menu.querySelector('.user-menu-trigger');
+        var panel = menu.querySelector('[data-user-menu-panel]');
+        var timer = null;
+
+        function setOpen(open) {
+            menu.classList.toggle('is-open', open);
+            if (trigger) trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+        function cancelClose() { if (timer) { clearTimeout(timer); timer = null; } }
+        function scheduleClose() {
+            cancelClose();
+            timer = setTimeout(function () { setOpen(false); }, 260);
+        }
+
+        if (trigger) {
+            trigger.addEventListener('click', function (evt) {
+                evt.preventDefault();
+                setOpen(!menu.classList.contains('is-open'));
+            });
+        }
+        menu.addEventListener('mouseenter', cancelClose);
+        menu.addEventListener('mouseleave', scheduleClose);
+        if (panel) panel.addEventListener('mouseenter', cancelClose);
+
+        document.addEventListener('click', function (evt) {
+            if (!menu.contains(evt.target)) setOpen(false);
+        });
+        document.addEventListener('keydown', function (evt) {
+            if (evt.key === 'Escape') { setOpen(false); if (trigger) trigger.focus(); }
+        });
+        menu.addEventListener('focusout', function (evt) {
+            if (!menu.contains(evt.relatedTarget)) scheduleClose();
+        });
+    })();
     </script>
 
     {% block extra_js %}{% endblock %}
