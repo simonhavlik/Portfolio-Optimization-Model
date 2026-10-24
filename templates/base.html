@@ -483,6 +483,16 @@
     </style>
     
     {% block extra_css %}{% endblock %}
+
+<style media="print">
+  #print-report { display: block !important; }
+  main > div:not(#print-report), main > section:not(#print-report) { display: none !important; }
+  #print-report .pr-page:last-child { break-before: page !important; page-break-before: always !important; }
+  #print-report .pr-page:last-child .pr-head { display: block !important; }
+  #print-report .pr-charts { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 4mm 6mm !important; }
+  #print-report .pr-charts figure { margin: 0 !important; break-inside: avoid !important; }
+  #print-report .pr-charts img { display: block !important; width: 100% !important; height: 62mm !important; object-fit: contain !important; border: 0.3pt solid #e3ded2 !important; }
+</style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen antialiased">
     <!-- Navigation -->
