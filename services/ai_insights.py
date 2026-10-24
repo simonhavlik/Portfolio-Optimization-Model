@@ -263,15 +263,28 @@ def _deterministic_review(holdings, metrics):
             f"{share * 100:.1f}% of the book in three names."
         )
     if metrics:
-        lines.append(
-            f"Volatility is {metrics.get('volatility', 0) * 100:.1f}% with a Sharpe of "
-            f"{metrics.get('sharpe_ratio', 0):.2f} and a maximum drawdown of "
-            f"{metrics.get('max_drawdown', 0) * 100:.1f}%."
-        )
-        lines.append(
-            f"95% CVaR is {metrics.get('cvar_95', 0) * 100:.1f}% of capital; "
-            f"beta is {metrics.get('beta', 0):.2f}."
-        )
+        risk_bits = []
+        volatility = metrics.get('volatility')
+        if volatility:
+            risk_bits.append(f"volatility {volatility * 100:.1f}%")
+        sharpe = metrics.get('sharpe_ratio')
+        if sharpe:
+            risk_bits.append(f"Sharpe {sharpe:.2f}")
+        drawdown = metrics.get('max_drawdown')
+        if drawdown:
+            risk_bits.append(f"maximum drawdown {drawdown * 100:.1f}%")
+        if risk_bits:
+            lines.append("Risk profile: " + ", ".join(risk_bits) + ".")
+
+        tail_bits = []
+        cvar = metrics.get('cvar_95')
+        if cvar:
+            tail_bits.append(f"95% CVaR {cvar * 100:.1f}% of capital")
+        beta = metrics.get('beta')
+        if beta:
+            tail_bits.append(f"beta {beta:.2f}")
+        if tail_bits:
+            lines.append("Tail and market sensitivity: " + ", ".join(tail_bits) + ".")
     lines.append(
         "Concentration rather than the number of tickers drives the risk outcome; "
         "position sizing and the drawdown budget are the levers that matter."
