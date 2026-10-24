@@ -29,6 +29,7 @@ References:
 
 import os
 import json
+import math
 import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
@@ -213,6 +214,17 @@ def index():
                              show_analysis=False)
 
 
+def _json_safe(value):
+    """Replace non-finite floats so the payload is valid JSON in browsers."""
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 @app.route('/api/example-charts')
 def example_charts():
     """Chart payload for the example portfolio, fetched after first paint."""
@@ -225,7 +237,7 @@ def example_charts():
     if not example_data or not example_data.get('charts'):
         return jsonify({'error': 'not ready'}), 503
 
-    response = jsonify({'charts': example_data['charts']})
+    response = jsonify(_json_safe({'charts': example_data['charts']}))
     response.headers['Cache-Control'] = 'public, max-age=300'
     return response
 
