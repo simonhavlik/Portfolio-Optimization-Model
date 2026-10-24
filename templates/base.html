@@ -423,6 +423,12 @@
 
             #print-report .pr-page { break-after: auto; }
             #print-report .pr-page + .pr-page .pr-head { display: none; }
+            #print-report .pr-page:last-child { break-before: page; }
+            #print-report .pr-page:last-child .pr-head { display: block; }
+            #print-report .pr-charts { display: grid; grid-template-columns: 1fr 1fr; gap: 3mm 5mm; }
+            #print-report .pr-charts figure { margin: 0; break-inside: avoid; }
+            #print-report .pr-charts img { width: 100%; height: 62mm; object-fit: contain; border: 0.3pt solid #e3ded2; background: #fff; }
+            #print-report .pr-charts figcaption { font-size: 6.8pt; color: #666; margin-top: 0.8mm; }
 
             #print-report .pr-head {
                 border-bottom: 0.8pt solid #a8824a;

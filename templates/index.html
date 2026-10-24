@@ -839,9 +839,24 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch('/api/example-charts', { headers: { 'Accept': 'application/json' } })
         .then(response => response.ok ? response.json() : Promise.reject(response.status))
         .then(renderAllCharts)
+        .then(() => setTimeout(preparePrintCharts, 1500))
         .catch(error => console.error('Chart data failed to load', error));
     {% endif %}
 });
+
+async function preparePrintCharts() {
+    const images = document.querySelectorAll('#print-report img[data-plotly-src]');
+    for (const img of images) {
+        const id = img.getAttribute('data-plotly-src');
+        const div = document.getElementById(id);
+        if (!div || !window.Plotly || !div.data) continue;
+        try {
+            img.src = await Plotly.toImage(div, { format: 'png', width: 1000, height: 500, scale: 1.4 });
+        } catch (error) {
+            console.error('Print chart failed', id, error);
+        }
+    }
+}
 
 function renderAllCharts(data) {
     const charts = data.charts;
@@ -1467,4 +1482,28 @@ function loadExamplePortfolio() {
     window.location.href = '/analysis-comprehensive';
 }
 </script>
+
+  <div class="pr-page">
+    <header class="pr-head">
+      <h1>Charts</h1>
+      <p>{{ example_data.meta.name }} &middot; {{ example_data.meta.computed_at[:10] }} &middot; {{ example_data.meta.period }}</p>
+    </header>
+    <div class="pr-charts">
+      {% for chart_id, caption in [
+        ('chart-sector-allocation', 'Sector allocation'),
+        ('chart-performance', 'Cumulative performance'),
+        ('chart-drawdown', 'Drawdown'),
+        ('chart-return-distribution', 'Return distribution'),
+        ('chart-monte-carlo', 'Monte Carlo, 5,000 paths'),
+        ('chart-rolling-vol', 'Rolling volatility'),
+        ('chart-monthly-returns', 'Monthly returns'),
+        ('correlation-heatmap', 'Asset correlation')
+      ] %}
+      <figure>
+        <img data-plotly-src="{{ chart_id }}" alt="{{ caption }}">
+        <figcaption>{{ caption }}</figcaption>
+      </figure>
+      {% endfor %}
+    </div>
+  </div>
 {% endblock %}
