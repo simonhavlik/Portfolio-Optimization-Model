@@ -326,9 +326,9 @@ def build_board(force: bool = False, window_years: int = WINDOW_YEARS, allow_fet
         row['observations'] = int(len(series))
         row['start'] = series.index.min().date().isoformat() if not series.empty else None
         if not series.empty:
-            curve = (1 + series).cumprod()
+            curve = (1 + series).cumprod() * 100
             weekly = curve.resample('W').last().dropna()
-            row['curve'] = [round(float(v), 4) for v in weekly.tolist()]
+            row['curve'] = [round(float(v), 2) for v in weekly.tolist()]
             row['curve_dates'] = [d.date().isoformat() for d in weekly.index]
         rows.append(row)
 

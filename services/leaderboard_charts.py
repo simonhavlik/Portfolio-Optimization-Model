@@ -62,11 +62,13 @@ def _decorate(ax, board: dict, title: str, sub: str) -> None:
             transform=ax.transAxes, color='#6b675f', fontsize=6.5)
 
 
-def _hbar(board: dict, key: str, *, pct: bool = False, invert_zero: bool = True) -> io.BytesIO:
-    rows = [r for r in board['rows'] if (r.get('metrics') or {}).get(key) is not None]
-    rows.sort(key=lambda r: r['metrics'][key], reverse=True)
+def _hbar(board: dict, key: str, *, metric: str | None = None, pct: bool = False,
+          signed: bool = True) -> io.BytesIO:
+    metric = metric or key
+    rows = [r for r in board['rows'] if (r.get('metrics') or {}).get(metric) is not None]
+    rows.sort(key=lambda r: r['metrics'][metric], reverse=True)
     names = [r['name'] for r in rows][::-1]
-    values = [r['metrics'][key] for r in rows][::-1]
+    values = [r['metrics'][metric] for r in rows][::-1]
 
     fig, ax = plt.subplots(figsize=(8.4, 4.6), dpi=150)
     fig.patch.set_facecolor(INK)
@@ -76,11 +78,15 @@ def _hbar(board: dict, key: str, *, pct: bool = False, invert_zero: bool = True)
         ax.axvline(0, color='#3a3f47', linewidth=0.8)
 
     for bar, value in zip(bars, values):
-        label = f'{value * 100:+.1f}%' if pct else f'{value:.2f}'
-        offset = 3 if value >= 0 else -3
-        ax.text(value + (max(values) - min(values) or 1) * 0.012 if value >= 0 else value - (max(values) - min(values) or 1) * 0.012,
-                bar.get_y() + bar.get_height() / 2, label, va='center',
-                ha='left' if value >= 0 else 'right', color=TEXT, fontsize=8)
+        if pct:
+            label = f'{value * 100:+.1f}%' if signed else f'{value * 100:.1f}%'
+        else:
+            label = f'{value:+.2f}' if signed else f'{value:.2f}'
+        # labels live in a fixed column to the right of the plot, so long bars
+        # and long fund names can never collide with them
+        ax.text(1.015, bar.get_y() + bar.get_height() / 2, label,
+                transform=ax.get_yaxis_transform(), va='center', ha='left',
+                color=TEXT, fontsize=8)
 
     if pct:
         ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v * 100:.0f}%'))
@@ -130,6 +136,8 @@ def _growth(board: dict) -> io.BytesIO:
         curve = row.get('curve') or []
         if len(curve) < 3:
             continue
+        if max(curve) < 10:  # older seeds stored a 1-based index
+            curve = [value * 100 for value in curve]
         ax.plot(range(len(curve)), curve, linewidth=1.4 if index == 0 else 1.0,
                 color=palette[index % len(palette)], alpha=0.95 if index < 3 else 0.65,
                 label=row['name'] if index < 4 else None)
@@ -186,7 +194,28 @@ def render(board: dict, key: str) -> io.BytesIO:
     if key == 'alpha':
         return _hbar(board, 'alpha', pct=True)
     if key == 'drawdown':
-        return _hbar(board, 'max_drawdown', pct=True)
-    if key in ('sharpe', 'sortino', 'volatility', 'beta'):
-        return _hbar(board, key, pct=(key == 'volatility'))
+        return _hbar(board, 'drawdown', metric='max_drawdown', pct=True, signed=False)
+    if key == 'volatility':
+        return _hbar(board, key, pct=True, signed=False)
+    if key in ('sharpe', 'sortino', 'beta'):
+        return _hbar(board, key, signed=(key != 'beta'))
     raise KeyError(key)
+
+
+def warm(board: dict, cache_dir, as_of: str | None = None) -> int:
+    """Pre-render every chart once, so the page never fans out eight cold renders."""
+    from pathlib import Path
+    cache_dir = Path(cache_dir)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    stamp = as_of or board.get('as_of', 'latest')
+    written = 0
+    for key in CHARTS:
+        path = cache_dir / f'chart_{key}_{stamp}.png'
+        if path.exists():
+            continue
+        try:
+            path.write_bytes(render(board, key).getvalue())
+            written += 1
+        except Exception:
+            continue
+    return written

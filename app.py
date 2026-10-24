@@ -460,6 +460,7 @@ def custom_report(token):
 
 
 LEADERBOARD_ADMIN_EMAIL = 'havlik.simon@post.cz'
+_chart_locks: dict = {}
 _lb_refresh_state = {'running': False, 'started': None, 'finished': None, 'error': None}
 
 
@@ -527,8 +528,12 @@ def leaderboard_chart(key):
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache = cache_dir / f"chart_{key}_{board.get('as_of', 'latest')}.png"
     if not cache.exists():
-        stream = render(board, key)
-        cache.write_bytes(stream.getvalue())
+        import threading
+        lock = _chart_locks.setdefault(key, threading.Lock())
+        with lock:
+            if not cache.exists():
+                stream = render(board, key)
+                cache.write_bytes(stream.getvalue())
     return send_file(cache, mimetype='image/png', max_age=86400)
 
 
