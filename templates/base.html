@@ -366,7 +366,7 @@
 
         /* Printed / PDF report */
         @media print {
-            @page { size: A4; margin: 14mm 12mm; }
+            @page { size: A4; margin: 12mm 11mm; }
 
             nav, footer, .no-print { display: none !important; }
             body { background: #ffffff !important; color: #111111 !important; font-size: 10pt; }
@@ -421,8 +421,8 @@
                 line-height: 1.35;
             }
 
-            #print-report .pr-page { break-after: page; }
-            #print-report .pr-page:last-child { break-after: auto; }
+            #print-report .pr-page { break-after: auto; }
+            #print-report .pr-page + .pr-page .pr-head { display: none; }
 
             #print-report .pr-head {
                 border-bottom: 0.8pt solid #a8824a;
