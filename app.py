@@ -378,7 +378,7 @@ def analyse_custom():
 
 
 @app.route('/report/<token>')
-@login_required
+@page_login_required
 def custom_report(token):
     row = db.session.get(AppCache, f'custom_analysis:{token}')
     if not row or not row.payload:
