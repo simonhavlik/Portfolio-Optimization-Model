@@ -423,12 +423,6 @@
 
             #print-report .pr-page { break-after: auto; }
             #print-report .pr-page + .pr-page .pr-head { display: none; }
-            #print-report .pr-page:last-child { break-before: page !important; page-break-before: always !important; }
-            #print-report .pr-page:last-child .pr-head { display: block; }
-            #print-report .pr-charts { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 3mm 5mm; }
-            #print-report .pr-charts figure { margin: 0; break-inside: avoid; }
-            #print-report .pr-charts img { width: 100%; height: 62mm; object-fit: contain; border: 0.3pt solid #e3ded2; background: #fff; }
-            #print-report .pr-charts figcaption { font-size: 6.8pt; color: #666; margin-top: 0.8mm; }
 
             #print-report .pr-head {
                 border-bottom: 0.8pt solid #a8824a;
@@ -485,13 +479,12 @@
     {% block extra_css %}{% endblock %}
 
 <style media="print">
-  #print-report { display: block !important; }
-  main > div:not(#print-report), main > section:not(#print-report) { display: none !important; }
-  #print-report .pr-page:last-child { break-before: page !important; page-break-before: always !important; }
-  #print-report .pr-page:last-child .pr-head { display: block !important; }
-  #print-report .pr-charts { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 4mm 6mm !important; }
+  #print-report .pr-charts-page { break-before: page !important; page-break-before: always !important; }
+  #print-report .pr-charts-page .pr-head { display: block !important; }
+  #print-report .pr-charts { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 3mm 6mm !important; }
   #print-report .pr-charts figure { margin: 0 !important; break-inside: avoid !important; }
-  #print-report .pr-charts img { display: block !important; width: 100% !important; height: 62mm !important; object-fit: contain !important; border: 0.3pt solid #e3ded2 !important; }
+  #print-report .pr-charts img { display: block !important; width: 100% !important; height: 52mm !important; object-fit: contain !important; border: 0.3pt solid #e3ded2 !important; background: #fff !important; }
+  #print-report .pr-charts figcaption { font-size: 6.8pt; color: #666; margin-top: 0.8mm; }
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen antialiased">

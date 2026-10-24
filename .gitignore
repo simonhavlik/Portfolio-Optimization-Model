@@ -80,3 +80,5 @@ alembic/versions/__pycache__/
 tmp/
 temp/
 *.tmp
+
+static/report/*.png

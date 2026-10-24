@@ -185,6 +185,10 @@ def create_app() -> Flask:
             from services.example_portfolio import initialize_example_portfolio
             initialize_example_portfolio()
             logger.info("Example portfolio service initialized")
+
+            from services.report_charts import generate as generate_report_charts
+            generate_report_charts(example_portfolio_service.get_analysis())
+            logger.info("Report chart images ready")
         except Exception as e:
             logger.warning(f"Could not initialize example portfolio service: {e}")
     
