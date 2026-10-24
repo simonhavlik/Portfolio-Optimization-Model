@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Institutional-Grade Portfolio Analytics{% endblock %}
+{% block title %}Portfolio Optimizer{% endblock %}
 
 {% block content %}
 
@@ -88,6 +88,18 @@
 
       <section>
         <h2>Assessment</h2>
+        {% set top = example_data.holdings | sort(attribute='weight', reverse=true) %}
+        {% set stress_sorted = example_data.stress_test | dictsort(by='value') %}
+        <p class="pr-text">The three largest positions are {{ top[0].ticker }} at {{ "%.1f"|format(top[0].weight * 100) }}%,
+        {{ top[1].ticker }} at {{ "%.1f"|format(top[1].weight * 100) }}% and {{ top[2].ticker }} at
+        {{ "%.1f"|format(top[2].weight * 100) }}%, which is {{ "%.1f"|format((top[0].weight + top[1].weight + top[2].weight) * 100) }}%
+        of the book across three names. Effective diversification is {{ "%.1f"|format(example_data.metrics.effective_n) }}
+        independent bets, so position sizing rather than the number of tickers drives the risk outcome.</p>
+        <p class="pr-text">Across the stress set the worst case is {{ stress_sorted[0][0] }} at
+        {{ "%.1f"|format(stress_sorted[0][1] * 100) }}% and the mildest is {{ stress_sorted[-1][0] }} at
+        {{ "%.1f"|format(stress_sorted[-1][1] * 100) }}%. A 95% daily CVaR of
+        {{ "%.1f"|format(example_data.metrics.cvar_95 * 100) }}% means the tail loss on a bad day is roughly
+        {{ "%.1f"|format(example_data.metrics.cvar_95 * 100) }}% of capital before any hedges.</p>
         <p class="pr-text">{{ example_data.ai_insights.risk_assessment }}</p>
         <p class="pr-text">{{ example_data.ai_insights.factor_analysis }}</p>
         <p class="pr-text">{{ example_data.ai_insights.recommendation }}</p>
@@ -110,7 +122,11 @@
         ('monte_carlo.png', 'Monte Carlo, 5,000 paths'),
         ('volatility.png', 'Rolling volatility'),
         ('monthly_returns.png', 'Monthly returns'),
-        ('correlation.png', 'Asset correlation')
+        ('correlation.png', 'Asset correlation'),
+        ('efficient_frontier.png', 'Efficient frontier'),
+        ('risk_contribution.png', 'Risk contribution'),
+        ('pca.png', 'PCA variance'),
+        ('rolling_correlation.png', 'Rolling correlation')
       ] %}
       <figure>
         <img src="/static/report/{{ image }}" alt="{{ caption }}">

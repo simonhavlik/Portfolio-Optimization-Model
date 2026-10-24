@@ -35,6 +35,10 @@ CHART_FILES = [
     ("monte_carlo.png", "Monte Carlo"),
     ("volatility.png", "Rolling volatility"),
     ("monthly_returns.png", "Monthly returns"),
+    ("efficient_frontier.png", "Efficient frontier"),
+    ("risk_contribution.png", "Risk contribution"),
+    ("pca.png", "PCA variance"),
+    ("rolling_correlation.png", "Rolling correlation"),
     ("correlation.png", "Asset correlation"),
 ]
 
@@ -67,17 +71,12 @@ def _allocation(charts):
     order = np.argsort(values)[::-1]
     labels = [labels[i] for i in order]
     values = [values[i] for i in order]
-    if len(values) > 9:
-        head = values[:8]
-        head.append(sum(values[8:]))
-        labels = labels[:8] + ["Other"]
-        values = head
-    fig, ax = plt.subplots(figsize=(5.4, 2.7))
+    fig, ax = plt.subplots(figsize=(5.4, 3.2))
     wedges, _ = ax.pie(values, colors=SERIES[: len(values)], startangle=90,
                        wedgeprops={"width": 0.42, "edgecolor": PAPER, "linewidth": 1})
     ax.legend(wedges, [f"{l} {v * 100:.0f}%" for l, v in zip(labels, values)],
               loc="center left", bbox_to_anchor=(1.0, 0.5), frameon=False,
-              fontsize=6.5, labelcolor=INK)
+              fontsize=5.6, labelcolor=INK)
     ax.set_aspect("equal")
     _save(fig, "allocation.png")
 
@@ -210,6 +209,89 @@ def _correlation(example_data):
     _save(fig, "correlation.png")
 
 
+
+
+def _efficient_frontier(charts):
+    ef = charts.get("efficient_frontier") or {}
+    frontier = ef.get("frontier") or []
+    if not frontier:
+        return
+    fig, ax = plt.subplots(figsize=(6.0, 2.4))
+    _style(ax)
+    assets = ef.get("individual_assets") or []
+    if assets:
+        ax.scatter([a.get("volatility", 0) * 100 for a in assets],
+                   [a.get("return_annualized", 0) * 100 for a in assets],
+                   s=12, color=GRID, edgecolor=MUTED, linewidth=0.3, zorder=2)
+    ax.plot([p.get("volatility", 0) * 100 for p in frontier],
+            [p.get("return_annualized", 0) * 100 for p in frontier],
+            color=BRASS, linewidth=1.4, zorder=3)
+    current = ef.get("current_portfolio") or {}
+    if current:
+        ax.scatter([current.get("volatility", 0) * 100], [current.get("return", 0) * 100],
+                   s=34, color=INK, zorder=4, label="Portfolio")
+        ax.legend(frameon=False, fontsize=6, loc="lower right", labelcolor=INK)
+    ax.set_xlabel("Volatility %", color=MUTED, fontsize=7)
+    ax.set_ylabel("Return %", color=MUTED, fontsize=7)
+    _save(fig, "efficient_frontier.png")
+
+
+def _risk_contribution(charts):
+    rc = charts.get("risk_contribution") or {}
+    tickers = rc.get("tickers") or []
+    values = rc.get("risk_contrib_pct") or []
+    if not tickers or not values:
+        return
+    order = np.argsort(values)
+    fig, ax = plt.subplots(figsize=(5.6, 2.8))
+    _style(ax)
+    ax.barh([tickers[i] for i in order], [values[i] for i in order], color=BRASS, height=0.6)
+    ax.tick_params(axis="y", labelsize=6)
+    ax.set_xlabel("% of total risk", color=MUTED, fontsize=7)
+    _save(fig, "risk_contribution.png")
+
+
+def _pca(charts):
+    pca = charts.get("pca") or {}
+    explained = pca.get("explained_variance") or []
+    cumulative = pca.get("cumulative_variance") or []
+    if not explained:
+        return
+    fig, ax = plt.subplots(figsize=(5.6, 2.3))
+    _style(ax)
+    x = np.arange(1, len(explained) + 1)
+    ax.bar(x, np.array(explained) * 100, color=GRID, width=0.6, label="Explained")
+    ax.plot(x, np.array(cumulative) * 100, color=INK, linewidth=1.2, marker="o", markersize=2,
+            label="Cumulative")
+    ax.legend(frameon=False, fontsize=6, labelcolor=INK)
+    ax.set_xlabel("Component", color=MUTED, fontsize=7)
+    ax.set_ylabel("% variance", color=MUTED, fontsize=7)
+    _save(fig, "pca.png")
+
+
+def _rolling_correlation(charts):
+    rc = charts.get("rolling_correlation") or {}
+    series = rc.get("correlations") or {}
+    dates = rc.get("dates") or []
+    if not series or not dates:
+        return
+    arrays = [np.array([np.nan if x is None else x for x in v], dtype=float)
+              for v in series.values() if isinstance(v, list) and v]
+    arrays = [a for a in arrays if a.size]
+    if not arrays:
+        return
+    length = min(a.size for a in arrays)
+    values = np.vstack([a[:length] for a in arrays])
+    average = np.nanmean(values, axis=0)
+    dates = dates[:length]
+    fig, ax = plt.subplots(figsize=(6.0, 2.1))
+    _style(ax)
+    n = min(len(average), len(dates))
+    ax.plot(np.arange(n), average[:n], color=BRASS, linewidth=1.2)
+    ax.axhline(0, color=GRID, linewidth=0.8)
+    ax.set_ylabel("Avg correlation", color=MUTED, fontsize=7)
+    _save(fig, "rolling_correlation.png")
+
 def generate(example_data, force=False):
     """Render every report image; skip when the set is fresh."""
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -231,6 +313,10 @@ def generate(example_data, force=False):
         (_volatility, (charts,)),
         (_monthly, (charts,)),
         (_correlation, (example_data,)),
+        (_efficient_frontier, (charts,)),
+        (_risk_contribution, (charts,)),
+        (_pca, (charts,)),
+        (_rolling_correlation, (charts,)),
     ]
     for func, args in jobs:
         try:
