@@ -88,6 +88,28 @@ class EmailService:
             logger.error(f"Failed to send email to {to_email}: {e}")
             return False
     
+
+    def send_account_approved(self, to_email: str, first_name: str = None) -> bool:
+        """Short, plain note that an account is active. No marketing copy."""
+        name = (first_name or "").strip()
+        greeting = f"Hi {name}," if name else "Hi,"
+        subject = "[Portfolio Optimizer] Your account is active"
+        text_body = (
+            f"{greeting}\n\n"
+            "your Portfolio Optimizer account is approved. You can sign in at "
+            "https://optimizer.havliksimon.com/auth/login\n\n"
+            "Nothing else is required.\n\n"
+            "Simon\n"
+        )
+        html_body = f"""<html><body style="font-family: Helvetica, Arial, sans-serif; font-size: 14px; color: #222; line-height: 1.5;">
+<p>{greeting}</p>
+<p>your Portfolio Optimizer account is approved. You can sign in at
+<a href="https://optimizer.havliksimon.com/auth/login">optimizer.havliksimon.com/auth/login</a>.</p>
+<p>Nothing else is required.</p>
+<p>Simon</p>
+</body></html>"""
+        return self._send_email(to_email, subject, html_body, text_body)
+
     def send_registration_request_to_admin(self, user_email: str, 
                                           first_name: str = None,
                                           last_name: str = None,
