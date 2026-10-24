@@ -42,9 +42,9 @@
       <section>
         <h2>Holdings</h2>
         <table class="pr-table">
-          <tr><th>Ticker</th><th>Company</th><th>Sector</th><th class="pr-right">Weight</th><th class="pr-right">Price</th></tr>
+          <tr><th>Ticker</th><th>Sector</th><th class="pr-right">Weight</th><th class="pr-right">Price</th></tr>
           {% for h in example_data.holdings %}
-          <tr><td>{{ h.ticker }}</td><td>{{ h.name }}</td><td>{{ h.sector }}</td><td class="pr-right">{{ "%.1f"|format(h.weight * 100) }}%</td><td class="pr-right">{{ "%.2f"|format(h.price) if h.price else '--' }}</td></tr>
+          <tr><td>{{ h.ticker }}</td><td>{{ h.sector }}</td><td class="pr-right">{{ "%.1f"|format(h.weight * 100) }}%</td><td class="pr-right">{{ "%.2f"|format(h.price) if h.price else '--' }}</td></tr>
           {% endfor %}
         </table>
 
