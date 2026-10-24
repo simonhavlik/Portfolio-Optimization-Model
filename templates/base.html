@@ -155,6 +155,166 @@
             transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
             transition-duration: 150ms;
         }
+
+        /* =============================================================
+           Design layer: private-banking look
+           Chrome, colour and density only. Chart internals untouched.
+           ============================================================= */
+        :root {
+            --ink: #0e1116;
+            --ink-2: #192027;
+            --paper: #f4f2ed;
+            --surface: #ffffff;
+            --line: #e2ddd2;
+            --brass: #a8824a;
+            --brass-deep: #8a6a3a;
+            --muted: #6d7480;
+        }
+
+        body {
+            background-color: var(--paper);
+            color: var(--ink);
+            -webkit-font-smoothing: antialiased;
+            text-rendering: optimizeLegibility;
+        }
+
+        ::selection {
+            background: rgba(168, 130, 74, 0.22);
+            color: var(--ink);
+        }
+
+        h1, h2, h3, h4 {
+            letter-spacing: -0.018em;
+        }
+
+        td, th, .tabular {
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Square it off: 6px panels, 4px controls, 2px chips */
+        .rounded-2xl, .rounded-xl { border-radius: 6px !important; }
+        .rounded-lg { border-radius: 4px !important; }
+        .rounded-md { border-radius: 3px !important; }
+        .rounded { border-radius: 2px !important; }
+
+        /* Hairline panels instead of floating blobs */
+        .shadow-lg, .shadow-xl, .shadow-2xl {
+            box-shadow: 0 1px 0 rgba(14, 17, 22, 0.04),
+                        0 18px 30px -26px rgba(14, 17, 22, 0.35) !important;
+        }
+
+        .card-hover:hover {
+            transform: none;
+            box-shadow: 0 1px 0 rgba(14, 17, 22, 0.05),
+                        0 22px 40px -30px rgba(14, 17, 22, 0.4) !important;
+        }
+
+        .bg-white {
+            border-color: var(--line);
+        }
+
+        /* Accent: brass, not the default tech blue */
+        .text-gradient {
+            background: linear-gradient(120deg, var(--ink) 0%, var(--brass) 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .bg-primary-600 { background-color: var(--ink) !important; }
+        .hover\:bg-primary-700:hover { background-color: #000 !important; }
+        .text-primary-600, .text-primary-700 { color: var(--brass-deep) !important; }
+        .text-primary-500 { color: var(--brass) !important; }
+        .border-primary-600 { border-color: var(--ink) !important; }
+        .bg-primary-50 { background-color: rgba(168, 130, 74, 0.08) !important; }
+        .bg-primary-100 { background-color: rgba(168, 130, 74, 0.14) !important; }
+
+        a.bg-emerald-600, button.bg-emerald-600 { background-color: var(--brass) !important; }
+        a.hover\:bg-emerald-700:hover, button.hover\:bg-emerald-700:hover { background-color: var(--brass-deep) !important; }
+
+        .bg-gradient-to-r.from-primary-600 {
+            background-image: linear-gradient(118deg, #0e1116 0%, #1c2530 58%, #3b2f22 100%) !important;
+        }
+
+        .bg-gradient-to-br.from-primary-600 {
+            background-image: linear-gradient(145deg, #0e1116, #2a3540) !important;
+        }
+
+        .bg-gradient-to-br.from-primary-600.to-purple-600 {
+            background-image: linear-gradient(145deg, #0e1116, #4a3a26) !important;
+        }
+
+        .nav-link::after {
+            background: var(--brass);
+        }
+
+        nav.bg-white {
+            background-color: rgba(255, 255, 255, 0.92) !important;
+            backdrop-filter: saturate(140%) blur(8px);
+            border-bottom: 1px solid var(--line) !important;
+        }
+
+        footer.bg-white {
+            background-color: var(--ink) !important;
+            border-top-color: rgba(255, 255, 255, 0.08) !important;
+        }
+
+        footer .text-slate-600 { color: #c9c1b2 !important; }
+        footer .text-slate-400 { color: #8d8577 !important; }
+
+        /* Dense, deliberate rhythm */
+        main.max-w-7xl { max-width: 1200px; }
+
+        @media (min-width: 641px) {
+            main { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+        }
+
+        @media (max-width: 640px) {
+            body { font-size: 14px; }
+            main { padding: 0.75rem 0.75rem 1rem; }
+
+            .p-8 { padding: 1rem !important; }
+            .p-6 { padding: 0.875rem !important; }
+            .p-5 { padding: 0.75rem !important; }
+            .py-12 { padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }
+            .py-16 { padding-top: 2rem !important; padding-bottom: 2rem !important; }
+            .px-6 { padding-left: 0.85rem !important; padding-right: 0.85rem !important; }
+
+            .mb-8 { margin-bottom: 1rem !important; }
+            .mb-6 { margin-bottom: 0.75rem !important; }
+            .gap-8 { gap: 1rem !important; }
+            .gap-6 { gap: 0.75rem !important; }
+
+            h1, .text-5xl { font-size: 1.65rem !important; line-height: 1.18 !important; }
+            .text-4xl { font-size: 1.45rem !important; line-height: 1.2 !important; }
+            .text-3xl { font-size: 1.3rem !important; }
+            .text-2xl { font-size: 1.12rem !important; }
+            .text-xl { font-size: 1rem !important; }
+
+            .h-64 { height: 215px !important; }
+            .h-80 { height: 245px !important; }
+            .h-96 { height: 280px !important; }
+
+            table td, table th {
+                padding: 0.4rem 0.5rem !important;
+                font-size: 0.76rem !important;
+            }
+
+            nav .h-16 { height: 3.25rem !important; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+            .card-hover:hover { transform: none; }
+        }
+
+        :focus-visible {
+            outline: 2px solid var(--brass);
+            outline-offset: 2px;
+        }
     </style>
     
     {% block extra_css %}{% endblock %}

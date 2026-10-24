@@ -213,6 +213,23 @@ def index():
                              show_analysis=False)
 
 
+@app.route('/api/example-charts')
+def example_charts():
+    """Chart payload for the example portfolio, fetched after first paint."""
+    try:
+        example_data = example_portfolio_service.get_analysis()
+    except Exception as e:
+        logger.error(f"Error loading example portfolio charts: {e}")
+        return jsonify({'error': 'unavailable'}), 503
+
+    if not example_data or not example_data.get('charts'):
+        return jsonify({'error': 'not ready'}), 503
+
+    response = jsonify({'charts': example_data['charts']})
+    response.headers['Cache-Control'] = 'public, max-age=300'
+    return response
+
+
 @app.route('/portfolio/<int:portfolio_id>')
 def portfolio_detail(portfolio_id):
     """Portfolio detail view."""

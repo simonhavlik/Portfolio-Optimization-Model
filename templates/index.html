@@ -793,7 +793,10 @@
 // Render all charts when page loads
 document.addEventListener('DOMContentLoaded', () => {
     {% if example_data and example_data.charts %}
-    renderAllCharts({{ example_data | tojson | safe }});
+    fetch('/api/example-charts', { headers: { 'Accept': 'application/json' } })
+        .then(response => response.ok ? response.json() : Promise.reject(response.status))
+        .then(renderAllCharts)
+        .catch(error => console.error('Chart data failed to load', error));
     {% endif %}
 });
 
