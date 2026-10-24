@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}Vision — Portfolio Optimizer{% endblock %}
-{% block meta_description %}The build plan: automated ingestion of every 13F filing, books reconstructed quarter by quarter, and funds compared on the same evidence base.{% endblock %}
+{% block meta_description %}Portfolio Optimizer extended into fund comparison: 13F books rebuilt quarter by quarter, and the roadmap to ingest every filer automatically.{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="/static/vision/vision.css">
@@ -13,21 +13,21 @@
 
         <header class="vs-hero">
             <div class="vs-hero-copy">
-                <p class="vs-kicker"><span class="pulse"></span>Vision<span class="sep">/</span><span class="mono">build plan</span></p>
-                <h1 class="vs-title">Ten funds is a proof.<br>The next version ingests every filing.</h1>
+                <p class="vs-kicker"><span class="pulse"></span>Vision<span class="sep">/</span><span class="mono">roadmap</span></p>
+                <h1 class="vs-title">Your portfolio, and the funds<br>you measure it against.</h1>
                 <p class="vs-lede">
-                    I built this for myself and four friends who were sizing positions off a
-                    spreadsheet and a hunch. It works: any of us can upload a book and get the
-                    frontier, the tail risk and the report in about a minute. The bottleneck is no
-                    longer the analytics — it is the data pipeline. Everything below is about
-                    removing the human from the 13F side of it, so the same comparison runs on every
-                    fund that files instead of the ten I wired by hand.
+                    This began as a risk tool for one book: upload it, get the frontier, the drawdown,
+                    the tail. The leaderboard pushed it outward — the same measurements applied to
+                    other people's portfolios, rebuilt from their 13F filings, so a fund can be read
+                    the way you read your own. What is still manual is the ingestion: ten funds chosen
+                    by hand. The plan on this page is to automate that, so any fund that files is
+                    compared on identical inputs and refreshed without anyone touching a spreadsheet.
                 </p>
                 <ul class="vs-chips">
+                    <li>Risk &amp; optimisation</li>
+                    <li>Fund comparison</li>
                     <li>Ten funds live</li>
-                    <li>Twenty quarters chained</li>
-                    <li>99.8% of each book mapped</li>
-                    <li>45-day filing lag</li>
+                    <li>Automated ingestion next</li>
                 </ul>
             </div>
 
@@ -40,33 +40,33 @@
             </figure>
         </header>
 
-        <section class="vs-thesis" aria-label="What runs today">
+        <section class="vs-thesis" aria-label="Why the comparison exists">
             <div class="vs-col" data-reveal>
                 <p class="vs-num">01</p>
-                <h2>What runs now</h2>
+                <h2>Why compare at all</h2>
                 <p>
-                    EDGAR submissions give the filing list; the information table gives positions and
-                    values; CUSIPs are mapped to tickers through OpenFIGI; a book is weighted,
-                    chained quarter by quarter from the filing date, and priced. Twenty quarters per
-                    fund, ten funds, one board.
+                    A Sharpe ratio on its own says nothing. On the book you hold, it says what you
+                    gave up by holding it. Against a fund you admire, it says whether the trade was
+                    worth making. The comparison is the product; the metric is only the unit.
                 </p>
             </div>
             <div class="vs-col" data-reveal>
                 <p class="vs-num">02</p>
-                <h2>What is still done by hand</h2>
+                <h2>What is being compared</h2>
                 <p>
-                    Choosing the ten funds. Reading a coverage report when a CUSIP fails to map.
-                    Deciding whether a new filing is an amendment or a restatement. Adding a fund to
-                    the registry. Four decisions that should be rules, not judgement.
+                    Quarterly 13F filings: long US equity, disclosed values, a 45-day lag. Weights
+                    are taken at each filing and chained from its filing date, then priced daily. What
+                    you see is the return of the book the manager actually disclosed — not a backtest
+                    of a strategy he describes.
                 </p>
             </div>
             <div class="vs-col" data-reveal>
                 <p class="vs-num">03</p>
-                <h2>What that costs</h2>
+                <h2>Where it is going</h2>
                 <p>
-                    Scale. The pipeline is correct but narrow: it answers a question about ten funds
-                    that I chose. The point of automating the ingestion is to make the choice
-                    unnecessary — every filer, ranked on the same evidence, refreshed without me.
+                    Every active filer ingested on a schedule, not ten chosen by hand. Cohorts by size
+                    and style, so a $400m manager is not ranked against Berkshire. A per-fund page as
+                    detailed as the one you get for your own book.
                 </p>
             </div>
         </section>
@@ -163,7 +163,7 @@
 
             <div class="vs-horizons">
                 <article data-reveal>
-                    <p class="vs-horizon">Phase 1 — shipped</p>
+                    <p class="vs-horizon">Shipped</p>
                     <ul>
                         <li>Filings pulled per CIK, information tables parsed namespace-agnostically</li>
                         <li>CUSIPs mapped to tickers; coverage reported per filing, not assumed</li>
@@ -172,7 +172,7 @@
                     </ul>
                 </article>
                 <article data-reveal>
-                    <p class="vs-horizon">Phase 2 — next</p>
+                    <p class="vs-horizon">Next — mass ingestion</p>
                     <ul>
                         <li>Walk every active 13F filer instead of a curated list</li>
                         <li>Incremental pulls: newest quarter only, cached by accession number</li>
@@ -182,7 +182,7 @@
                     </ul>
                 </article>
                 <article data-reveal>
-                    <p class="vs-horizon">Phase 3 — later</p>
+                    <p class="vs-horizon">Later — cohorts &amp; cadence</p>
                     <ul>
                         <li>Cohorts by AUM and style, so a $400m manager is not ranked against Berkshire</li>
                         <li>Persistence: does the ranking survive a rolling window, or is it one good year</li>
@@ -205,9 +205,9 @@
 
         <section class="vs-close">
             <blockquote data-reveal>
-                The endpoint is simple: my friends open one page, see where each fund stands against
-                the others, and argue about it with the numbers in front of them — while the pipeline
-                refreshes itself every quarter.
+                My friends open one page, see where each fund stands against the others, and argue
+                about it with the numbers in front of them — while the pipeline refreshes itself every
+                quarter. That is the whole ambition: the comparison tool we kept building by hand.
             </blockquote>
             <div class="vs-cta">
                 <a class="vs-btn vs-btn--solid" href="/leaderboard">The board as it stands</a>
