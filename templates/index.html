@@ -26,6 +26,11 @@
 </script>
 {% endblock %}
 
+{% block extra_css %}
+<script>document.documentElement.classList.add('has-hero');</script>
+<link rel="stylesheet" href="/static/hero/hero.css">
+{% endblock %}
+
 {% block content %}
 
 <div id="print-report">
@@ -234,39 +239,7 @@
   </div>
 </div>
 
-<!-- Hero Section -->
-<div class="hero-panel bg-gradient-to-r from-primary-600 to-cyan-600 rounded-2xl p-8 mb-8 text-white">
-    <canvas id="hero-canvas" class="hero-canvas" aria-hidden="true"></canvas>
-    {% if report_id %}<p class="text-[11px] uppercase tracking-[0.18em] text-amber-200/70 mb-2">Saved analysis</p>{% endif %}
-    <h1 class="text-4xl font-bold mb-4">Portfolio Optimization & Quantitative Analysis</h1>
-    <p class="text-base opacity-80 max-w-2xl">
-        Optimisation, risk decomposition, stress testing and a written assessment.
-    </p>
-    {% if example_data %}
-    <p class="text-sm opacity-75 mt-3">
-        {{ example_data.meta.name }} · computed {{ example_data.meta.computed_at[:10] }} · period {{ example_data.meta.period }} · {{ example_data.meta.n_assets }} assets
-    </p>
-    {% endif %}
-    <div class="mt-5 flex flex-wrap gap-3 no-print">
-        <a href="/upload" class="cta-invite bg-white text-primary-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition shadow-lg">
-            <i class="fas fa-cloud-upload-alt mr-2"></i>Upload Portfolio
-        </a>
-        <a href="/optimize" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
-            <i class="fas fa-flask mr-2"></i>Run Custom Analysis
-        </a>
-        <button type="button" onclick="window.print()" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
-            <i class="fas fa-file-pdf mr-2"></i>Download report
-        </button>
-        <a href="/api/report/xlsx{% if report_id %}?report={{ report_id }}{% endif %}" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
-            <i class="fas fa-file-excel mr-2"></i>Excel model
-        </a>
-    </div>
-</div>
-
-<a href="#example" class="scroll-cue no-print" aria-label="Scroll to the analysis">
-    <span>Scroll to the analysis</span>
-    <i class="fas fa-arrow-down"></i>
-</a>
+{% include "partials/hero_landing.html" %}
 
 <!-- Example Portfolio Card -->
 <div id="example" class="bg-white rounded-xl shadow-lg p-6 mb-8 card-hover border border-slate-200 print-hide">
@@ -960,6 +933,7 @@
 {% block extra_js %}
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" defer></script>
+<script src="/static/hero/hero.js" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function heroNetwork() {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
