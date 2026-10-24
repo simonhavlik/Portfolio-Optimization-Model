@@ -44,6 +44,7 @@ CHARTS = {
     'crisis': {'title': 'Crisis behaviour', 'sub': 'Total return through COVID 2020 and the 2022 bear market'},
     'growth': {'title': 'Growth of 100', 'sub': 'Cumulative return of each fund over the window'},
     'riskreturn': {'title': 'Risk versus return', 'sub': 'Volatility against annualised return; bubble = composite score'},
+    'pe': {'title': 'Weighted P/E of the book', 'sub': 'Value-weighted trailing multiple of disclosed holdings; dashed line = median across funds'},
 }
 
 
@@ -192,9 +193,37 @@ def _riskreturn(board: dict) -> io.BytesIO:
     return out
 
 
+def _pe(board: dict) -> io.BytesIO:
+    rows = [r for r in board['rows'] if (r.get('pe') or {}).get('weighted')]
+    rows.sort(key=lambda r: r['pe']['weighted'])
+    names = [r['name'] for r in rows]
+    values = [r['pe']['weighted'] for r in rows]
+    median = board.get('pe_median')
+
+    fig, ax = plt.subplots(figsize=(8.4, 4.6), dpi=150)
+    fig.patch.set_facecolor(INK)
+    bars = ax.barh(names, values, color=BRASS, height=0.62)
+    if median:
+        ax.axvline(median, color=BRASS_LIGHT, linewidth=0.9, linestyle='--', alpha=0.7)
+        ax.text(median, len(names) - 0.35, f'  median {median:.1f}x', color=BRASS_LIGHT, fontsize=7)
+    for bar, value in zip(bars, values):
+        ax.text(1.015, bar.get_y() + bar.get_height() / 2, f'{value:.1f}x',
+                transform=ax.get_yaxis_transform(), va='center', ha='left', color=TEXT, fontsize=8)
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:.0f}x'))
+    _decorate(ax, board, CHARTS['pe']['title'], CHARTS['pe']['sub'])
+    fig.tight_layout()
+    out = io.BytesIO()
+    fig.savefig(out, format='png', facecolor=INK, bbox_inches='tight')
+    plt.close(fig)
+    out.seek(0)
+    return out
+
+
 def render(board: dict, key: str) -> io.BytesIO:
     if key == 'crisis':
         return _crisis(board)
+    if key == 'pe':
+        return _pe(board)
     if key == 'growth':
         return _growth(board)
     if key == 'riskreturn':

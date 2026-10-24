@@ -24,6 +24,7 @@ import numpy as np
 import pandas as pd
 
 from services import edgar_13f
+from services import leaderboard_valuation as valuation
 from services.leaderboard_funds import (
     BENCHMARK,
     CRISIS_WINDOWS,
@@ -222,6 +223,48 @@ def collect_universe() -> list[str]:
     return sorted(tickers)
 
 
+def _top_weights(book: dict | None, limit: int = 15) -> dict[str, float]:
+    if not book:
+        return {}
+    weights = edgar_13f.weights_from_book(book)
+    return dict(sorted(weights.items(), key=lambda kv: kv[1], reverse=True)[:limit])
+
+
+def _commentary(rows: list[dict], pe_median: float | None) -> dict:
+    """Plain-language read of the board, built only from computed numbers."""
+    ranked = [r for r in rows if r.get('score') is not None]
+    ranked.sort(key=lambda r: r['score'], reverse=True)
+    if not ranked:
+        return {'lead': '', 'body': '', 'notable': ''}
+
+    lead = ranked[0]
+    runner = ranked[1] if len(ranked) > 1 else None
+    last = ranked[-1]
+    m = lead.get('metrics') or {}
+    lead_text = (
+        f"{lead['name']} leads on {lead['score']:.0f} of 100, with a Sharpe of "
+        f"{m.get('sharpe_ratio', 0):.2f} and alpha of {m.get('alpha', 0) * 100:+.1f}% a year. "
+        f"Its worst drawdown was {m.get('max_drawdown', 0) * 100:.1f}%."
+    )
+    spread = ranked[0]['score'] - last['score']
+    body = (
+        f"The spread between first and last is {spread:.0f} points. "
+        f"{last['name']} sits at the bottom on {last['score']:.0f}, with a Sharpe of "
+        f"{(last.get('metrics') or {}).get('sharpe_ratio', 0):.2f}."
+    )
+    if pe_median:
+        body += f" The median trailing P/E across the priced books is {pe_median:.1f}x."
+    notable = ''
+    if runner:
+        rm = runner.get('metrics') or {}
+        notable = (
+            f"{runner['name']} is second at {runner['score']:.0f}, on "
+            f"{rm.get('annualized_return', 0) * 100:+.1f}% a year with "
+            f"{rm.get('volatility', 0) * 100:.1f}% volatility."
+        )
+    return {'lead': lead_text, 'body': body, 'notable': notable}
+
+
 def build_board(force: bool = False, window_years: int = WINDOW_YEARS, allow_fetch: bool = False) -> dict:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     path = CACHE_DIR / BOARD_FILE
@@ -337,7 +380,33 @@ def build_board(force: bool = False, window_years: int = WINDOW_YEARS, allow_fet
 
     _percentile_scores(rows)
 
+    # valuation: multiples come from a small, cached, rate-limited lookup; a
+    # missing multiple is left missing rather than invented
+    try:
+        pe_universe = {t for r in rows if r['kind'] == '13f'
+                       for t in list(_top_weights(latest.get(r['slug'])))[:15]}
+        pe_universe.update(f['ticker'] for f in FUNDS if f['kind'] == 'listed')
+        pe_cache = valuation.ensure(sorted(pe_universe), pause=0.9, limit=160) \
+            if allow_fetch else valuation._load()
+    except Exception:
+        pe_cache = {}
+
+    for row in rows:
+        if row['kind'] == '13f':
+            weights_book = _top_weights(latest.get(row['slug']))
+            if weights_book:
+                row['pe'] = valuation.weights_pe(weights_book, pe_cache)
+        else:
+            ticker = row.get('ticker')
+            if ticker:
+                row['pe'] = valuation.weights_pe({ticker: 1.0}, pe_cache)
+
+    priced = [r['pe']['weighted'] for r in rows if (r.get('pe') or {}).get('weighted')]
+    pe_median = sorted(priced)[len(priced) // 2] if priced else None
+
     payload = {
+        'pe_median': pe_median,
+        'commentary': _commentary(rows, pe_median),
         'computed_at': datetime.utcnow().isoformat(),
         'window_years': window_years,
         'risk_free': RISK_FREE,

@@ -150,6 +150,7 @@
             if (!data) return null;
             if (key === 'covid' || key === 'y2022') return (data.crisis || {})[key];
             if (key === 'score') return data.score;
+            if (key === 'pe') return data.pe && data.pe.weighted;
             return (data.metrics || {})[key];
         }
 
