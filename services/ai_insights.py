@@ -246,6 +246,63 @@ Respond ONLY with the JSON, no additional text."""
         return json.loads(response.strip())
 
 
+
+
+def _deterministic_review(holdings, metrics):
+    """Fallback text built only from supplied figures."""
+    ranked = sorted(holdings or [], key=lambda h: float(h.get("weight") or 0), reverse=True)
+    top = ranked[:3]
+    book = sum(float(h.get("weight") or 0) for h in ranked) or 1.0
+    lines = []
+    if len(top) >= 3:
+        share = sum(float(h.get("weight") or 0) for h in top) / book
+        lines.append(
+            f"The three largest positions are {top[0].get('ticker')} at {top[0].get('weight', 0) * 100:.1f}%, "
+            f"{top[1].get('ticker')} at {top[1].get('weight', 0) * 100:.1f}% and "
+            f"{top[2].get('ticker')} at {top[2].get('weight', 0) * 100:.1f}%, "
+            f"{share * 100:.1f}% of the book in three names."
+        )
+    if metrics:
+        lines.append(
+            f"Volatility is {metrics.get('volatility', 0) * 100:.1f}% with a Sharpe of "
+            f"{metrics.get('sharpe_ratio', 0):.2f} and a maximum drawdown of "
+            f"{metrics.get('max_drawdown', 0) * 100:.1f}%."
+        )
+        lines.append(
+            f"95% CVaR is {metrics.get('cvar_95', 0) * 100:.1f}% of capital; "
+            f"beta is {metrics.get('beta', 0):.2f}."
+        )
+    lines.append(
+        "Concentration rather than the number of tickers drives the risk outcome; "
+        "position sizing and the drawdown budget are the levers that matter."
+    )
+    return " ".join(lines).strip()
+
+
+def _review_numbers_are_grounded(text, holdings, metrics):
+    """Reject text containing figures that are not in the supplied data."""
+    import re as _re
+    allowed = set()
+
+    def add(value):
+        if isinstance(value, (int, float)):
+            for formatted in (f"{value * 100:.1f}", f"{value * 100:.2f}", f"{value:.2f}", f"{value:.1f}"):
+                allowed.add(formatted.strip("0").rstrip(".") if "." in formatted else formatted)
+                allowed.add(formatted)
+
+    for holding in holdings or []:
+        add(float(holding.get("weight") or 0))
+    for value in (metrics or {}).values():
+        add(value)
+
+    text = _re.sub(r"(two|three|four|five|six|seven|eight|nine|ten)", "", text, flags=_re.I)
+    for token in _re.findall(r"\d+(?:\.\d+)?", text):
+        normalised = token.rstrip("0").rstrip(".") if "." in token else token
+        if token not in allowed and normalised not in allowed and not any(token in a for a in allowed):
+            return False
+    return True
+
+
 class AIInsightsService:
     """
     High-level service for AI-powered portfolio analysis.
@@ -316,13 +373,22 @@ Style:
 - No disclaimers, no "as an AI", no restating definitions, no generic advice.
 - Never say "diversify" or "monitor" without a number attached."""
 
+        if not holdings:
+            return ""
+
         try:
-            return self.llm.complete(prompt, system_prompt=
+            text = self.llm.complete(prompt, system_prompt=
                 "You are a buy-side portfolio analyst writing internal notes. "
-                "Every sentence must add information.", temperature=0.2).strip()
+                "Every sentence must add information. Never introduce a figure that "
+                "is not present in the input.", temperature=0.2).strip()
         except Exception as exc:
             logger.error("Portfolio review failed: %s", exc)
-            return ""
+            return _deterministic_review(holdings, metrics)
+
+        if not text or not _review_numbers_are_grounded(text, holdings, metrics):
+            logger.warning("Review rejected by numeric guard; using deterministic text")
+            return _deterministic_review(holdings, metrics)
+        return text
 
     def generate_portfolio_summary(self, context: PortfolioContext) -> str:
         """

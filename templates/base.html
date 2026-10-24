@@ -649,12 +649,58 @@
             .cta-invite { animation: none; }
             .cta-invite::after { animation: none; display: none; }
         }
+
+        /* Wide, two-up dashboard on laptops and desktops */
+        @media (min-width: 1024px) {
+            main.max-w-7xl { max-width: 2100px; width: 96%; }
+            #comprehensive-analysis {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 1rem;
+                align-items: start;
+            }
+            #comprehensive-analysis > * { margin-top: 0 !important; }
+            #comprehensive-analysis > .report-wide { grid-column: 1 / -1; }
+        }
+
+        .scroll-cue {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            margin: -0.3rem 0 1rem;
+            font-size: 0.72rem;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--muted);
+            text-decoration: none !important;
+        }
+        .scroll-cue i { animation: cueBounce 2.2s ease-in-out infinite; }
+        .scroll-cue:hover { color: var(--brass); }
+        @keyframes cueBounce {
+            0%, 100% { transform: translateY(0); opacity: 0.55; }
+            50% { transform: translateY(5px); opacity: 1; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .scroll-cue i { animation: none; }
+        }
+        @media (max-width: 1023px) {
+            .scroll-cue { display: none; }
+        }
+
+        .hero-panel { position: relative; overflow: hidden; }
+        .hero-canvas { position: absolute; left: auto; right: 0; top: 0; width: 52%; height: 100%; z-index: 0; pointer-events: none; }
+        @media (max-width: 1023px) { .hero-canvas { display: none; } }
+        .hero-panel > :not(.hero-canvas) { position: relative; z-index: 1; }
     </style>
     
     {% block extra_css %}{% endblock %}
 
 <style media="print">
+  #print-report .pr-appendix-page { break-before: page !important; page-break-before: always !important; }
   #print-report .pr-charts-page { break-before: page !important; page-break-before: always !important; }
+  #print-report .pr-appendix-page .pr-head { display: block !important; }
+  #print-report .pr-monthly { font-size: 6.6pt; }
   #print-report .pr-charts-page .pr-head { display: block !important; }
   #print-report .pr-charts { display: grid !important; grid-template-columns: 1fr 1fr !important; gap: 0.8mm 6mm !important; }
   #print-report .pr-charts figure { margin: 0 !important; break-inside: avoid !important; }

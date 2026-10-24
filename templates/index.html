@@ -108,6 +108,78 @@
     <footer class="pr-foot">Student research, educational purposes only. Data: Yahoo Finance.</footer>
   </div>
 
+
+  <div class="pr-appendix-page">
+    <header class="pr-head">
+      <h1>Appendix: key time series</h1>
+      <p>{{ example_data.meta.name }} &middot; generated {{ appendix.generated if appendix else '' }}</p>
+    </header>
+    {% if appendix %}
+    <div class="pr-cols">
+      <section>
+        <h2>Calendar-year returns</h2>
+        <table class="pr-table">
+          <tr><th>Year</th><th class="pr-right">Return</th><th class="pr-right">Months</th></tr>
+          {% for row in appendix.annual_returns %}
+          <tr><td>{{ row.year }}</td><td class="pr-right">{{ "%.2f"|format(row['return'] * 100) }}%</td><td class="pr-right">{{ row.months }}</td></tr>
+          {% endfor %}
+        </table>
+
+        <h2>Largest drawdowns</h2>
+        <table class="pr-table">
+          <tr><th>Date</th><th class="pr-right">Drawdown</th></tr>
+          {% for row in appendix.drawdowns %}
+          <tr><td>{{ row.date }}</td><td class="pr-right">{{ "%.2f"|format(row.drawdown * 100) }}%</td></tr>
+          {% endfor %}
+        </table>
+
+        <h2>Highest correlations</h2>
+        <table class="pr-table">
+          <tr><th>Pair</th><th class="pr-right">ρ</th></tr>
+          {% for row in appendix.correlations %}
+          <tr><td>{{ row.pair }}</td><td class="pr-right">{{ "%.2f"|format(row.value) }}</td></tr>
+          {% endfor %}
+        </table>
+      </section>
+
+      <section>
+        <h2>Monthly returns</h2>
+        <table class="pr-table pr-monthly">
+          <tr><th>Year</th>{% for m in appendix.monthly.months %}<th class="pr-right">{{ m }}</th>{% endfor %}</tr>
+          {% for year in appendix.monthly.years %}
+          <tr><td>{{ year }}</td>
+            {% for value in appendix.monthly.data[loop.index0] %}
+            <td class="pr-right">{{ "%.1f"|format(value * 100) if value is not none else '--' }}</td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </table>
+
+        {% if valuation %}
+        <h2>Valuation sensitivity</h2>
+        <p class="pr-text">Implied return minus cost of equity. Owner yield {{ "%.2f"|format(valuation.owner_yield * 100) }}%,
+        beta {{ "%.2f"|format(valuation.beta) }}, ERP {{ "%.2f"|format(valuation.erp.value * 100) }}%.</p>
+        <table class="pr-table">
+          <tr><th>Growth</th>{% for key, _ in valuation.sensitivity[0].items() if key != 'growth' %}<th class="pr-right">ERP {{ key.split('_')[1] }}%</th>{% endfor %}</tr>
+          {% for row in valuation.sensitivity %}
+          <tr><td>{{ "%.0f"|format(row.growth * 100) }}%</td>{% for key, value in row.items() if key != 'growth' %}<td class="pr-right">{{ "%+.1f"|format(value * 100) }}%</td>{% endfor %}</tr>
+          {% endfor %}
+        </table>
+        {% endif %}
+
+        {% if cca %}
+        <h2>Comparable companies</h2>
+        <table class="pr-table">
+          <tr><th>Ticker</th><th class="pr-right">P/E</th><th class="pr-right">Peer median</th><th class="pr-right">Upside</th></tr>
+          {% for row in cca.rows %}
+          <tr><td>{{ row.ticker }}</td><td class="pr-right">{{ "%.1f"|format(row.pe) if row.pe else '--' }}</td><td class="pr-right">{{ "%.1f"|format(row.peer_median_pe) if row.peer_median_pe else '--' }}</td><td class="pr-right">{{ "%+.1f"|format(row.upside * 100) ~ '%' if row.upside is not none else '--' }}</td></tr>
+          {% endfor %}
+        </table>
+        {% endif %}
+      </section>
+    </div>
+    {% endif %}
+  </div>
   <div class="pr-charts-page">
     <header class="pr-head">
       <h1>Charts</h1>
@@ -139,18 +211,18 @@
 </div>
 
 <!-- Hero Section -->
-<div class="bg-gradient-to-r from-primary-600 to-cyan-600 rounded-2xl p-8 mb-8 text-white">
+<div class="hero-panel bg-gradient-to-r from-primary-600 to-cyan-600 rounded-2xl p-8 mb-8 text-white">
+    <canvas id="hero-canvas" class="hero-canvas" aria-hidden="true"></canvas>
     <h1 class="text-4xl font-bold mb-4">Portfolio Optimization & Quantitative Analysis</h1>
-    <p class="text-lg opacity-90 max-w-3xl">
-        Institutional-grade quantitative analysis with Monte Carlo simulation, 
-        distribution fitting, factor decomposition, and extreme value theory.
+    <p class="text-base opacity-80 max-w-2xl">
+        Optimisation, risk decomposition, stress testing and a written assessment.
     </p>
     {% if example_data %}
     <p class="text-sm opacity-75 mt-3">
         {{ example_data.meta.name }} · computed {{ example_data.meta.computed_at[:10] }} · period {{ example_data.meta.period }} · {{ example_data.meta.n_assets }} assets
     </p>
     {% endif %}
-    <div class="mt-6 flex flex-wrap gap-3 no-print">
+    <div class="mt-5 flex flex-wrap gap-3 no-print">
         <a href="/upload" class="cta-invite bg-white text-primary-700 px-6 py-3 rounded-xl font-semibold hover:bg-gray-100 transition shadow-lg">
             <i class="fas fa-cloud-upload-alt mr-2"></i>Upload Portfolio
         </a>
@@ -160,11 +232,19 @@
         <button type="button" onclick="window.print()" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
             <i class="fas fa-file-pdf mr-2"></i>Download report
         </button>
+        <a href="/api/report/xlsx" class="bg-white/20 text-white px-6 py-3 rounded-xl font-semibold hover:bg-white/30 transition backdrop-blur-sm">
+            <i class="fas fa-file-excel mr-2"></i>Excel model
+        </a>
     </div>
 </div>
 
+<a href="#example" class="scroll-cue no-print" aria-label="Scroll to the analysis">
+    <span>Scroll to the analysis</span>
+    <i class="fas fa-arrow-down"></i>
+</a>
+
 <!-- Example Portfolio Card -->
-<div class="bg-white rounded-xl shadow-lg p-6 mb-8 card-hover border border-slate-200 print-hide">
+<div id="example" class="bg-white rounded-xl shadow-lg p-6 mb-8 card-hover border border-slate-200 print-hide">
     <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
         <div>
             <h2 class="text-2xl font-bold text-slate-900">Example: Diversified Growth Portfolio</h2>
@@ -322,7 +402,7 @@
 <div id="comprehensive-analysis" class="space-y-6 mb-8">
 
     <!-- Key Metrics Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+    <div class="report-wide grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
         <div class="bg-white rounded-xl p-4 card-shadow text-center border border-slate-200">
             <p class="text-xs text-slate-500 uppercase tracking-wide">Ann. Return</p>
             <p class="text-xl font-bold text-green-600 mt-1">{{ "%.1f"|format(example_data.metrics.annualized_return * 100) }}%</p>
@@ -367,7 +447,7 @@
 
 
     <!-- Report summary: risk, stress, assessment -->
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="report-wide grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div class="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
             <h3 class="text-lg font-semibold text-slate-900 mb-4">Risk detail</h3>
             <table class="w-full text-sm">
@@ -393,8 +473,49 @@
         </div>
     </div>
 
+
+    {% if valuation or cca %}
+    <div class="report-wide grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {% if valuation %}
+        <div class="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+            <h3 class="text-lg font-semibold text-slate-900 mb-1">Valuation (reverse DCF)</h3>
+            <p class="text-xs text-slate-500 mb-4">Owner earnings versus CAPM · ERP {{ "%.2f"|format(valuation.erp.value * 100) }}% ({{ valuation.erp.year or 'fallback' }})</p>
+            <table class="w-full text-sm">
+                <tr><th class="text-left font-normal text-slate-600">Owner earnings yield</th><td class="text-right">{{ "%.2f"|format(valuation.owner_yield * 100) }}%</td></tr>
+                <tr><th class="text-left font-normal text-slate-600">Implied return</th><td class="text-right">{{ "%.2f"|format(valuation.implied_return * 100) }}%</td></tr>
+                <tr><th class="text-left font-normal text-slate-600">Cost of equity</th><td class="text-right">{{ "%.2f"|format(valuation.cost_of_equity * 100) }}%</td></tr>
+                <tr><th class="text-left font-normal text-slate-600">Spread</th><td class="text-right {{ 'text-green-600' if valuation.spread > 0 else 'text-red-600' }}">{{ "%+.2f"|format(valuation.spread * 100) }}%</td></tr>
+                <tr><th class="text-left font-normal text-slate-600">Beta / coverage</th><td class="text-right">{{ "%.2f"|format(valuation.beta) }} / {{ "%.0f"|format(valuation.coverage * 100) }}%</td></tr>
+            </table>
+            <p class="text-xs text-slate-500 mt-3">{{ valuation.method }}</p>
+        </div>
+        {% endif %}
+        {% if cca %}
+        <div class="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+            <h3 class="text-lg font-semibold text-slate-900 mb-1">Comparable companies</h3>
+            <p class="text-xs text-slate-500 mb-4">Peer median P/E and implied value</p>
+            <table class="w-full text-sm">
+                <thead><tr><th class="text-left font-normal text-slate-500">Ticker</th><th class="text-right font-normal text-slate-500">P/E</th><th class="text-right font-normal text-slate-500">Peers</th><th class="text-right font-normal text-slate-500">Median P/E</th><th class="text-right font-normal text-slate-500">Upside</th></tr></thead>
+                <tbody>
+                {% for row in cca.rows %}
+                <tr>
+                    <td>{{ row.ticker }}</td>
+                    <td class="text-right">{{ "%.1f"|format(row.pe) if row.pe else '--' }}</td>
+                    <td class="text-right text-slate-500">{{ row.peers|join(', ') }}</td>
+                    <td class="text-right">{{ "%.1f"|format(row.peer_median_pe) if row.peer_median_pe else '--' }}</td>
+                    <td class="text-right {{ 'text-green-600' if row.upside and row.upside > 0 else 'text-red-600' }}">{{ "%+.1f"|format(row.upside * 100) ~ '%' if row.upside is not none else '--' }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            <p class="text-xs text-slate-500 mt-3">{{ cca.method }}</p>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
     <!-- Return Distribution Analysis -->
-    <div class="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+    <div class="report-wide bg-white rounded-xl shadow-lg p-6 border border-slate-200">
         <h3 class="text-lg font-semibold text-slate-900 mb-4">
             <i class="fas fa-chart-area text-primary-600 mr-2"></i>Return Distribution Analysis & Normality Tests
         </h3>
@@ -833,7 +954,7 @@
     </div>
 
     <!-- AI Quantitative Analysis Report -->
-    <div class="bg-gradient-to-r from-primary-50 to-indigo-50 rounded-xl p-6">
+    <div class="report-wide bg-gradient-to-r from-primary-50 to-indigo-50 rounded-xl p-6">
         <h3 class="text-lg font-semibold text-slate-900 mb-4">
             <i class="fas fa-brain text-primary-600 mr-2"></i>AI Quantitative Analysis Report
         </h3>
@@ -842,7 +963,7 @@
     </div>
 
     <!-- Correlation Matrix Heatmap -->
-    <div class="bg-white rounded-xl shadow-lg p-6 border border-slate-200">
+    <div class="report-wide bg-white rounded-xl shadow-lg p-6 border border-slate-200">
         <h3 class="text-lg font-semibold text-slate-900 mb-4">
             <i class="fas fa-th text-primary-600 mr-2"></i>Asset Correlation Matrix
         </h3>
@@ -850,7 +971,7 @@
     </div>
 
     <!-- Call to Action -->
-    <div class="bg-gradient-to-r from-primary-600 to-blue-600 rounded-xl p-6 text-white text-center print-hide">
+    <div class="report-wide bg-gradient-to-r from-primary-600 to-blue-600 rounded-xl p-6 text-white text-center print-hide">
         <h3 class="text-xl font-bold mb-2">Want to analyze your own portfolio?</h3>
         <p class="mb-4 opacity-90">Register for free to save portfolios, run custom analyses, and access all features.</p>
         <div class="flex justify-center gap-4">
@@ -901,6 +1022,100 @@
 {% endblock %}
 
 {% block extra_js %}
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', function heroNetwork() {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const canvas = document.getElementById('hero-canvas');
+    if (!canvas || !window.THREE) return;
+    const panel = canvas.parentElement;
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+    camera.position.z = 6.2;
+    const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    const count = 120;
+    const positions = [];
+    const points = [];
+    for (let i = 0; i < count; i++) {
+        const radius = 4.0 * Math.cbrt(Math.random());
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        const vector = new THREE.Vector3(
+            radius * Math.sin(phi) * Math.cos(theta),
+            radius * Math.sin(phi) * Math.sin(theta),
+            radius * Math.cos(phi)
+        );
+        positions.push(vector);
+        points.push(vector.x, vector.y, vector.z);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    const material = new THREE.PointsMaterial({ color: 0xc8a15a, size: 0.07, transparent: true, opacity: 0.85 });
+    const pointCloud = new THREE.Points(geometry, material);
+    scene.add(pointCloud);
+
+    const linePositions = [];
+    for (let i = 0; i < positions.length; i++) {
+        for (let j = i + 1; j < positions.length; j++) {
+            if (positions[i].distanceTo(positions[j]) < 1.4) {
+                linePositions.push(
+                    positions[i].x, positions[i].y, positions[i].z,
+                    positions[j].x, positions[j].y, positions[j].z
+                );
+            }
+        }
+    }
+    const lineGeometry = new THREE.BufferGeometry();
+    lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+    const lineMaterial = new THREE.LineBasicMaterial({ color: 0x77808c, transparent: true, opacity: 0.35 });
+    scene.add(new THREE.LineSegments(lineGeometry, lineMaterial));
+
+    const pointer = { x: 0, y: 0 };
+    panel.addEventListener('pointermove', (event) => {
+        const rect = panel.getBoundingClientRect();
+        pointer.x = ((event.clientX - rect.left) / rect.width - 0.5) * 0.6;
+        pointer.y = ((event.clientY - rect.top) / rect.height - 0.5) * 0.4;
+    });
+    panel.addEventListener('pointerleave', () => { pointer.x = 0; pointer.y = 0; });
+
+    function resize() {
+        const width = canvas.clientWidth || panel.clientWidth;
+        const height = canvas.clientHeight || panel.clientHeight;
+        renderer.setSize(width, height, false);
+        camera.aspect = width / Math.max(height, 1);
+        camera.updateProjectionMatrix();
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    let raf = null;
+    function frame(time) {
+        const t = time * 0.00012;
+        pointCloud.rotation.y = t;
+        pointCloud.rotation.x = Math.sin(t * 0.6) * 0.08;
+        scene.children[1].rotation.y = t;
+        scene.children[1].rotation.x = pointCloud.rotation.x;
+        camera.position.x += (pointer.x - camera.position.x) * 0.04;
+        camera.position.y += (-pointer.y - camera.position.y) * 0.04;
+        camera.lookAt(scene.position);
+        renderer.render(scene, camera);
+        raf = requestAnimationFrame(frame);
+    }
+    if (reduce) {
+        renderer.render(scene, camera);
+    } else {
+        raf = requestAnimationFrame(frame);
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden && raf) { cancelAnimationFrame(raf); raf = null; }
+            else if (!document.hidden && !raf) { raf = requestAnimationFrame(frame); }
+        });
+    }
+});
+</script>
 <script>
 // Dark chart defaults + per-chart PNG export
 (function () {

@@ -35,7 +35,7 @@ from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
 from functools import wraps
 
-from flask import Flask, render_template, request, jsonify, abort, session, redirect
+from flask import Flask, render_template, request, jsonify, abort, session, redirect, send_file
 from flask_cors import CORS
 from flask_login import LoginManager, current_user, login_required
 from werkzeug.utils import secure_filename
@@ -55,6 +55,9 @@ from services.ai_insights import ai_service, PortfolioContext
 from services.document_parser import document_parser, ParsedPortfolio
 from services.portfolio_extractor import extract as extract_portfolio
 from services.rate_limit import rate_limit
+from services.valuation import portfolio_valuation
+from services.report_appendix import build_appendix
+from services import cca as cca_service
 from services.risk_analytics import risk_analytics, RiskMetrics
 from services.advanced_statistics import advanced_statistics
 from services.advanced_risk import AdvancedRiskCalculator, calculate_hierarchical_risk_parity
@@ -195,8 +198,19 @@ def create_app() -> Flask:
             logger.info("Example portfolio service initialized")
 
             from services.report_charts import generate as generate_report_charts
-            generate_report_charts(example_portfolio_service.get_analysis())
+            analysis = example_portfolio_service.get_analysis()
+            generate_report_charts(analysis)
             logger.info("Report chart images ready")
+
+            import threading
+            def _warm_cca():
+                with app.app_context():
+                    try:
+                        cca_service.build_and_cache(analysis.get('holdings', []))
+                        logger.info("CCA cache ready")
+                    except Exception as exc:
+                        logger.warning(f"CCA warm-up failed: {exc}")
+            threading.Thread(target=_warm_cca, daemon=True).start()
         except Exception as e:
             logger.warning(f"Could not initialize example portfolio service: {e}")
     
@@ -246,8 +260,27 @@ def index():
         # Data is already serialized to Python dicts by the service
         example_data = example_portfolio_service.get_analysis()
         
+        valuation = None
+        appendix = None
+        try:
+            valuation = portfolio_valuation(example_data.get('holdings', []),
+                                            example_data.get('metrics', {}).get('beta', 1.0))
+        except Exception as exc:
+            logger.warning(f"Valuation unavailable: {exc}")
+        try:
+            appendix = build_appendix(example_data)
+        except Exception as exc:
+            logger.warning(f"Appendix unavailable: {exc}")
+        try:
+            cca = cca_service.cached_cca()
+        except Exception:
+            cca = None
+
         return render_template('index.html',
                              example_data=example_data,
+                             valuation=valuation,
+                             appendix=appendix,
+                             cca=cca,
                              show_analysis=True)
     except Exception as e:
         import traceback
@@ -295,6 +328,23 @@ def example_charts():
     response = jsonify(_json_safe(payload))
     response.headers['Cache-Control'] = 'public, max-age=300'
     return response
+
+
+@app.route('/api/report/xlsx')
+def report_xlsx():
+    """Excel workbook with the analysis in sell-side layout."""
+    from services.xlsx_report import build as build_xlsx
+
+    example_data = example_portfolio_service.get_analysis()
+    if not example_data:
+        return jsonify({'error': 'Analysis unavailable'}), 503
+    valuation = portfolio_valuation(example_data.get('holdings', []),
+                                    example_data.get('metrics', {}).get('beta', 1.0))
+    from services.cca import cached_cca
+    stream = build_xlsx(example_data, valuation, cached_cca())
+    filename = f"portfolio-analysis-{date.today().isoformat()}.xlsx"
+    return send_file(stream, as_attachment=True, download_name=filename,
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 
 @app.route('/portfolio/<int:portfolio_id>')
