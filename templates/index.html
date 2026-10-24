@@ -1005,16 +1005,17 @@ function renderAllCharts(data) {
             y: mr.years.map(String),
             type: 'heatmap',
             colorscale: [
-                [0, '#dc2626'],
-                [0.25, '#fca5a5'],
-                [0.5, '#ffffff'],
-                [0.75, '#86efac'],
-                [1, '#16a34a']
+                [0, '#d9a49f'],
+                [0.25, '#efdcd8'],
+                [0.5, '#fbfaf7'],
+                [0.75, '#dde8dc'],
+                [1, '#a9c4ad']
             ],
             zmid: 0,
             text: mr.data.map(row => row.map(v => v !== null ? (v * 100).toFixed(1) + '%' : '')),
             texttemplate: '%{text}',
-            textfont: { size: 10 },
+            textfont: { size: 9, color: '#22262b' },
+            colorbar: { thickness: 8, len: 0.6, outlinewidth: 0 },
             hovertemplate: '%{y} %{x}: %{z:.1%}<extra></extra>'
         }], {
             margin: { t: 40, r: 20, b: 40, l: 50 },
@@ -1232,13 +1233,15 @@ function renderAllCharts(data) {
             x: tickers,
             y: tickers,
             type: 'heatmap',
-            colorscale: [[0, '#3b82f6'], [0.5, '#ffffff'], [1, '#ef4444']],
+            colorscale: [
+                [0, '#9a6a5c'],
+                [0.5, '#f4f2ed'],
+                [1, '#4b5a6a']
+            ],
             zmid: 0,
             zmin: -1,
             zmax: 1,
-            text: matrix.map(row => row.map(v => v.toFixed(2))),
-            texttemplate: '%{text}',
-            textfont: { size: 10 }
+            colorbar: { thickness: 8, len: 0.6, outlinewidth: 0 }
         };
         
         Plotly.newPlot('correlation-heatmap', [trace], {

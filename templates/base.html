@@ -285,14 +285,21 @@
         footer .text-slate-400 { color: #8d8577 !important; }
 
         /* Dense, deliberate rhythm */
-        main.max-w-7xl { max-width: 1180px; }
+        main.max-w-7xl { max-width: 1080px; }
 
         @media (min-width: 641px) {
             main { padding-top: 1.5rem; padding-bottom: 1.5rem; }
-            .p-8 { padding: 1.5rem !important; }
-            .p-6 { padding: 1.15rem !important; }
-            .mb-8 { margin-bottom: 1.25rem !important; }
-            .gap-8 { gap: 1.5rem !important; }
+            .p-8 { padding: 1.25rem !important; }
+            .p-6 { padding: 0.95rem !important; }
+            .p-5 { padding: 0.8rem !important; }
+            .mb-8 { margin-bottom: 0.9rem !important; }
+            .mb-6 { margin-bottom: 0.7rem !important; }
+            .gap-8 { gap: 1rem !important; }
+            .gap-6 { gap: 0.8rem !important; }
+            .space-y-6 > * + * { margin-top: 1rem !important; }
+            .h-64 { height: 15rem !important; }
+            .h-80 { height: 18rem !important; }
+            .h-96 { height: 21rem !important; }
         }
 
         @media (max-width: 640px) {
@@ -376,10 +383,15 @@
             }
 
             .rounded-xl, .rounded-2xl { break-inside: avoid; }
-            .h-64 { height: 62mm !important; }
-            .h-80 { height: 72mm !important; }
-            .h-96 { height: 82mm !important; }
-            table { font-size: 8.5pt; }
+            .h-64 { height: 46mm !important; }
+            .h-80 { height: 52mm !important; }
+            .h-96 { height: 58mm !important; }
+            table { font-size: 8pt; }
+            .p-6, .p-8 { padding: 3mm !important; }
+            .mb-8, .space-y-6 > * + * { margin: 3mm !important; }
+            h1 { font-size: 16pt !important; }
+            h2, .text-3xl { font-size: 13pt !important; }
+            h3, .text-2xl { font-size: 11pt !important; }
             a { color: inherit !important; text-decoration: none !important; }
         }
     </style>
