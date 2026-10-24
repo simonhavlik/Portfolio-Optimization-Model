@@ -77,8 +77,8 @@ The figures below are the same images embedded in the PDF export. They are rende
 | *Figure 5.* Monte Carlo percentile bands, 5,000 paths. | *Figure 6.* Annualised rolling volatility. |
 | ![Monthly returns](docs/charts/monthly_returns.png) | ![Correlation matrix](docs/charts/correlation.png) |
 | *Figure 7.* Monthly returns by year. | *Figure 8.* Pairwise correlation of daily returns. |
-| ![Efficient frontier](docs/charts/efficient_frontier.png) | ![Risk contribution](docs/charts/risk_contribution.png) |
-| *Figure 9.* Efficient frontier and the current position. | *Figure 10.* Contribution to total risk by position. |
+| ![Mean-variance optimisation](docs/charts/mean_variance.png) | ![Risk contribution](docs/charts/risk_contribution.png) |
+| *Figure 9.* Mean-variance frontier with the max-Sharpe and minimum-variance portfolios. | *Figure 10.* Contribution to total risk by position. |
 | ![PCA variance](docs/charts/pca.png) | ![Rolling correlation](docs/charts/rolling_correlation.png) |
 | *Figure 11.* Explained variance by principal component. | *Figure 12.* Average pairwise rolling correlation. |
 
