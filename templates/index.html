@@ -838,8 +838,18 @@ document.addEventListener('DOMContentLoaded', () => {
     {% if example_data and example_data.charts %}
     fetch('/api/example-charts', { headers: { 'Accept': 'application/json' } })
         .then(response => response.ok ? response.json() : Promise.reject(response.status))
-        .then(renderAllCharts)
-        .then(() => setTimeout(preparePrintCharts, 1500))
+        .then(data => {
+            const original = Plotly.newPlot;
+            const plots = [];
+            Plotly.newPlot = function (...args) {
+                const promise = original.apply(this, args);
+                plots.push(promise);
+                return promise;
+            };
+            renderAllCharts(data);
+            Plotly.newPlot = original;
+            Promise.all(plots).then(() => setTimeout(preparePrintCharts, 400));
+        })
         .catch(error => console.error('Chart data failed to load', error));
     {% endif %}
 });
@@ -849,7 +859,7 @@ async function preparePrintCharts() {
     for (const img of images) {
         const id = img.getAttribute('data-plotly-src');
         const div = document.getElementById(id);
-        if (!div || !window.Plotly || !div.data) continue;
+        if (!div || !window.Plotly) continue;
         try {
             img.src = await Plotly.toImage(div, { format: 'png', width: 1000, height: 500, scale: 1.4 });
         } catch (error) {
