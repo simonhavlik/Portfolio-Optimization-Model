@@ -86,7 +86,7 @@ def register():
             email=email,
             first_name=first_name,
             last_name=last_name,
-            status='active' if is_admin else 'pending',
+            status='active',
             role='admin' if is_admin else 'user'
         )
         user.set_password(password)
@@ -94,43 +94,29 @@ def register():
         db.session.add(user)
         db.session.commit()
         
-        # Send emails based on status
-        if user.status == 'active':
-            email_service.send_welcome_email(email, first_name)
-        else:
-            email_service.send_registration_request_to_admin(
-                user_email=email,
-                first_name=first_name,
-                last_name=last_name,
-                registration_date=user.created_at
-            )
-        
-        if user.status == 'active':
-            # Auto-login admin users after registration
-            session['user_id'] = user.id
-            session['email'] = user.email
-            session['role'] = user.role
-            return jsonify({
-                'success': True,
-                'message': 'Registration successful! You are now logged in.',
-                'user': {
-                    'id': user.id,
-                    'email': user.email,
-                    'status': user.status,
-                    'role': user.role
-                },
-                'auto_login': True
-            }), 201
-        else:
-            return jsonify({
-                'success': True,
-                'message': 'Registration submitted. Please wait for admin approval.',
-                'user': {
-                    'id': user.id,
-                    'email': user.email,
-                    'status': user.status
-                }
-            }), 201
+        # Accounts are active immediately; the admin only gets an information mail
+        email_service.send_welcome_email(email, first_name)
+        email_service.send_registration_request_to_admin(
+            user_email=email,
+            first_name=first_name,
+            last_name=last_name,
+            registration_date=user.created_at
+        )
+
+        session['user_id'] = user.id
+        session['email'] = user.email
+        session['role'] = user.role
+        return jsonify({
+            'success': True,
+            'message': 'Registration successful. You are now logged in.',
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'status': user.status,
+                'role': user.role
+            },
+            'auto_login': True
+        }), 201
         
     except Exception as e:
         db.session.rollback()

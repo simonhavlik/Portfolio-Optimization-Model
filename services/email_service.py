@@ -107,14 +107,14 @@ class EmailService:
         
         full_name = f"{first_name or ''} {last_name or ''}".strip() or user_email
         
-        subject = f"[Portfolio Optimizer] New Registration Request: {full_name}"
+        subject = f"[Portfolio Optimizer] New registration: {full_name}"
         
         html_body = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-            <h2 style="color: #4f46e5;">New Registration Request</h2>
+            <h2 style="color: #4f46e5;">New registration</h2>
             
-            <p>A new user has requested access to the Portfolio Optimizer:</p>
+            <p>A new account was created automatically (no action needed):</p>
             
             <table style="border-collapse: collapse; width: 100%; max-width: 500px;">
                 <tr>
