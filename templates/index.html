@@ -802,6 +802,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function renderAllCharts(data) {
     const charts = data.charts;
+    const palette = ['#0e1116', '#a8824a', '#4b5a6a', '#c9b18a', '#6b7f6a', '#8c5f4d', '#7f8a94', '#d8c8ab'];
+    const paletteFor = values => values.map((_, index) => palette[index % palette.length]);
     
     // Sector Allocation Pie
     if (charts.allocation && charts.allocation.pie) {
@@ -810,7 +812,7 @@ function renderAllCharts(data) {
             labels: charts.allocation.pie.labels,
             type: 'pie',
             hole: 0.4,
-            marker: { colors: ['#0e1116', '#a8824a', '#4b5a6a', '#c9b18a', '#6b7f6a', '#8c5f4d'] }
+            marker: { colors: paletteFor(charts.allocation.pie.values) }
         }], {
             margin: { t: 10, r: 10, b: 10, l: 10 },
             showlegend: true,
@@ -824,7 +826,7 @@ function renderAllCharts(data) {
             values: charts.allocation.pie.values,
             labels: charts.allocation.pie.labels,
             type: 'pie',
-            marker: { colors: ['#0e1116', '#a8824a', '#4b5a6a', '#c9b18a', '#6b7f6a', '#8c5f4d', '#7f8a94', '#d8c8ab'] }
+            marker: { colors: paletteFor(charts.allocation.pie.values) }
         }], {
             margin: { t: 10, r: 10, b: 10, l: 10 },
             showlegend: true
