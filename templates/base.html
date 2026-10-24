@@ -406,6 +406,74 @@
             h3, .text-2xl { font-size: 11pt !important; }
             a { color: inherit !important; text-decoration: none !important; }
         }
+
+        /* Dedicated two-page print fact sheet */
+        #print-report { display: none; }
+
+        @media print {
+            main > div:not(#print-report),
+            main > section:not(#print-report) { display: none !important; }
+
+            #print-report {
+                display: block !important;
+                font-size: 8pt;
+                color: #14171b;
+                line-height: 1.35;
+            }
+
+            #print-report .pr-page { break-after: page; }
+            #print-report .pr-page:last-child { break-after: auto; }
+
+            #print-report .pr-head {
+                border-bottom: 0.8pt solid #a8824a;
+                padding-bottom: 1.5mm;
+                margin-bottom: 3mm;
+            }
+            #print-report .pr-head h1 { font-size: 16pt; margin: 0 0 1mm; letter-spacing: -0.02em; }
+            #print-report .pr-head p { font-size: 7.6pt; color: #555; margin: 0; }
+
+            #print-report .pr-cols { column-count: 2; column-gap: 8mm; }
+            #print-report section { break-inside: avoid-column; }
+
+            #print-report h2 {
+                font-size: 8.6pt;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: #6f542d;
+                border-bottom: 0.4pt solid #d8d2c4;
+                padding-bottom: 0.6mm;
+                margin: 3mm 0 1.2mm;
+            }
+            #print-report section:first-child h2:first-child { margin-top: 0; }
+
+            #print-report .pr-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 7.3pt;
+                font-variant-numeric: tabular-nums;
+            }
+            #print-report .pr-table th,
+            #print-report .pr-table td {
+                border-bottom: 0.3pt solid #e3ded2;
+                padding: 0.7mm 1mm;
+                vertical-align: top;
+            }
+            #print-report .pr-table th { color: #565b62; font-weight: 500; text-align: left; }
+            #print-report .pr-table .pr-right { text-align: right; }
+
+            #print-report .pr-text {
+                font-size: 7.6pt;
+                text-align: justify;
+                margin: 0 0 1.6mm;
+            }
+            #print-report .pr-foot {
+                margin-top: 4mm;
+                font-size: 6.6pt;
+                color: #777;
+                border-top: 0.3pt solid #d8d2c4;
+                padding-top: 1mm;
+            }
+        }
     </style>
     
     {% block extra_css %}{% endblock %}

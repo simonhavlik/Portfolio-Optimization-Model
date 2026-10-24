@@ -4,6 +4,99 @@
 
 {% block content %}
 
+<div id="print-report">
+  <div class="pr-page">
+    <header class="pr-head">
+      <h1>Portfolio Report</h1>
+      <p>{{ example_data.meta.name }} &middot; computed {{ example_data.meta.computed_at[:10] }} &middot; period {{ example_data.meta.period }} &middot; {{ example_data.meta.n_assets }} assets &middot; USD 100,000</p>
+    </header>
+
+    <div class="pr-cols">
+      <section>
+        <h2>Key metrics</h2>
+        <table class="pr-table">
+          <tr><th>Annual return</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.annualized_return * 100) }}%</td></tr>
+          <tr><th>Volatility</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.volatility * 100) }}%</td></tr>
+          <tr><th>Sharpe</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.sharpe_ratio) }}</td></tr>
+          <tr><th>Sortino</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.sortino_ratio) }}</td></tr>
+          <tr><th>Max drawdown</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.max_drawdown * 100) }}%</td></tr>
+          <tr><th>Calmar</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.calmar_ratio) }}</td></tr>
+          <tr><th>VaR 95%</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.var_95 * 100) }}%</td></tr>
+          <tr><th>CVaR 95%</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.cvar_95 * 100) }}%</td></tr>
+          <tr><th>Beta</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.beta) }}</td></tr>
+          <tr><th>Alpha</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.alpha * 100) }}%</td></tr>
+          <tr><th>Skew / kurtosis</th><td class="pr-right">{{ "%.2f"|format(example_data.metrics.skewness) }} / {{ "%.2f"|format(example_data.metrics.kurtosis) }}</td></tr>
+          <tr><th>Effective N</th><td class="pr-right">{{ "%.1f"|format(example_data.metrics.effective_n) }}</td></tr>
+        </table>
+
+        <h2>Risk detail</h2>
+        <table class="pr-table">
+          <tr><th>mVaR 95 / 99</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.mvar_95 * 100) }}% / {{ "%.2f"|format(example_data.advanced_risk.mvar_99 * 100) }}%</td></tr>
+          <tr><th>Average drawdown</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.avg_drawdown * 100) }}%</td></tr>
+          <tr><th>Kelly / half-Kelly</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.kelly_fraction) }} / {{ "%.2f"|format(example_data.advanced_risk.half_kelly_fraction) }}</td></tr>
+          <tr><th>Optimal leverage</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.optimal_leverage) }}x</td></tr>
+          <tr><th>Growth rate</th><td class="pr-right">{{ "%.2f"|format(example_data.advanced_risk.growth_rate * 100) }}%</td></tr>
+        </table>
+      </section>
+
+      <section>
+        <h2>Holdings</h2>
+        <table class="pr-table">
+          <tr><th>Ticker</th><th>Company</th><th>Sector</th><th class="pr-right">Weight</th><th class="pr-right">Price</th></tr>
+          {% for h in example_data.holdings %}
+          <tr><td>{{ h.ticker }}</td><td>{{ h.name }}</td><td>{{ h.sector }}</td><td class="pr-right">{{ "%.1f"|format(h.weight * 100) }}%</td><td class="pr-right">{{ "%.2f"|format(h.price) if h.price else '--' }}</td></tr>
+          {% endfor %}
+        </table>
+
+        <h2>Stress scenarios</h2>
+        <table class="pr-table">
+          {% for name, impact in example_data.stress_test.items() %}
+          <tr><th>{{ name }}</th><td class="pr-right">{{ "%.2f"|format(impact * 100) }}%</td></tr>
+          {% endfor %}
+        </table>
+      </section>
+    </div>
+  </div>
+
+  <div class="pr-page">
+    <header class="pr-head">
+      <h1>Risk, factors and assessment</h1>
+      <p>{{ example_data.meta.name }} &middot; {{ example_data.meta.computed_at[:10] }}</p>
+    </header>
+
+    <div class="pr-cols">
+      <section>
+        <h2>Factor exposure</h2>
+        <table class="pr-table">
+          <tr><th>Market</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.market_beta) }}</td></tr>
+          <tr><th>Size</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.smb_beta|default(0)) }}</td></tr>
+          <tr><th>Value</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.hml_beta) }}</td></tr>
+          <tr><th>Momentum</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.mom_beta) }}</td></tr>
+          <tr><th>Profitability</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.rmw_beta) }}</td></tr>
+          <tr><th>Investment</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.cma_beta) }}</td></tr>
+          <tr><th>R&sup2; / adj. R&sup2;</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.r_squared) }} / {{ "%.2f"|format(example_data.factor_exposure.adj_r_squared) }}</td></tr>
+        </table>
+
+        <h2>Distribution fit</h2>
+        <table class="pr-table">
+          <tr><th>Distribution</th><th class="pr-right">AIC</th></tr>
+          {% for name, dist in example_data.distributions_dict.items() if name != 'best_fit' %}
+          <tr><td>{{ name }}{% if name == example_data.distributions_dict.best_fit %} (best){% endif %}</td><td class="pr-right">{{ "%.0f"|format(dist.aic) }}</td></tr>
+          {% endfor %}
+        </table>
+      </section>
+
+      <section>
+        <h2>Assessment</h2>
+        <p class="pr-text">{{ example_data.ai_insights.risk_assessment }}</p>
+        <p class="pr-text">{{ example_data.ai_insights.factor_analysis }}</p>
+        <p class="pr-text">{{ example_data.ai_insights.recommendation }}</p>
+      </section>
+    </div>
+    <footer class="pr-foot">Student research, educational purposes only. Data: Yahoo Finance.</footer>
+  </div>
+</div>
+
 <!-- Hero Section -->
 <div class="bg-gradient-to-r from-primary-600 to-cyan-600 rounded-2xl p-8 mb-8 text-white">
     <h1 class="text-4xl font-bold mb-4">Portfolio Optimization & Quantitative Analysis</h1>
