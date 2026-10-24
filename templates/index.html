@@ -280,96 +280,14 @@
                     </tr>
                 </thead>
                 <tbody class="text-slate-700">
+                    {% for holding in example_data.holdings %}
                     <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">AAPL</td>
-                        <td class="px-4 py-3">Apple Inc</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Technology</span></td>
-                        <td class="px-4 py-3 text-right font-bold">12%</td>
+                        <td class="px-4 py-3 font-semibold">{{ holding.ticker }}</td>
+                        <td class="px-4 py-3">{{ holding.name if holding.name and holding.name != holding.ticker else holding.ticker }}</td>
+                        <td class="px-4 py-3"><span class="px-2 py-1 bg-slate-100 text-slate-700 rounded text-xs">{{ holding.sector or '—' }}</span></td>
+                        <td class="px-4 py-3 text-right font-bold">{{ "%.1f"|format((holding.weight or 0) * 100) }}%</td>
                     </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">MSFT</td>
-                        <td class="px-4 py-3">Microsoft</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Technology</span></td>
-                        <td class="px-4 py-3 text-right font-bold">12%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">GOOGL</td>
-                        <td class="px-4 py-3">Alphabet</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Technology</span></td>
-                        <td class="px-4 py-3 text-right font-bold">10%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">AMZN</td>
-                        <td class="px-4 py-3">Amazon</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs">Consumer</span></td>
-                        <td class="px-4 py-3 text-right font-bold">8%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">NVDA</td>
-                        <td class="px-4 py-3">NVIDIA</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs">Technology</span></td>
-                        <td class="px-4 py-3 text-right font-bold">7%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">JPM</td>
-                        <td class="px-4 py-3">JPMorgan Chase</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Financials</span></td>
-                        <td class="px-4 py-3 text-right font-bold">7%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">JNJ</td>
-                        <td class="px-4 py-3">Johnson & Johnson</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Healthcare</span></td>
-                        <td class="px-4 py-3 text-right font-bold">6%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">V</td>
-                        <td class="px-4 py-3">Visa</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Financials</span></td>
-                        <td class="px-4 py-3 text-right font-bold">6%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">PG</td>
-                        <td class="px-4 py-3">Procter & Gamble</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-pink-100 text-pink-700 rounded text-xs">Consumer Staples</span></td>
-                        <td class="px-4 py-3 text-right font-bold">5%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">UNH</td>
-                        <td class="px-4 py-3">UnitedHealth</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Healthcare</span></td>
-                        <td class="px-4 py-3 text-right font-bold">5%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">HD</td>
-                        <td class="px-4 py-3">Home Depot</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs">Consumer</span></td>
-                        <td class="px-4 py-3 text-right font-bold">5%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">MA</td>
-                        <td class="px-4 py-3">Mastercard</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs">Financials</span></td>
-                        <td class="px-4 py-3 text-right font-bold">5%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">LLY</td>
-                        <td class="px-4 py-3">Eli Lilly</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">Healthcare</span></td>
-                        <td class="px-4 py-3 text-right font-bold">5%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">KO</td>
-                        <td class="px-4 py-3">Coca-Cola</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-pink-100 text-pink-700 rounded text-xs">Consumer Staples</span></td>
-                        <td class="px-4 py-3 text-right font-bold">5%</td>
-                    </tr>
-                    <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                        <td class="px-4 py-3 font-semibold">PEP</td>
-                        <td class="px-4 py-3">PepsiCo</td>
-                        <td class="px-4 py-3"><span class="px-2 py-1 bg-pink-100 text-pink-700 rounded text-xs">Consumer Staples</span></td>
-                        <td class="px-4 py-3 text-right font-bold">3%</td>
-                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
@@ -379,26 +297,13 @@
             <h3 class="text-lg font-semibold text-slate-900 mb-4">Sector Allocation</h3>
             <div id="chart-sector-allocation" class="h-64"></div>
             <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
+                {% set sector_map = (example_data.charts.allocation.sectors if example_data.charts and example_data.charts.allocation else {}) %}
+                {% for name, weight in sector_map|dictsort(by='value', reverse=true) %}
                 <div class="flex justify-between p-2 bg-slate-50 rounded">
-                    <span class="text-slate-600">Technology</span>
-                    <span class="font-semibold">41%</span>
+                    <span class="text-slate-600">{{ name }}</span>
+                    <span class="font-semibold">{{ "%.0f"|format(weight * 100) }}%</span>
                 </div>
-                <div class="flex justify-between p-2 bg-slate-50 rounded">
-                    <span class="text-slate-600">Financials</span>
-                    <span class="font-semibold">18%</span>
-                </div>
-                <div class="flex justify-between p-2 bg-slate-50 rounded">
-                    <span class="text-slate-600">Healthcare</span>
-                    <span class="font-semibold">16%</span>
-                </div>
-                <div class="flex justify-between p-2 bg-slate-50 rounded">
-                    <span class="text-slate-600">Consumer</span>
-                    <span class="font-semibold">13%</span>
-                </div>
-                <div class="flex justify-between p-2 bg-slate-50 rounded">
-                    <span class="text-slate-600">Consumer Staples</span>
-                    <span class="font-semibold">13%</span>
-                </div>
+                {% endfor %}
             </div>
         </div>
     </div>
