@@ -148,10 +148,10 @@
             <ol class="vs-steps vs-steps--road">
                 <li data-reveal><span class="mono">shipped</span><b>Single-filer pipeline</b><em>EDGAR → XML → CUSIP map → weighted book</em></li>
                 <li data-reveal><span class="mono">shipped</span><b>Twenty-quarter chaining</b><em>weights apply from the filing date</em></li>
-                <li data-reveal><span class="mono">building</span><b>Mass ingestion</b><em>every active filer, incremental by quarter</em></li>
-                <li data-reveal><span class="mono">building</span><b>Automatic validation</b><em>coverage, amendments, orphan CUSIPs</em></li>
-                <li data-reveal><span class="mono">next</span><b>Universe ranking</b><em>cohorts by size and style, not by hand</em></li>
-                <li data-reveal><span class="mono">next</span><b>Scheduled publication</b><em>rebuild, export, notify</em></li>
+                <li data-reveal><span class="mono">next</span><b>Mass ingestion</b><em>every active filer, incremental by quarter</em></li>
+                <li data-reveal><span class="mono">next</span><b>Automatic validation</b><em>coverage, amendments, orphan CUSIPs</em></li>
+                <li data-reveal><span class="mono">later</span><b>Universe ranking</b><em>cohorts by size and style, not by hand</em></li>
+                <li data-reveal><span class="mono">later</span><b>Scheduled publication</b><em>rebuild, export, notify</em></li>
             </ol>
         </section>
 
@@ -172,7 +172,7 @@
                     </ul>
                 </article>
                 <article data-reveal>
-                    <p class="vs-horizon">Phase 2 — building</p>
+                    <p class="vs-horizon">Phase 2 — next</p>
                     <ul>
                         <li>Walk every active 13F filer instead of a curated list</li>
                         <li>Incremental pulls: newest quarter only, cached by accession number</li>
@@ -182,7 +182,7 @@
                     </ul>
                 </article>
                 <article data-reveal>
-                    <p class="vs-horizon">Phase 3 — next</p>
+                    <p class="vs-horizon">Phase 3 — later</p>
                     <ul>
                         <li>Cohorts by AUM and style, so a $400m manager is not ranked against Berkshire</li>
                         <li>Persistence: does the ranking survive a rolling window, or is it one good year</li>
