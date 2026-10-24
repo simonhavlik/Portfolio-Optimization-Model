@@ -447,6 +447,79 @@
                             <span class="ex"><i aria-hidden="true">&#10003;</i>model.xlsx &middot; 11 sheets</span>
                         </footer>
                     </section>
+
+                    <!-- 05 · leaderboard -->
+                    <section class="stage stage--board" data-stage="4" aria-label="Step 5, fund leaderboard">
+                        <header class="stage-head">
+                            <div>
+                                <p class="s-k">Step 05 &middot; leaderboard</p>
+                                <h2 class="s-t">Funds, ranked by evidence</h2>
+                            </div>
+                            <span class="chip mono">10 funds</span>
+                        </header>
+
+                        <div class="board" data-board>
+                            <div class="board-main">
+                                <div class="board-tabs" role="tablist" aria-label="Leaderboard metric">
+                                    <button type="button" class="b-tab is-active" data-bmetric="sharpe">Sharpe</button>
+                                    <button type="button" class="b-tab" data-bmetric="sortino">Sortino</button>
+                                    <button type="button" class="b-tab" data-bmetric="alpha">Alpha</button>
+                                </div>
+                                <ol class="board-list">
+                                    <li class="board-row" data-bidx="0" data-sharpe="1.42" data-sortino="1.95" data-alpha="6.2">
+                                        <span class="b-rank">1</span><span class="b-name">Berkshire Hathaway</span>
+                                        <span class="b-track"><i class="b-fill"></i></span><span class="b-val">1.42</span>
+                                    </li>
+                                    <li class="board-row" data-bidx="1" data-sharpe="1.28" data-sortino="1.74" data-alpha="5.1">
+                                        <span class="b-rank">2</span><span class="b-name">Markel Group</span>
+                                        <span class="b-track"><i class="b-fill"></i></span><span class="b-val">1.28</span>
+                                    </li>
+                                    <li class="board-row" data-bidx="2" data-sharpe="1.19" data-sortino="1.61" data-alpha="7.8">
+                                        <span class="b-rank">3</span><span class="b-name">Fairfax Financial</span>
+                                        <span class="b-track"><i class="b-fill"></i></span><span class="b-val">1.19</span>
+                                    </li>
+                                    <li class="board-row" data-bidx="3" data-sharpe="1.05" data-sortino="1.33" data-alpha="9.4">
+                                        <span class="b-rank">4</span><span class="b-name">Pershing Square</span>
+                                        <span class="b-track"><i class="b-fill"></i></span><span class="b-val">1.05</span>
+                                    </li>
+                                    <li class="board-row" data-bidx="4" data-sharpe="0.98" data-sortino="1.42" data-alpha="11.2">
+                                        <span class="b-rank">5</span><span class="b-name">Valley Forge Capital</span>
+                                        <span class="b-track"><i class="b-fill"></i></span><span class="b-val">0.98</span>
+                                    </li>
+                                    <li class="board-row" data-bidx="5" data-sharpe="0.62" data-sortino="0.81" data-alpha="-3.1">
+                                        <span class="b-rank">6</span><span class="b-name">Scion Asset Mgmt</span>
+                                        <span class="b-track"><i class="b-fill"></i></span><span class="b-val">0.62</span>
+                                    </li>
+                                </ol>
+                            </div>
+
+                            <aside class="board-side" aria-hidden="true">
+                                <svg class="board-scatter" viewBox="0 0 122 112">
+                                    <g class="bs-grid">
+                                        <line class="bs-trend" x1="16" y1="88" x2="106" y2="28"></line>
+                                        <line x1="8" y1="96" x2="114" y2="96"></line>
+                                        <line x1="8" y1="66" x2="114" y2="66"></line>
+                                        <line x1="8" y1="36" x2="114" y2="36"></line>
+                                        <line x1="8" y1="96" x2="8" y2="14"></line>
+                                        <line x1="43" y1="96" x2="43" y2="14"></line>
+                                        <line x1="78" y1="96" x2="78" y2="14"></line>
+                                    </g>
+                                    <circle class="bs-dot" data-bidx="0" cx="26" cy="38" r="2.6" style="--i:0"></circle>
+                                    <circle class="bs-dot" data-bidx="1" cx="38" cy="48" r="2.6" style="--i:1"></circle>
+                                    <circle class="bs-dot" data-bidx="2" cx="52" cy="44" r="2.6" style="--i:2"></circle>
+                                    <circle class="bs-dot" data-bidx="3" cx="64" cy="62" r="2.6" style="--i:3"></circle>
+                                    <circle class="bs-dot" data-bidx="4" cx="79" cy="58" r="2.6" style="--i:4"></circle>
+                                    <circle class="bs-dot" data-bidx="5" cx="96" cy="80" r="2.6" style="--i:5"></circle>
+                                    <circle class="bs-ring" cx="26" cy="38" r="7"></circle>
+                                    <text class="bs-ax" x="9" y="108">&sigma;</text>
+                                    <text class="bs-ax" x="96" y="20">E[R]</text>
+                                </svg>
+                                <div class="board-foot"><span>risk</span><span>return</span><span>6m</span></div>
+                            </aside>
+                        </div>
+
+                        <footer class="console"><span class="prompt" aria-hidden="true">&rsaquo;</span><span class="line">ranked on Sharpe, Sortino, alpha, drawdown, beta and CVaR &middot; updated monthly</span></footer>
+                    </section>
                 </div>
 
                 <div class="demo-steps" role="tablist" aria-label="Platform walkthrough">
@@ -454,6 +527,7 @@
                     <button type="button" class="step" data-step="1" role="tab" aria-selected="false"><span class="n">02</span><span class="t">Compute</span><i class="fill" aria-hidden="true"></i></button>
                     <button type="button" class="step" data-step="2" role="tab" aria-selected="false"><span class="n">03</span><span class="t">Optimise</span><i class="fill" aria-hidden="true"></i></button>
                     <button type="button" class="step" data-step="3" role="tab" aria-selected="false"><span class="n">04</span><span class="t">Report</span><i class="fill" aria-hidden="true"></i></button>
+                    <button type="button" class="step" data-step="4" role="tab" aria-selected="false"><span class="n">05</span><span class="t">Leaderboard</span><i class="fill" aria-hidden="true"></i></button>
                 </div>
             </div>
         </div>

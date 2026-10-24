@@ -256,6 +256,62 @@
             }
         }
 
+        /* leaderboard stage: metric tabs re-rank the rows */
+        var board = demo.querySelector('[data-board]');
+        if (board) {
+            var boardRows = Array.prototype.slice.call(board.querySelectorAll('.board-row'));
+            var boardTabs = Array.prototype.slice.call(board.querySelectorAll('[data-bmetric]'));
+            var boardMetrics = ['sharpe', 'sortino', 'alpha'];
+            var boardIndex = 0;
+
+            var renderMetric = function (key) {
+                var scored = boardRows.map(function (row) {
+                    return { row: row, value: parseFloat(row.getAttribute('data-' + key)) || 0 };
+                });
+                scored.sort(function (a, b) { return b.value - a.value; });
+                var peak = 0;
+                scored.forEach(function (d) { peak = Math.max(peak, Math.abs(d.value)); });
+                peak = peak || 1;
+                scored.forEach(function (d, i) {
+                    d.row.style.order = i;
+                    var rank = d.row.querySelector('.b-rank');
+                    var val = d.row.querySelector('.b-val');
+                    var fill = d.row.querySelector('.b-fill');
+                    if (rank) rank.textContent = i + 1;
+                    if (val) {
+                        val.textContent = key === 'alpha'
+                            ? (d.value > 0 ? '+' : '') + d.value.toFixed(1) + '%'
+                            : d.value.toFixed(2);
+                    }
+                    if (fill) fill.style.width = Math.max(8, Math.round((Math.abs(d.value) / peak) * 100)) + '%';
+                    d.row.classList.toggle('is-top', i === 0);
+                });
+                var top = boardRows.filter(function (row) { return row.classList.contains('is-top'); })[0];
+                var topIdx = top ? top.getAttribute('data-bidx') : null;
+                Array.prototype.forEach.call(board.querySelectorAll('.bs-dot'), function (dot) {
+                    dot.classList.toggle('is-top', dot.getAttribute('data-bidx') === topIdx);
+                });
+                boardTabs.forEach(function (tab) {
+                    tab.classList.toggle('is-active', tab.getAttribute('data-bmetric') === key);
+                });
+            };
+
+            boardTabs.forEach(function (tab) {
+                tab.addEventListener('click', function (evt) {
+                    evt.stopPropagation();
+                    boardIndex = Math.max(0, boardMetrics.indexOf(tab.getAttribute('data-bmetric')));
+                    renderMetric(boardMetrics[boardIndex]);
+                });
+            });
+
+            renderMetric('sharpe');
+            setInterval(function () {
+                if (!board.closest('.stage.is-active')) return;
+                boardIndex = (boardIndex + 1) % boardMetrics.length;
+                renderMetric(boardMetrics[boardIndex]);
+            }, 2300);
+        }
+
         var elapsedEl = demo.querySelector('[data-elapsed]');
         var sharpeEl = demo.querySelector('[data-sharpe]');
         var rotateEl = demo.querySelector('[data-rotate]');
@@ -264,7 +320,6 @@
 
         var idx = 0;
         var timer = null;
-        var paused = false;
         var inView = false;
         var elapsedRaf = null;
         var sharpeRaf = null;
@@ -308,7 +363,6 @@
             var n = 0;
             clearInterval(rotateEl._iv);
             rotateEl._iv = setInterval(function () {
-                if (paused) return;
                 n = (n + 1) % rotateLines.length;
                 rotateEl.innerHTML = rotateLines[n];
             }, 2100);
@@ -339,15 +393,19 @@
             if (idx === 0 && elapsedEl) elapsedEl.textContent = '00:00';
             runConsole();
 
-            if (!reduce && inView && !paused) {
-                timer = setTimeout(function () { go(idx + 1); }, dur);
-            }
+            scheduleNext();
+        }
+
+        /* one place decides when the next step runs, so nothing can stall it */
+        function scheduleNext() {
+            clearTimeout(timer);
+            timer = null;
+            if (reduce || !inView || document.hidden) return;
+            timer = setTimeout(function () { go(idx + 1); }, dur);
         }
 
         steps.forEach(function (btn, k) {
             btn.addEventListener('click', function () {
-                paused = false;
-                demo.classList.remove('is-paused');
                 go(k);
             });
             btn.addEventListener('keydown', function (e) {
@@ -360,39 +418,28 @@
             });
         });
 
-        function pause() {
-            paused = true;
-            demo.classList.add('is-paused');
-            clearTimeout(timer);
-            timer = null;
-        }
-        function resume() {
-            if (!paused) return;
-            paused = false;
-            demo.classList.remove('is-paused');
-            if (!reduce && inView) timer = setTimeout(function () { go(idx + 1); }, dur);
-        }
-        demo.addEventListener('mouseenter', pause);
-        demo.addEventListener('mouseleave', resume);
-        demo.addEventListener('focusin', pause);
-        demo.addEventListener('focusout', function (e) {
-            if (!demo.contains(e.relatedTarget)) resume();
-        });
-
         if (window.IntersectionObserver) {
             new IntersectionObserver(function (entries) {
                 inView = entries[0].isIntersecting;
-                if (inView && !paused && !reduce) {
-                    clearTimeout(timer);
-                    timer = setTimeout(function () { go(idx + 1); }, dur);
-                } else {
-                    clearTimeout(timer);
-                    timer = null;
-                }
-            }, { threshold: 0.35 }).observe(demo);
+                scheduleNext();
+            }, { threshold: 0.25 }).observe(demo);
         } else {
             inView = true;
         }
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden) {
+                clearTimeout(timer);
+                timer = null;
+            } else {
+                scheduleNext();
+            }
+        });
+
+        /* watchdog: if the walkthrough ever goes quiet while visible, restart it */
+        setInterval(function () {
+            if (!document.hidden && inView && !reduce && !timer) scheduleNext();
+        }, 2500);
 
         go(0);
     }
