@@ -10,7 +10,7 @@
   <img src="https://img.shields.io/badge/Report-A4%20%C2%B7%202%20pages-a8824a" alt="Report">
 </p>
 
-A Flask application that turns a portfolio, whether typed, exported as CSV or PDF, or supplied as a screenshot, into a full risk report: optimisation, tail-risk measurement, factor decomposition, stress testing and a written assessment. The public instance runs at the address above; the printable report is exported as a two-page PDF.
+A Flask application that turns a portfolio, whether typed, exported as CSV or PDF, or supplied as a screenshot, into a full risk report: optimisation, tail-risk measurement, factor decomposition, stress testing and a written assessment. The public instance runs at the address above; the printable report is exported as a three-page PDF (fact sheet, appendix, charts).
 
 ![Dashboard](docs/screenshot-dashboard.png)
 
@@ -57,7 +57,15 @@ Fama–French three- and five-factor regressions (Fama and French, 1993, 2015) w
 
 Monte Carlo simulation generates five thousand one-year paths from the estimated mean vector and covariance matrix, reporting percentile bands and the probability of profit. Historical stress scenarios apply drawdowns from 2008, the 2020 crash, the dot-com period, a rate shock and a sector selloff.
 
-### 2.6 Text generation
+### 2.6 Valuation and comparable companies
+
+Owner earnings (trailing earnings yield, falling back to FCF/market cap) plus expected growth give an implied return per holding, aggregated at portfolio weight. That is compared with a CAPM cost of equity using the Damodaran implied equity risk premium, refreshed from his public workbook and cached for thirty days. A comparable-company sheet proposes peers with the model, validates every ticker against Yahoo Finance, and reports the peer median P/E, implied price and upside.
+
+### 2.7 Reporting conventions
+
+Daily returns are arithmetic and annualised by 252 trading days. VaR and CVaR are reported as positive loss magnitudes. Sharpe uses the configured risk-free rate; Sortino uses downside deviation. Beta and alpha are measured against the S&P 500. Generated commentary is checked numerically: any figure that cannot be traced to the supplied metrics is rejected and replaced by deterministic text built only from those metrics.
+
+### 2.8 Text generation
 
 Extraction and narrative commentary use a large language model (DeepSeek V4.1 Flash) with low reasoning effort. The model is constrained by a JSON schema for extraction and by an explicit editorial brief for commentary: quantified statements, no generic advice, no repeated disclaimers. Deterministic fallbacks and bounded retries limit failure modes.
 
@@ -84,7 +92,7 @@ The figures below are the same images embedded in the PDF export. They are rende
 | ![Rolling statistics](docs/charts/rolling_stats.png) | |
 | *Figure 13.* Rolling mean with 95% band, standard deviation and Sharpe ratio. | |
 
-The complete two-page export is available as **[Portfolio-Optimizer-Report.pdf](docs/Portfolio-Optimizer-Report.pdf)**.
+The complete three-page export is available as **[Portfolio-Optimizer-Report.pdf](docs/Portfolio-Optimizer-Report.pdf)**.
 
 ---
 
@@ -120,7 +128,7 @@ PYTHONPATH=. python scripts/test_extraction.py
 
 ## 6. Reporting
 
-Each figure on the dashboard carries an export control that produces a 1600 × 900 PNG suitable for presentations and LinkedIn. The print path is a separate layout: a two-page A4 fact sheet, with metrics, holdings, stress scenarios, factor exposures, distribution fit and the written assessment on page one, and twelve charts on page two. Printing is triggered by **Download report** in the dashboard header.
+Each figure on the dashboard carries an export control that produces a 1600 × 900 PNG suitable for presentations and LinkedIn. The print path is a separate layout: a three-page A4 report: fact sheet on page one, appendix with calendar-year returns, drawdowns, correlations, monthly matrix, valuation sensitivity and comparables on page two, and thirteen charts on page three. A separate Excel workbook exports the same analysis with live formulas. Printing is triggered by **Download report**; the workbook is served by **Excel model**.
 
 ---
 
@@ -161,6 +169,8 @@ Ledoit, O. and Wolf, M. (2004) 'Honey, I shrunk the sample covariance matrix', *
 Markowitz, H. (1952) 'Portfolio selection', *The Journal of Finance*, 7(1), pp. 77–91.
 
 Rockafellar, R.T. and Uryasev, S. (2000) 'Optimization of conditional value-at-risk', *Journal of Risk*, 2(3), pp. 21–41.
+
+Damodaran, A. (2026) *Implied Equity Risk Premiums*. New York: Stern School of Business. Available at: https://pages.stern.nyu.edu/~adamodar/ (Accessed: 24 October 2026).
 
 Sharpe, W.F. (1964) 'Capital asset prices: a theory of market equilibrium under conditions of risk', *The Journal of Finance*, 19(3), pp. 425–442.
 
