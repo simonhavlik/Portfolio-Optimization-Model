@@ -34,7 +34,7 @@ import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
 
-from flask import Flask, render_template, request, jsonify, abort, session
+from flask import Flask, render_template, request, jsonify, abort, session, redirect
 from flask_cors import CORS
 from flask_login import LoginManager, current_user, login_required
 from werkzeug.utils import secure_filename
@@ -289,9 +289,10 @@ def analysis_comprehensive_view():
 
 
 @app.route('/upload')
-@login_required
 def upload_view():
     """Document upload interface (sign-in required)."""
+    if 'user_id' not in session:
+        return redirect('/auth/login')
     return render_template('upload.html')
 
 
