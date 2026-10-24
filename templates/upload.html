@@ -26,8 +26,8 @@
                     <i class="fas fa-file-upload text-4xl text-gray-400 mb-3"></i>
                     <p class="text-gray-600 font-medium">Drop your file here</p>
                     <p class="text-sm text-gray-500 mt-1">or click to browse</p>
-                    <p class="text-xs text-gray-400 mt-2">PDF, CSV, Excel (max 16MB)</p>
-                    <input type="file" id="file-input" class="hidden" accept=".pdf,.csv,.xlsx,.xls">
+                    <p class="text-xs text-gray-400 mt-2">PDF, CSV, Excel or a screenshot (max 16MB)</p>
+                    <input type="file" id="file-input" class="hidden" accept=".pdf,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.webp">
                 </div>
                 
                 <!-- Selected File -->
@@ -204,7 +204,16 @@
             </div>
             
             <!-- Actions -->
-            <div class="flex justify-end space-x-4">
+            <div class="flex flex-wrap justify-end gap-3">
+                {% if current_user.is_authenticated %}
+                <button onclick="savePortfolio()" class="px-5 py-3 bg-white border border-slate-300 text-slate-800 rounded-lg font-semibold hover:border-slate-500 transition">
+                    <i class="fas fa-bookmark mr-2"></i>Save to my portfolios
+                </button>
+                {% else %}
+                <a href="/auth/register" class="px-5 py-3 bg-white border border-slate-300 text-slate-800 rounded-lg font-semibold hover:border-slate-500 transition">
+                    <i class="fas fa-bookmark mr-2"></i>Register to save this
+                </a>
+                {% endif %}
                 <button onclick="viewPortfolio()" class="px-6 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition">
                     <i class="fas fa-eye mr-2"></i>View Full Portfolio
                 </button>
@@ -222,6 +231,31 @@
 let currentPortfolioId = null;
 let currentDocumentId = null;
 let extractedData = null;
+let currentAiReview = '';
+
+async function savePortfolio() {
+    if (!extractedData) return;
+    const name = window.prompt('Name this portfolio', 'My portfolio');
+    if (!name) return;
+
+    try {
+        const response = await fetch('/api/auth/scenarios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                name: name,
+                description: extractedData.broker || '',
+                holdings: extractedData.holdings || [],
+                period: '2y',
+                analysis_results: { extraction: extractedData, ai_review: currentAiReview }
+            })
+        });
+        if (!response.ok) throw new Error('Could not save');
+        showToast('Portfolio saved', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
 let currentMetric = 'var_95';
 
 // Load existing portfolios for dropdown
@@ -345,8 +379,13 @@ document.getElementById('upload-form').addEventListener('submit', async (e) => {
         currentPortfolioId = data.portfolio_id;
         currentDocumentId = data.document_id;
         extractedData = data.extracted_data;
+        currentAiReview = data.ai_review || '';
         
         displayResults(data);
+
+        if (currentAiReview) {
+            document.getElementById('ai-content').innerHTML = formatMarkdown(currentAiReview);
+        }
         
         // Load risk timeline
         loadRiskTimeline(currentPortfolioId);
@@ -559,6 +598,7 @@ function generateSampleTimeline() {
 }
 
 async function generateAIInsights(portfolioName, timeline) {
+    if (currentAiReview) return;
     const content = document.getElementById('ai-content');
     content.innerHTML = '<div class="loading-spinner mx-auto"></div><p class="text-center mt-2">Generating insights...</p>';
     

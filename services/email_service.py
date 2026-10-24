@@ -33,6 +33,7 @@ class EmailService:
         self.smtp_port = getattr(config, 'SMTP_PORT', 587)
         self.smtp_user = getattr(config, 'SMTP_USER', None)
         self.smtp_password = getattr(config, 'SMTP_PASSWORD', None)
+        self.smtp_use_ssl = getattr(config, 'SMTP_USE_SSL', False) or self.smtp_port == 465
         self.admin_email = getattr(config, 'ADMIN_EMAIL', None)
         self.enabled = all([self.smtp_user, self.smtp_password, self.admin_email])
         
@@ -60,7 +61,7 @@ class EmailService:
         try:
             msg = MIMEMultipart('alternative')
             msg['Subject'] = subject
-            msg['From'] = self.smtp_user
+            msg['From'] = f"Portfolio Optimizer <{self.smtp_user}>"
             msg['To'] = to_email
             
             # Add text part
@@ -70,9 +71,13 @@ class EmailService:
             # Add HTML part
             msg.attach(MIMEText(html_body, 'html'))
             
-            # Send via SMTP
-            with smtplib.SMTP(self.smtp_host, self.smtp_port) as server:
+            # Send via SMTP (implicit TLS on 465, STARTTLS otherwise)
+            if self.smtp_use_ssl:
+                server = smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, timeout=20)
+            else:
+                server = smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=20)
                 server.starttls()
+            with server:
                 server.login(self.smtp_user, self.smtp_password)
                 server.send_message(msg)
             

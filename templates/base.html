@@ -229,6 +229,11 @@
         .bg-primary-50 { background-color: rgba(168, 130, 74, 0.08) !important; }
         .bg-primary-100 { background-color: rgba(168, 130, 74, 0.14) !important; }
 
+        .gradient-bg {
+            background-image: linear-gradient(118deg, #0e1116 0%, #1c2530 58%, #3b2f22 100%);
+            color: #ffffff;
+        }
+
         a.bg-emerald-600, button.bg-emerald-600 { background-color: var(--brass-deep) !important; }
         a.hover\:bg-emerald-700:hover, button.hover\:bg-emerald-700:hover { background-color: #6f542d !important; }
 
@@ -350,6 +355,32 @@
         :focus-visible {
             outline: 2px solid var(--brass);
             outline-offset: 2px;
+        }
+
+        /* Printed / PDF report */
+        @media print {
+            @page { size: A4; margin: 14mm 12mm; }
+
+            nav, footer, .no-print { display: none !important; }
+            body { background: #ffffff !important; color: #111111 !important; font-size: 10pt; }
+            main { max-width: 100% !important; padding: 0 !important; }
+
+            .gradient-bg, .bg-slate-900, .bg-slate-800 {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            .shadow-lg, .shadow-xl, .shadow-2xl {
+                box-shadow: none !important;
+                border: 1px solid #d8d4ca !important;
+            }
+
+            .rounded-xl, .rounded-2xl { break-inside: avoid; }
+            .h-64 { height: 62mm !important; }
+            .h-80 { height: 72mm !important; }
+            .h-96 { height: 82mm !important; }
+            table { font-size: 8.5pt; }
+            a { color: inherit !important; text-decoration: none !important; }
         }
     </style>
     

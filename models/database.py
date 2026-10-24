@@ -347,6 +347,30 @@ def receive_set_jsonb_results(target, value, oldvalue, initiator):
     return value
 
 
+class AppCache(db.Model):
+    """Key/value cache persisted in Postgres so restarts keep computed data."""
+
+    __tablename__ = 'app_cache'
+
+    key = db.Column(db.String(80), primary_key=True)
+    payload = db.Column(JSONB().with_variant(db.JSON, "sqlite"))
+    computed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ApiCredential(db.Model):
+    """Active provider credential, switchable without a redeploy."""
+
+    __tablename__ = 'api_credentials'
+
+    id = db.Column(db.Integer, primary_key=True)
+    provider = db.Column(db.String(40), unique=True, nullable=False)
+    api_key = db.Column(db.Text, nullable=False)
+    base_url = db.Column(db.String(255))
+    model = db.Column(db.String(80))
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 def init_db(app):
     """Initialize database with Flask app context."""
     db.init_app(app)

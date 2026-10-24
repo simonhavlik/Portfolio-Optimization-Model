@@ -34,7 +34,7 @@ import logging
 from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
 
-from flask import Flask, render_template, request, jsonify, abort
+from flask import Flask, render_template, request, jsonify, abort, session
 from flask_cors import CORS
 from flask_login import LoginManager, current_user, login_required
 from werkzeug.utils import secure_filename
@@ -52,6 +52,8 @@ from services.optimization import (
 )
 from services.ai_insights import ai_service, PortfolioContext
 from services.document_parser import document_parser, ParsedPortfolio
+from services.portfolio_extractor import extract as extract_portfolio
+from services.rate_limit import rate_limit
 from services.risk_analytics import risk_analytics, RiskMetrics
 from services.advanced_statistics import advanced_statistics
 from services.advanced_risk import AdvancedRiskCalculator, calculate_hierarchical_risk_parity
@@ -109,7 +111,7 @@ def sanitize_for_json(obj: Any) -> Any:
 
 # Upload configuration
 UPLOAD_FOLDER = 'data/uploads'
-ALLOWED_EXTENSIONS = {'pdf', 'csv', 'xlsx', 'xls'}
+ALLOWED_EXTENSIONS = {'pdf', 'csv', 'xlsx', 'xls', 'png', 'jpg', 'jpeg', 'webp'}
 
 # Initialize Flask app
 def create_app() -> Flask:
@@ -174,6 +176,12 @@ def create_app() -> Flask:
     # Initialize example portfolio on startup (computes once, caches to disk)
     with app.app_context():
         try:
+            from services.api_keys import seed_from_env
+            seed_from_env()
+        except Exception as e:
+            logger.warning(f"Could not seed API credential: {e}")
+
+        try:
             from services.example_portfolio import initialize_example_portfolio
             initialize_example_portfolio()
             logger.info("Example portfolio service initialized")
@@ -237,7 +245,18 @@ def example_charts():
     if not example_data or not example_data.get('charts'):
         return jsonify({'error': 'not ready'}), 503
 
-    response = jsonify(_json_safe({'charts': example_data['charts']}))
+    payload = {
+        key: example_data.get(key)
+        for key in (
+            'meta', 'metrics', 'holdings', 'monte_carlo', 'correlation_matrix',
+            'advanced_risk', 'stress_test', 'distributions_dict',
+            'factor_exposure', 'ai_insights', 'statistical_tests',
+        )
+        if example_data.get(key) is not None
+    }
+    payload['charts'] = example_data['charts']
+
+    response = jsonify(_json_safe(payload))
     response.headers['Cache-Control'] = 'public, max-age=300'
     return response
 
@@ -270,9 +289,8 @@ def analysis_comprehensive_view():
 
 
 @app.route('/upload')
-@login_required
 def upload_view():
-    """Document upload interface."""
+    """Document upload interface, open to visitors without an account."""
     return render_template('upload.html')
 
 
@@ -388,6 +406,42 @@ def admin_cache_refresh():
         return jsonify({'error': f'Cache refresh failed: {str(e)}'}), 500
 
 
+@app.route('/api/admin/api-keys', methods=['GET'])
+@admin_required
+def api_keys_list():
+    """List provider credentials without ever returning the full key."""
+    from models.database import ApiCredential
+
+    return jsonify({
+        'keys': [
+            {
+                'provider': row.provider,
+                'model': row.model,
+                'base_url': row.base_url,
+                'active': row.is_active,
+                'hint': (row.api_key[:6] + '...') if row.api_key else '',
+                'updated_at': row.updated_at.isoformat() if row.updated_at else None,
+            }
+            for row in ApiCredential.query.order_by(ApiCredential.provider).all()
+        ]
+    })
+
+
+@app.route('/api/admin/api-keys', methods=['POST'])
+@admin_required
+def api_keys_set():
+    """Replace the active key for a provider."""
+    data = request.get_json() or {}
+    provider = (data.get('provider') or 'deepseek').strip()
+    api_key = (data.get('api_key') or '').strip()
+    if not api_key:
+        return jsonify({'error': 'api_key is required'}), 400
+
+    from services.api_keys import set_credential
+    row = set_credential(provider, api_key, data.get('base_url'), data.get('model'))
+    return jsonify({'success': True, 'provider': row.provider, 'model': row.model})
+
+
 @app.route('/api/admin/cache/info')
 def admin_cache_info():
     """Get current cache status."""
@@ -422,7 +476,7 @@ def admin_cache_clear():
 # =============================================================================
 
 @app.route('/api/upload', methods=['POST'])
-@login_required
+@rate_limit('upload', 4, 3600)
 def upload_document():
     """
     Upload and parse portfolio document (PDF, CSV, Excel).
@@ -453,8 +507,8 @@ def upload_document():
         file_bytes = file.read()
         filename = secure_filename(file.filename)
         
-        # Parse document with AI
-        parsed = document_parser.parse(file_bytes, filename, broker_hint)
+        # Parse document or screenshot (vision model for images)
+        parsed = extract_portfolio(file_bytes, filename, broker_hint)
         
         # Create or update portfolio
         if portfolio_id:
@@ -464,9 +518,9 @@ def upload_document():
         else:
             # Create new portfolio from document
             portfolio = Portfolio(
+                user_id=session.get('user_id'),
                 name=f"Portfolio from {filename}",
-                description=f"Extracted from {parsed.broker or 'unknown broker'} statement",
-                broker=parsed.broker
+                description=f"Extracted from {parsed.broker or 'unknown broker'} statement"
             )
             db.session.add(portfolio)
             db.session.flush()
@@ -534,6 +588,7 @@ def upload_document():
                 db.session.add(new_holding)
         
         # Calculate and store risk metrics for this snapshot
+        risk_metrics = None
         if parsed.holdings and len(parsed.holdings) >= 2:
             risk_metrics = calculate_portfolio_risk_metrics(
                 [h.ticker for h in parsed.holdings if h.ticker and h.ticker != 'UNKNOWN'],
@@ -554,12 +609,47 @@ def upload_document():
                 db.session.add(history)
         
         db.session.commit()
-        
+
+        positions = []
+        for holding in parsed.holdings:
+            weight = 0.0
+            if parsed.account_value and holding.market_value:
+                weight = holding.market_value / parsed.account_value
+            positions.append({
+                'ticker': holding.ticker,
+                'weight': round(weight, 4),
+                'sector': holding.asset_class,
+            })
+
+        total_weight = sum(p['weight'] for p in positions)
+        if positions and total_weight == 0:
+            even = round(1 / len(positions), 4)
+            for position in positions:
+                position['weight'] = even
+
+        review_metrics = {}
+        if risk_metrics:
+            review_metrics = {
+                'annualized_return': round(risk_metrics.get('expected_return', 0), 4),
+                'volatility': round(risk_metrics.get('volatility', 0), 4),
+                'sharpe': round(risk_metrics.get('sharpe_ratio', 0), 3),
+                'max_drawdown': round(risk_metrics.get('max_drawdown', 0), 4),
+                'var_95': round(risk_metrics.get('var_95', 0), 4),
+            }
+
+        ai_review = ''
+        if positions:
+            try:
+                ai_review = ai_service.generate_portfolio_review(positions, review_metrics)
+            except Exception as exc:
+                logger.warning(f"Portfolio review unavailable: {exc}")
+
         return jsonify({
             'success': True,
             'portfolio_id': portfolio.id,
             'document_id': doc_record.id,
             'extracted_data': parsed.to_dict(),
+            'ai_review': ai_review,
             'message': f"Successfully extracted {len(parsed.holdings)} holdings"
         })
         

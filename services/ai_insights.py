@@ -133,18 +133,40 @@ class LLMClient:
         self.model = model or config.LLM_MODEL
         self.temperature = temperature
         self.max_tokens = max_tokens
-        
-        # Initialize OpenAI client with custom base URL
-        self.client = openai.OpenAI(
-            api_key=self.api_key,
-            base_url=self.base_url
-        )
+        self._explicit_key = api_key is not None
+        self.client = None
+
+        if self._explicit_key and self.api_key:
+            self.client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
+
+    def _active_client(self):
+        """Resolve the switchable credential and keep the client in sync."""
+        if not self._explicit_key:
+            try:
+                from services.api_keys import get_credential
+                credential = get_credential("deepseek")
+                key = credential.get("api_key")
+                if key and (key != self.api_key or credential.get("base_url") != self.base_url
+                            or credential.get("model") != self.model):
+                    self.api_key = key
+                    self.base_url = credential.get("base_url") or self.base_url
+                    self.model = credential.get("model") or self.model
+                    self.client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
+            except Exception as exc:
+                logger.warning("Could not resolve API credential: %s", exc)
+
+        if self.client is None:
+            if not self.api_key:
+                raise RuntimeError("No LLM API key configured")
+            self.client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
+        return self.client
     
     def complete(
         self,
         prompt: str,
         system_prompt: Optional[str] = None,
-        temperature: Optional[float] = None
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None
     ) -> str:
         """
         Generate completion from LLM.
@@ -166,11 +188,12 @@ class LLMClient:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
             
-            response = self.client.chat.completions.create(
+            response = self._active_client().chat.completions.create(
                 model=self.model,
                 messages=messages,
                 temperature=temperature or self.temperature,
-                max_tokens=self.max_tokens
+                max_tokens=max_tokens or self.max_tokens,
+                extra_body={"reasoning_effort": "low"},
             )
             
             return response.choices[0].message.content
@@ -179,6 +202,18 @@ class LLMClient:
             logger.error(f"LLM API error: {e}")
             raise
     
+    def chat(self, messages: list, temperature: float = 0.2,
+             max_tokens: Optional[int] = None, model: Optional[str] = None) -> str:
+        """Send a raw message list (needed for image inputs)."""
+        response = self._active_client().chat.completions.create(
+            model=model or self.model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens or self.max_tokens,
+            extra_body={"reasoning_effort": "low"},
+        )
+        return response.choices[0].message.content
+
     def analyze_json(self, prompt: str, schema: Dict) -> Dict:
         """
         Request structured JSON output from LLM.
@@ -247,8 +282,48 @@ Avoid:
             llm_client: Optional custom LLM client
         """
         self.llm = llm_client or LLMClient()
-        self.enabled = config.ENABLE_AI_INSIGHTS and bool(config.LLM_API_KEY)
+        self.enabled = config.ENABLE_AI_INSIGHTS
     
+    def generate_portfolio_review(self, holdings: list, metrics: dict) -> str:
+        """Dense, plain-language review. No filler, no repeated disclaimers."""
+        if not self.enabled:
+            return ""
+
+        positions = ", ".join(
+            f"{h.get('ticker')} {h.get('weight', 0) * 100:.1f}%"
+            + (f" ({h['sector']})" if h.get("sector") else "")
+            for h in holdings[:20]
+        )
+        figures = ", ".join(
+            f"{key}={value}" for key, value in (metrics or {}).items() if value is not None
+        )
+
+        prompt = f"""Portfolio: {positions or 'n/a'}
+Metrics: {figures or 'n/a'}
+
+Write 6 to 10 sentences of portfolio commentary for a finance audience.
+
+Requirements:
+- Lead with the structural fact that matters most: concentration, sector tilt, or factor exposure.
+- Quantify every claim with the numbers above or a percentage you can compute from the weights.
+- Judge risk-adjusted quality, not just return.
+- Give two concrete improvements with the trade-off each one creates.
+- State what would make the thesis wrong.
+
+Style:
+- Dense, declarative, plain English or Czech (match the document language; default English).
+- No headings, no bullet points, no lists, no markdown.
+- No disclaimers, no "as an AI", no restating definitions, no generic advice.
+- Never say "diversify" or "monitor" without a number attached."""
+
+        try:
+            return self.llm.complete(prompt, system_prompt=
+                "You are a buy-side portfolio analyst writing internal notes. "
+                "Every sentence must add information.", temperature=0.2, max_tokens=8000).strip()
+        except Exception as exc:
+            logger.error("Portfolio review failed: %s", exc)
+            return ""
+
     def generate_portfolio_summary(self, context: PortfolioContext) -> str:
         """
         Generate narrative summary of portfolio characteristics.

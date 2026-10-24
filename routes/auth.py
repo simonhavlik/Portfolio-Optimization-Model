@@ -15,6 +15,7 @@ from sqlalchemy import or_
 from models.database import db
 from models.auth import User, PasswordResetToken, SavedScenario, UserActivity, GuestSession
 from services.email_service import email_service
+from services.rate_limit import rate_limit
 from config import config
 import logging
 
@@ -56,6 +57,7 @@ def admin_required(f):
 
 
 @auth_bp.route('/register', methods=['POST'])
+@rate_limit('register', 5, 3600)
 def register():
     """Register a new user account."""
     data = request.get_json()
@@ -229,6 +231,7 @@ def get_current_user():
 
 
 @auth_bp.route('/forgot-password', methods=['POST'])
+@rate_limit('forgot', 5, 3600)
 def forgot_password():
     """Request password reset."""
     data = request.get_json()

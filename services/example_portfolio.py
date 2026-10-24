@@ -10,9 +10,12 @@ Admin can manually refresh via admin panel.
 import json
 import pickle
 import os
+import threading
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 import logging
+
+from flask import current_app
 from dataclasses import asdict, is_dataclass
 
 import pandas as pd
@@ -27,6 +30,17 @@ from services.dashboard_charts import dashboard_charts
 from config import config
 
 logger = logging.getLogger(__name__)
+
+
+def _finite_json(obj: Any) -> Any:
+    """Convert non-finite floats to None so PostgreSQL JSONB accepts the payload."""
+    if isinstance(obj, float):
+        return obj if np.isfinite(obj) else None
+    if isinstance(obj, dict):
+        return {key: _finite_json(value) for key, value in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_finite_json(item) for item in obj]
+    return obj
 
 
 def serialize_for_template(obj: Any) -> Any:
@@ -82,6 +96,8 @@ EXAMPLE_PORTFOLIO = {
 # Cache file path
 CACHE_DIR = 'data'
 CACHE_FILE = os.path.join(CACHE_DIR, 'example_portfolio_cache.pkl')
+CACHE_KEY = 'example_portfolio_analysis'
+CACHE_TTL = timedelta(days=7)
 
 
 def generate_ai_insights(metrics, distributions, stat_tests, pca_result, vol_analysis):
@@ -194,27 +210,91 @@ class ExamplePortfolioService:
         self._cached_data: Optional[Dict[str, Any]] = None
         self._cache_loaded = False
         self._last_computed: Optional[datetime] = None
-        
+        self._app = None
+        self._refreshing = False
+
     def initialize(self):
         """
         Initialize the service - call this once at app startup.
-        Loads from disk cache if available, otherwise computes fresh.
+        Loads the persisted cache first so restarts are instant, then
+        refreshes in the background when it is older than a week.
         """
         logger.info("Initializing example portfolio service...")
-        
-        # Ensure cache directory exists
+        self._app = current_app._get_current_object()
         os.makedirs(CACHE_DIR, exist_ok=True)
-        
-        # Try to load from disk cache first
-        if self._load_from_disk():
+
+        if self._load_from_db():
+            logger.info("Example portfolio loaded from database cache")
+        elif self._load_from_disk():
             logger.info("Example portfolio loaded from disk cache")
+            self._save_to_db()
+        else:
+            logger.info("No cache found, computing fresh analysis...")
+            self._cached_data = self._compute_analysis()
+            self._last_computed = datetime.utcnow()
+            self._save_to_disk()
+            self._save_to_db()
+            logger.info("Example portfolio analysis complete and cached")
+
+        self.refresh_if_stale()
+
+    def _load_from_db(self) -> bool:
+        """Load the persisted analysis from Postgres."""
+        try:
+            from models.database import db, AppCache
+            row = db.session.get(AppCache, CACHE_KEY)
+            if row and row.payload:
+                self._cached_data = row.payload
+                self._last_computed = row.computed_at
+                self._cache_loaded = True
+                return True
+        except Exception as e:
+            logger.warning(f"Failed to load database cache: {e}")
+        return False
+
+    def _save_to_db(self) -> bool:
+        """Persist the analysis so container restarts do not recompute it."""
+        try:
+            payload = _finite_json(serialize_for_template(self._cached_data))
+            from models.database import db, AppCache
+            row = db.session.get(AppCache, CACHE_KEY)
+            if row is None:
+                row = AppCache(key=CACHE_KEY)
+                db.session.add(row)
+            row.payload = payload
+            row.computed_at = self._last_computed or datetime.utcnow()
+            db.session.commit()
+            return True
+        except Exception as e:
+            db.session.rollback()
+            logger.warning(f"Failed to save database cache: {e}")
+            return False
+
+    def refresh_if_stale(self):
+        """Recompute at most once a week, in the background."""
+        if self._app is None or self._refreshing:
             return
-        
-        # Otherwise compute fresh
-        logger.info("No disk cache found, computing fresh analysis...")
-        self._cached_data = self._compute_analysis()
-        self._save_to_disk()
-        logger.info("Example portfolio analysis complete and cached to disk")
+        if self._last_computed and datetime.utcnow() - self._last_computed < CACHE_TTL:
+            return
+
+        self._refreshing = True
+        app = self._app
+
+        def worker():
+            try:
+                with app.app_context():
+                    logger.info("Weekly example portfolio refresh started")
+                    self._cached_data = self._compute_analysis()
+                    self._last_computed = datetime.utcnow()
+                    self._save_to_disk()
+                    self._save_to_db()
+                    logger.info("Weekly example portfolio refresh complete")
+            except Exception as e:
+                logger.error(f"Weekly example refresh failed: {e}")
+            finally:
+                self._refreshing = False
+
+        threading.Thread(target=worker, daemon=True).start()
     
     def _load_from_disk(self) -> bool:
         """Load cached analysis from disk."""
@@ -223,11 +303,11 @@ class ExamplePortfolioService:
                 with open(CACHE_FILE, 'rb') as f:
                     cache_data = pickle.load(f)
                     
-                # Check if cache is not too old (24 hours)
+                # Weekly cache window; staleness triggers a background refresh
                 cache_time = cache_data.get('computed_at')
                 if cache_time:
                     cache_age = datetime.utcnow() - cache_time
-                    if cache_age < timedelta(hours=24):
+                    if cache_age < CACHE_TTL:
                         self._cached_data = cache_data.get('data')
                         self._last_computed = cache_time
                         self._cache_loaded = True
@@ -269,7 +349,10 @@ class ExamplePortfolioService:
             # Fallback - should not happen if initialize() was called
             logger.warning("Cache not initialized, computing on demand")
             self._cached_data = self._compute_analysis()
-        
+            self._last_computed = datetime.utcnow()
+
+        self.refresh_if_stale()
+
         # Convert dataclasses and numpy types to Python dicts for templates
         result = serialize_for_template(self._cached_data)
         
@@ -288,7 +371,9 @@ class ExamplePortfolioService:
         """
         logger.info("Admin requested cache refresh, recomputing...")
         self._cached_data = self._compute_analysis()
+        self._last_computed = datetime.utcnow()
         self._save_to_disk()
+        self._save_to_db()
         logger.info("Cache refresh complete")
         return self._cached_data
     
@@ -299,7 +384,8 @@ class ExamplePortfolioService:
             'last_computed': self._last_computed.isoformat() if self._last_computed else None,
             'cache_age_hours': (datetime.utcnow() - self._last_computed).total_seconds() / 3600 if self._last_computed else None,
             'disk_cache_exists': os.path.exists(CACHE_FILE),
-            'cache_file_path': os.path.abspath(CACHE_FILE)
+            'cache_file_path': os.path.abspath(CACHE_FILE),
+            'cache_ttl_days': CACHE_TTL.days
         }
     
     def clear_cache(self) -> bool:

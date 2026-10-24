@@ -43,9 +43,9 @@ class Config:
     # LLM Configuration
     LLM_API_KEY: str = ""
     LLM_BASE_URL: str = "https://api.deepseek.com/v1"
-    LLM_MODEL: str = "deepseek-chat"
+    LLM_MODEL: str = "deepseek-flash"
     LLM_TEMPERATURE: float = 0.7
-    LLM_MAX_TOKENS: int = 2000
+    LLM_MAX_TOKENS: int = 8000
     
     # Optimization Parameters
     DEFAULT_RISK_FREE_RATE: float = 0.05
@@ -61,6 +61,7 @@ class Config:
     SMTP_USER: str = ""
     SMTP_PASSWORD: str = ""
     SMTP_USE_TLS: bool = True
+    SMTP_USE_SSL: bool = False
     
     # Admin Configuration
     ADMIN_EMAIL: str = ""  # For registration approval notifications
@@ -144,9 +145,9 @@ def load_config() -> Config:
         SQLALCHEMY_TRACK_MODIFICATIONS=False,
         LLM_API_KEY=os.getenv('LLM_API_KEY', ''),
         LLM_BASE_URL=os.getenv('LLM_BASE_URL', 'https://api.deepseek.com/v1'),
-        LLM_MODEL=os.getenv('LLM_MODEL', 'deepseek-chat'),
+        LLM_MODEL=os.getenv('LLM_MODEL', 'deepseek-flash'),
         LLM_TEMPERATURE=float(os.getenv('LLM_TEMPERATURE', '0.7')),
-        LLM_MAX_TOKENS=int(os.getenv('LLM_MAX_TOKENS', '2000')),
+        LLM_MAX_TOKENS=int(os.getenv('LLM_MAX_TOKENS', '8000')),
         DEFAULT_RISK_FREE_RATE=float(os.getenv('DEFAULT_RISK_FREE_RATE', '0.05')),
         DEFAULT_CONFIDENCE_LEVEL=float(os.getenv('DEFAULT_CONFIDENCE_LEVEL', '0.95')),
         MAX_PORTFOLIO_ASSETS=int(os.getenv('MAX_PORTFOLIO_ASSETS', '50')),
@@ -157,6 +158,7 @@ def load_config() -> Config:
         SMTP_USER=os.getenv('SMTP_USER', ''),
         SMTP_PASSWORD=os.getenv('SMTP_PASSWORD', ''),
         SMTP_USE_TLS=os.getenv('SMTP_USE_TLS', 'True').lower() == 'true',
+        SMTP_USE_SSL=os.getenv('SMTP_USE_SSL', 'False').lower() == 'true',
         # Admin settings
         ADMIN_EMAIL=os.getenv('ADMIN_EMAIL', ''),
         BASE_URL=os.getenv('BASE_URL', 'http://localhost:5000'),
