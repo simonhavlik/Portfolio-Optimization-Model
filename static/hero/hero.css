@@ -840,18 +840,18 @@ html.has-hero body .site-nav .nav-burger { color: rgba(241, 237, 229, 0.85) !imp
 html.has-hero body .site-nav .nav-burger:hover { background: rgba(255, 255, 255, 0.06) !important; }
 
 html.has-hero body .site-nav.nav-solid {
-    background: rgba(255, 255, 255, 0.94) !important;
-    border-bottom-color: #e2e8f0 !important;
-    box-shadow: 0 1px 0 rgba(14, 17, 22, 0.04);
-    backdrop-filter: saturate(140%) blur(10px);
+    background: rgba(8, 10, 13, 0.86) !important;
+    border-bottom-color: rgba(236, 233, 226, 0.10) !important;
+    box-shadow: 0 18px 40px -34px rgba(0, 0, 0, 0.95);
+    backdrop-filter: saturate(140%) blur(12px);
 }
-html.has-hero body .site-nav.nav-solid .nav-brand-text { color: #1e293b; }
-html.has-hero body .site-nav.nav-solid .nav-brand-sub { color: #64748b; }
-html.has-hero body .site-nav.nav-solid .nav-brand-icon { background: linear-gradient(145deg, #1b2430, #0e1116) !important; }
-html.has-hero body .site-nav.nav-solid .nav-item { color: #475569 !important; }
-html.has-hero body .site-nav.nav-solid .nav-item:hover { color: #0f172a !important; background: #f1f5f9 !important; }
-html.has-hero body .site-nav.nav-solid .nav-item i { color: #a8824a !important; }
-html.has-hero body .site-nav.nav-solid .nav-burger { color: #475569 !important; }
+html.has-hero body .site-nav.nav-solid .nav-brand-text { color: #f1ede5; }
+html.has-hero body .site-nav.nav-solid .nav-brand-sub { color: rgba(200, 193, 178, 0.55); }
+html.has-hero body .site-nav.nav-solid .nav-brand-icon { background: linear-gradient(145deg, #e8cd97, #b98d47) !important; }
+html.has-hero body .site-nav.nav-solid .nav-item { color: rgba(236, 233, 226, 0.7) !important; }
+html.has-hero body .site-nav.nav-solid .nav-item:hover { color: #fff !important; background: rgba(255, 255, 255, 0.06) !important; }
+html.has-hero body .site-nav.nav-solid .nav-item i { color: rgba(200, 161, 90, 0.78) !important; }
+html.has-hero body .site-nav.nav-solid .nav-burger { color: #f1ede5 !important; }
 
 /* ---------- responsive ---------- */
 

@@ -486,6 +486,57 @@ def report_xlsx():
 
 
 
+@app.route('/api/report/csv')
+def report_csv():
+    """Daily time series as CSV, for spreadsheet work outside the workbook."""
+    import csv as _csv
+    import io as _io
+
+    report = request.args.get('report')
+    if report:
+        row = db.session.get(AppCache, f'custom_analysis:{report}')
+        example_data = row.payload if row else None
+    else:
+        example_data = example_portfolio_service.get_analysis()
+    if not example_data:
+        return jsonify({'error': 'Analysis unavailable'}), 503
+
+    charts = example_data.get('charts') or {}
+    vol = charts.get('volatility') or {}
+    dates = vol.get('dates') or []
+    rets = vol.get('returns') or []
+    if not dates or not rets:
+        return jsonify({'error': 'Time series unavailable'}), 404
+
+    bench_map = example_data.get('benchmarks') or {}
+    bench = bench_map.get('SPY') or bench_map.get('VT') or []
+    bench_name = 'SPY' if bench_map.get('SPY') else ('VT' if bench_map.get('VT') else '')
+
+    buf = _io.StringIO()
+    writer = _csv.writer(buf)
+    head = ['date', 'daily_return', 'growth_of_100', 'drawdown']
+    if bench:
+        head += [f'{bench_name}_index', 'relative']
+    writer.writerow(head)
+    level = 1.0
+    peak = 1.0
+    for i, (day, ret) in enumerate(zip(dates, rets)):
+        level *= (1 + (ret or 0))
+        peak = max(peak, level)
+        row_out = [day, f'{ret:.8f}', f'{level * 100:.6f}', f'{level / peak - 1:.8f}']
+        if bench:
+            pos = (i / max(1, len(rets) - 1)) * (len(bench) - 1)
+            lo = int(pos)
+            hi = min(len(bench) - 1, lo + 1)
+            bval = bench[lo] + (bench[hi] - bench[lo]) * (pos - lo)
+            row_out += [f'{bval * 100:.6f}', f'{level / bval - 1:.8f}']
+        writer.writerow(row_out)
+
+    stream = _io.BytesIO(buf.getvalue().encode('utf-8'))
+    name = f"portfolio-{(report or 'example')[:8]}-timeseries.csv"
+    return send_file(stream, as_attachment=True, download_name=name, mimetype='text/csv')
+
+
 @app.route('/api/upload-text', methods=['POST'])
 @rate_limit('upload_hour', 2, 3600)
 @login_required

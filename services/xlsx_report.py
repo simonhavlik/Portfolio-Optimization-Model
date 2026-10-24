@@ -241,6 +241,42 @@ def build(example_data: dict, valuation: dict, cca: dict = None) -> BytesIO:
         ws.cell(row=row_index, column=2 + len(values), value=formula).number_format = PCT
     _widths(ws, [8] + [10] * len(mr.get("months", [])) + [12])
 
+    # Time series ---------------------------------------------------------
+    vol = charts.get("volatility") or {}
+    dates = vol.get("dates") or []
+    rets = vol.get("returns") or []
+    if dates and rets:
+        bench_map = example_data.get("benchmarks") or {}
+        bench = bench_map.get("SPY") or bench_map.get("VT") or []
+        bench_name = "SPY" if bench_map.get("SPY") else ("VT" if bench_map.get("VT") else "")
+        ws = wb.create_sheet("Time series")
+        _title(ws, "Daily time series", "Every observation behind the report charts")
+        head = ["Date", "Daily return", "Growth of 100", "Drawdown"]
+        if bench:
+            head.append(f"{bench_name} index")
+            head.append("Relative")
+        _header(ws, 4, head)
+        level = 1.0
+        peak = 1.0
+        for i, (day, ret) in enumerate(zip(dates, rets)):
+            level *= (1 + (ret or 0))
+            peak = max(peak, level)
+            row = 5 + i
+            ws.cell(row=row, column=1, value=day)
+            ws.cell(row=row, column=2, value=ret).number_format = "0.0000%"
+            ws.cell(row=row, column=3, value=level * 100).number_format = "0.00"
+            ws.cell(row=row, column=4, value=level / peak - 1).number_format = PCT
+            if bench:
+                pos = (i / max(1, len(rets) - 1)) * (len(bench) - 1)
+                lo = int(pos)
+                hi = min(len(bench) - 1, lo + 1)
+                bval = bench[lo] + (bench[hi] - bench[lo]) * (pos - lo)
+                ws.cell(row=row, column=5, value=bval * 100).number_format = "0.00"
+                ws.cell(row=row, column=6, value=level / bval - 1).number_format = PCT
+        ws.column_dimensions["A"].width = 12
+        for col in "BCDEF":
+            ws.column_dimensions[col].width = 14
+
     # Stress --------------------------------------------------------------
     ws = wb.create_sheet("Stress")
     _title(ws, "Stress scenarios", "Historical and hypothetical shocks")

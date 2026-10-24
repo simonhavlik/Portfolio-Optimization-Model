@@ -5,7 +5,6 @@
     var docEl = document.documentElement;
     var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var hero = document.querySelector('[data-hero]');
-    if (!hero) return;
 
     /* ---------------- navigation over the dark hero ---------------- */
 
@@ -20,6 +19,8 @@
     }
     syncNav();
     window.addEventListener('scroll', syncNav, { passive: true });
+
+    if (!hero) return;
 
     /* ---------------- three.js field ---------------- */
 

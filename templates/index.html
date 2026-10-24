@@ -1,6 +1,15 @@
 {% extends "base.html" %}
 
-{% block title %}Portfolio Optimizer
+{% block title %}{{ example_data.meta.name ~ ' — Report' if report_id and example_data and example_data.meta else 'Portfolio Optimizer' }}{% endblock %}
+
+{% block extra_css %}
+<script>document.documentElement.classList.add('has-hero');{% if report_id %}document.documentElement.classList.add('report-page');{% endif %}</script>
+<link rel="stylesheet" href="/static/hero/hero.css">
+{% if report_id %}<link rel="stylesheet" href="/static/analysis/report.css">{% endif %}
+{% endblock %}
+
+{% block content %}
+
 <div id="data-loader" class="data-loader no-print" role="status" aria-live="polite">
     <div class="dl-bars"><span></span><span></span><span></span><span></span></div>
     <div>
@@ -24,14 +33,6 @@
     setTimeout(() => window.hideDataLoader && window.hideDataLoader(), 7000);
 })();
 </script>
-{% endblock %}
-
-{% block extra_css %}
-<script>document.documentElement.classList.add('has-hero');</script>
-<link rel="stylesheet" href="/static/hero/hero.css">
-{% endblock %}
-
-{% block content %}
 
 <div id="print-report">
   <div class="pr-page">
@@ -239,6 +240,9 @@
   </div>
 </div>
 
+{% if report_id %}
+{% include "partials/report_hero.html" %}
+{% else %}
 {# Landing hero: instrument-panel aesthetic + scripted platform walkthrough.
    Included by index.html only. CSS: static/hero/hero.css · JS: static/hero/hero.js #}
 {% set holdings = example_data.holdings if example_data and example_data.holdings else [] %}
@@ -282,9 +286,9 @@
             <a class="hero-jump" href="#example">Or explore the example portfolio<span class="j-arr" aria-hidden="true">&darr;</span></a>
 
             <ul class="hero-stats">
-                <li><span class="v">{{ holdings|length if holdings else 15 }}</span><span class="l">positions analysed</span></li>
                 <li><span class="v">13</span><span class="l">charts per report</span></li>
                 <li><span class="v">5,000</span><span class="l">Monte Carlo paths</span></li>
+                <li><span class="v">11</span><span class="l">sheet Excel model</span></li>
                 <li><span class="v">~60<span class="u">s</span></span><span class="l">end to end</span></li>
             </ul>
         </div>
@@ -463,9 +467,16 @@
         </div>
     </div>
 </section>
+{% endif %}
 
 <!-- Example Portfolio Card -->
 <div id="example" class="bg-white rounded-xl shadow-lg p-6 mb-8 card-hover border border-slate-200 print-hide">
+    {% if report_id %}
+    <div class="rep-section-head">
+        <span class="mono">Holdings &amp; allocation</span>
+        <span class="mono">{{ example_data.meta.n_assets }} positions <span class="sep">&middot;</span> weights as analysed</span>
+    </div>
+    {% else %}
     <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
         <div>
             <h2 class="text-2xl font-bold text-slate-900">{{ example_data.meta.name }}</h2>
@@ -481,12 +492,19 @@
                 <i class="fas fa-user-plus"></i> Register to Save
             </a>
             {% endif %}
+            {% if report_id %}
+            <a href="/upload" class="px-5 py-2.5 rounded-xl bg-primary-600 text-white font-medium hover:bg-primary-700 transition flex items-center gap-2">
+                <i class="fas fa-plus"></i> New analysis
+            </a>
+            {% else %}
             <button type="button" onclick="loadExamplePortfolio(); return false;" class="px-5 py-2.5 rounded-xl bg-primary-600 text-white font-medium hover:bg-primary-700 transition flex items-center gap-2">
                 <i class="fas fa-play"></i> Edit & Analyze
             </button>
+            {% endif %}
         </div>
     </div>
     
+    {% endif %}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <!-- Holdings Table -->
         <div class="overflow-x-auto">
@@ -534,7 +552,7 @@
 <div id="comprehensive-analysis" class="space-y-6 mb-8">
 
     <!-- Key Metrics Cards -->
-    <div class="report-wide grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+    <div class="report-wide report-hide grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
         <div class="bg-white rounded-xl p-4 card-shadow text-center border border-slate-200">
             <p class="text-xs text-slate-500 uppercase tracking-wide">Ann. Return</p>
             <p class="text-xl font-bold text-green-600 mt-1">{{ "%.1f"|format(example_data.metrics.annualized_return * 100) }}%</p>
@@ -1155,8 +1173,13 @@
 
 {% block extra_js %}
 
+{% if report_id %}
+<script src="/static/hero/hero.js" defer></script>
+<script src="/static/analysis/report.js" defer></script>
+{% else %}
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" defer></script>
 <script src="/static/hero/hero.js" defer></script>
+{% endif %}
 <script>
 document.addEventListener('DOMContentLoaded', function heroNetwork() {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

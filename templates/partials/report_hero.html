@@ -1,0 +1,95 @@
+{# Dedicated report header: terminal-style title bar, return strip, tools. #}
+{% set m = example_data.metrics %}
+{% set bench_map = example_data.benchmarks or {} %}
+{% set bench_series = bench_map.get('SPY') or bench_map.get('VT') or [] %}
+{% set bench_name = 'SPY' if bench_map.get('SPY') else ('VT' if bench_map.get('VT') else '') %}
+
+<section class="rep" aria-labelledby="rep-title">
+    <div class="rep-inner">
+        <div class="rep-top">
+            <nav class="rep-crumb" aria-label="Breadcrumb">
+                <a href="/">Terminal</a>
+                <span class="sep">/</span>
+                <a href="/reports">Reports</a>
+                <span class="sep">/</span>
+                <span class="mono">{{ report_id[:8] }}</span>
+            </nav>
+
+            <div class="rep-tools">
+                <button type="button" class="rep-tool" onclick="window.print()">
+                    <i class="fas fa-file-pdf" aria-hidden="true"></i><span>PDF report</span>
+                </button>
+                <a class="rep-tool" href="/api/report/xlsx?report={{ report_id }}">
+                    <i class="fas fa-table" aria-hidden="true"></i><span>Excel model</span>
+                </a>
+                <a class="rep-tool" href="/api/report/csv?report={{ report_id }}">
+                    <i class="fas fa-download" aria-hidden="true"></i><span>CSV series</span>
+                </a>
+                <button type="button" class="rep-tool" data-copy-link>
+                    <i class="fas fa-link" aria-hidden="true"></i><span>Copy link</span>
+                </button>
+                <a class="rep-tool rep-tool--accent" href="/upload">
+                    <i class="fas fa-plus" aria-hidden="true"></i><span>New analysis</span>
+                </a>
+            </div>
+        </div>
+
+        <header class="rep-head">
+            <div class="rep-id">
+                <p class="rep-kicker">
+                    <span class="dot" aria-hidden="true"></span>Saved analysis
+                    <span class="sep">&middot;</span>{{ example_data.meta.computed_at[:16]|replace('T', ' ') }} UTC
+                    <span class="sep">&middot;</span>{{ example_data.meta.period }} lookback
+                </p>
+                <h1 id="rep-title" class="rep-title">{{ example_data.meta.name }}</h1>
+                <p class="rep-sub">
+                    {{ example_data.meta.n_assets }} positions
+                    <span class="sep">&middot;</span>{{ example_data.meta.n_simulations|default(5000) }} simulations
+                    {% if example_data.meta.description %}<span class="sep">&middot;</span>{{ example_data.meta.description }}{% endif %}
+                </p>
+            </div>
+
+            <dl class="rep-stats">
+                <div><dt>Total return</dt><dd class="{{ 'up' if m.total_return >= 0 else 'down' }}">{{ "%+.1f"|format(m.total_return * 100) }}%</dd></div>
+                <div><dt>Annualised</dt><dd class="{{ 'up' if m.annualized_return >= 0 else 'down' }}">{{ "%+.1f"|format(m.annualized_return * 100) }}%</dd></div>
+                <div><dt>Volatility</dt><dd>{{ "%.1f"|format(m.volatility * 100) }}%</dd></div>
+                <div><dt>Sharpe</dt><dd class="accent">{{ "%.2f"|format(m.sharpe_ratio) }}</dd></div>
+                <div><dt>Sortino</dt><dd>{{ "%.2f"|format(m.sortino_ratio) }}</dd></div>
+                <div><dt>Max drawdown</dt><dd class="down">{{ "%.1f"|format(m.max_drawdown * 100) }}%</dd></div>
+                <div><dt>Beta</dt><dd>{{ "%.2f"|format(m.beta) }}</dd></div>
+                <div><dt>CVaR 95</dt><dd class="down">{{ "%.2f"|format(m.cvar_95 * 100) }}%</dd></div>
+            </dl>
+        </header>
+
+        <div class="rep-chart">
+            <div class="rep-chart-head">
+                <span class="mono rep-chart-title">Cumulative return <span class="sep">/</span> daily</span>
+                <span class="mono rep-legend">
+                    <i class="k-port" aria-hidden="true"></i>Portfolio
+                    {% if bench_name %}<i class="k-bench" aria-hidden="true"></i>{{ bench_name }}{% endif %}
+                </span>
+            </div>
+            <div class="rep-canvas-wrap">
+                <canvas id="rep-line" aria-label="Cumulative return of the portfolio versus the benchmark" role="img"></canvas>
+                <div class="rep-tip" id="rep-tip" hidden></div>
+            </div>
+        </div>
+
+        <div class="rep-holdings" aria-hidden="true">
+            <div class="rep-track">
+                {% for rnd in range(2) %}
+                {% for h in example_data.holdings %}
+                <span class="rep-holding"><b>{{ h.ticker }}</b><span class="w">{{ "%.1f"|format(h.weight * 100) }}%</span></span>
+                {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script id="rep-series" type="application/json">{{ {
+        'dates': example_data.charts.volatility.dates if example_data.charts and example_data.charts.volatility else [],
+        'returns': example_data.charts.volatility.returns if example_data.charts and example_data.charts.volatility else [],
+        'bench': bench_series,
+        'bench_name': bench_name
+    }|tojson }}</script>
+</section>
