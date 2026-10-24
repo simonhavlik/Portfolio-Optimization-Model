@@ -2631,6 +2631,35 @@ def debug_session():
     })
 
 
+@app.route('/__diag')
+def __diag():
+    """Temporary render diagnostics (guarded)."""
+    from flask import request as _req
+    if _req.args.get('k') != '8f3a1c':
+        return {'error': 'Not found'}, 404
+    import traceback
+    out = {}
+    try:
+        d = example_portfolio_service.get_analysis()
+        out['data_type'] = type(d).__name__
+        if isinstance(d, dict):
+            out['keys'] = list(d.keys())[:25]
+            out['holdings_type'] = type(d.get('holdings')).__name__
+            out['n_holdings'] = len(d.get('holdings') or [])
+    except Exception as e:
+        out['service_error'] = f'{type(e).__name__}: {e}'
+        out['tb'] = traceback.format_exc()[-3000:]
+        return out
+    try:
+        html = render_template('index.html', example_data=d, valuation=None,
+                               appendix=None, cca=None, show_analysis=True)
+        out['render'] = f'ok {len(html)} bytes'
+    except Exception as e:
+        out['render_error'] = f'{type(e).__name__}: {e}'
+        out['tb'] = traceback.format_exc()[-3000:]
+    return out
+
+
 # =============================================================================
 # Main Entry Point
 # =============================================================================
