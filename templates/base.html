@@ -731,44 +731,54 @@
             .hero-panel::before { display: none; }
         }
 
-        /* Bottom-corner data loader */
+        /* Bottom-corner data loader — scales with the viewport so it stays
+           legible on large monitors. */
         .data-loader {
+            --dl-h: clamp(24px, 1.9vw, 42px);
             position: fixed;
-            right: 1rem;
-            bottom: 1rem;
+            right: clamp(1rem, 1.6vw, 2.4rem);
+            bottom: clamp(1rem, 1.6vw, 2.4rem);
             z-index: 80;
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            padding: 0.7rem 0.9rem;
+            gap: clamp(0.85rem, 1.05vw, 1.4rem);
+            padding: clamp(0.85rem, 1vw, 1.3rem) clamp(1rem, 1.25vw, 1.7rem);
             border-radius: 6px;
-            border: 1px solid rgba(200, 161, 90, 0.28);
-            background: rgba(12, 14, 17, 0.92);
-            backdrop-filter: blur(10px);
-            box-shadow: 0 18px 40px -24px rgba(0, 0, 0, 0.9);
+            border: 1px solid rgba(200, 161, 90, 0.45);
+            background: linear-gradient(180deg, rgba(16, 19, 24, 0.96), rgba(9, 11, 14, 0.96));
+            backdrop-filter: blur(14px) saturate(130%);
+            box-shadow: 0 24px 50px -26px rgba(0, 0, 0, 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.06);
             color: #ece9e2;
             opacity: 0;
             transform: translateY(8px);
             transition: opacity 220ms ease, transform 220ms ease;
         }
         .data-loader.is-visible { opacity: 1; transform: translateY(0); }
-        .dl-bars { display: flex; align-items: flex-end; gap: 2px; height: 18px; }
+        .dl-bars { display: flex; align-items: flex-end; gap: clamp(2.5px, 0.26vw, 5px); height: var(--dl-h); }
         .dl-bars span {
-            width: 3px; height: 6px; border-radius: 1px;
-            background: #c8a15a;
+            width: clamp(3.5px, 0.34vw, 6px);
+            height: calc(var(--dl-h) * 0.34);
+            border-radius: 1px;
+            background: linear-gradient(180deg, #e8cd97, #c8a15a);
             animation: dlPulse 1.05s ease-in-out infinite;
         }
         .dl-bars span:nth-child(2) { animation-delay: 0.13s; }
         .dl-bars span:nth-child(3) { animation-delay: 0.26s; }
         .dl-bars span:nth-child(4) { animation-delay: 0.39s; }
-        .dl-title { font-size: 0.75rem; font-weight: 600; line-height: 1.2; }
-        .dl-sub { font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: #8b9098; margin-top: 2px; }
+        .dl-title { font-size: clamp(0.9rem, 1vw, 1.3rem); font-weight: 600; line-height: 1.2; }
+        .dl-sub {
+            font-size: clamp(0.72rem, 0.78vw, 0.95rem);
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #9aa0a8;
+            margin-top: 3px;
+        }
         @keyframes dlPulse {
-            0%, 100% { height: 6px; opacity: 0.45; }
-            50% { height: 18px; opacity: 1; }
+            0%, 100% { height: calc(var(--dl-h) * 0.34); opacity: 0.45; }
+            50% { height: var(--dl-h); opacity: 1; }
         }
         @media (prefers-reduced-motion: reduce) {
-            .dl-bars span { animation: none; height: 12px; }
+            .dl-bars span { animation: none; height: calc(var(--dl-h) * 0.7); }
             .data-loader { transition: none; }
         }
         @media print { .data-loader { display: none !important; } }
