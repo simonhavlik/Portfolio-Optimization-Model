@@ -183,9 +183,19 @@ class MarketDataService:
         """
         # Convert to uppercase and strip whitespace
         ticker = ticker.upper().strip()
-        # Replace dots with dashes for class shares
+        # Replace dots with dashes for class shares (BRK.B -> BRK-B) but keep
+        # exchange suffixes intact (FFH.TO, PSH.L), or the quote is not found.
+        EXCHANGE_SUFFIXES = {
+            'TO', 'V', 'L', 'PA', 'DE', 'AS', 'SW', 'MI', 'MC', 'ST', 'OL', 'HE',
+            'CO', 'BR', 'LS', 'IR', 'F', 'SG', 'HK', 'T', 'AX', 'NZ', 'SI', 'BK',
+            'KQ', 'TW', 'KS', 'SA', 'MX', 'BA', 'JO', 'NZ', 'IL', 'VI',
+        }
         if '.' in ticker:
-            ticker = ticker.replace('.', '-')
+            _base, _, _suffix = ticker.rpartition('.')
+            if _suffix in EXCHANGE_SUFFIXES:
+                pass
+            else:
+                ticker = ticker.replace('.', '-')
         return ticker
     
     def fetch_batch_data(

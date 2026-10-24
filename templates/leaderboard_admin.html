@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard operations — Portfolio Optimizer{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/leaderboard/leaderboard.css">
+<style>
+    .admin { width: 100vw; margin-left: calc(50% - 50vw); margin-top: -2rem; background: #06070a; color: #f1ede5; border-bottom: 1px solid rgba(236,233,226,.1); padding-bottom: 40px; }
+    .admin-inner { max-width: 1100px; margin: 0 auto; padding: 24px clamp(16px, 3vw, 40px) 0; }
+    .admin h1 { margin: 0 0 6px; font-size: 1.9rem; letter-spacing: -0.03em; font-weight: 600; }
+    .admin .sub { margin: 0 0 20px; color: rgba(236,233,226,.55); font-size: 13px; }
+    .admin-state { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 12px 14px; border: 1px solid rgba(236,233,226,.1); background: rgba(255,255,255,.02); margin-bottom: 18px; }
+    .admin-state .mono { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: .12em; text-transform: uppercase; color: rgba(236,233,226,.45); }
+    .admin-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border: 1px solid rgba(200,161,90,.5); background: rgba(200,161,90,.14); color: #e8cd97; font-size: 11.5px; font-weight: 600; border-radius: 2px; cursor: pointer; }
+    .admin-btn:hover { background: rgba(200,161,90,.24); }
+    .admin-btn[disabled] { opacity: .5; cursor: default; }
+    table.admin-table { width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid rgba(236,233,226,.1); }
+    .admin-table th { padding: 8px 10px; text-align: left; background: #0a0c10; border-bottom: 1px solid rgba(236,233,226,.1); font-family: 'JetBrains Mono', monospace; font-size: 8px; letter-spacing: .14em; text-transform: uppercase; color: rgba(236,233,226,.42); }
+    .admin-table td { padding: 9px 10px; border-bottom: 1px solid rgba(236,233,226,.06); font-family: 'JetBrains Mono', monospace; color: rgba(241,237,229,.85); }
+    .admin-table td.name { font-family: 'Inter', sans-serif; font-size: 12px; }
+    .badge { display: inline-block; padding: 1px 6px; border: 1px solid rgba(236,233,226,.16); border-radius: 2px; font-size: 8px; letter-spacing: .1em; text-transform: uppercase; color: rgba(236,233,226,.55); }
+    .badge--new { border-color: rgba(200,161,90,.5); color: #e8cd97; }
+    .badge--ok { border-color: rgba(121,181,140,.4); color: #9ccfaa; }
+    .admin-note { margin-top: 14px; font-size: 10.5px; line-height: 1.6; color: rgba(236,233,226,.35); max-width: 90ch; }
+    .admin-out { margin-top: 12px; font-family: 'JetBrains Mono', monospace; font-size: 10px; color: rgba(200,161,90,.85); min-height: 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="admin">
+    <div class="admin-inner">
+        <p class="lb-kicker"><span class="pulse"></span>Operations<span class="sep">/</span><span class="mono">restricted</span></p>
+        <h1>Leaderboard operations</h1>
+        <p class="sub">Signed in as {{ admin_email }}. Only this account can trigger a data refresh.</p>
+
+        <div class="admin-state">
+            <div>
+                <div class="mono">Last computed</div>
+                <div style="font-size:13px;margin-top:3px">{{ board.computed_at[:19]|replace('T',' ') }} UTC</div>
+            </div>
+            <div>
+                <div class="mono">Window</div>
+                <div style="font-size:13px;margin-top:3px">{{ board.window_years }} years · as of {{ board.as_of }}</div>
+            </div>
+            <div>
+                <div class="mono">Refresh</div>
+                <div style="font-size:13px;margin-top:3px" id="refresh-state">{% if state.running %}running{% else %}idle{% endif %}</div>
+            </div>
+            <button class="admin-btn" id="refresh-btn" {% if state.running %}disabled{% endif %}>
+                <i class="fas fa-rotate" aria-hidden="true"></i>Update data now
+            </button>
+        </div>
+        <div class="admin-out" id="refresh-out"></div>
+
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Fund</th><th>Type</th><th>Filing used</th><th>Latest filing</th>
+                    <th>Status</th><th>Holdings</th><th>Coverage</th><th>Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fund in funds %}
+                <tr>
+                    <td class="name">{{ fund.name }}</td>
+                    <td>{{ '13F' if fund.kind == '13f' else 'listed' }}</td>
+                    <td>{{ fund.used or '—' }}</td>
+                    <td>{{ fund.latest or '—' }}</td>
+                    <td>
+                        {% if fund.stale %}<span class="badge badge--new">new filing</span>
+                        {% elif fund.kind == '13f' %}<span class="badge badge--ok">current</span>
+                        {% else %}<span class="badge">priced</span>{% endif %}
+                    </td>
+                    <td>{{ fund.holdings or '—' }}</td>
+                    <td>{% if fund.coverage is not none %}{{ "%.0f"|format(fund.coverage * 100) }}%{% else %}—{% endif %}</td>
+                    <td>{{ fund.score or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <p class="admin-note">A refresh re-downloads every 13F filing in the window, re-maps CUSIPs, reprices the tickers and rebuilds the board. It runs in the background and can take several minutes; the public page keeps serving the previous board until the new one is written. Scheduled refreshes run weekly overnight.</p>
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    var btn = document.getElementById('refresh-btn');
+    var out = document.getElementById('refresh-out');
+    var stateEl = document.getElementById('refresh-state');
+    if (!btn) return;
+
+    function poll() {
+        fetch('/leaderboard/admin/status', { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (s) {
+                stateEl.textContent = s.running ? 'running' : (s.error ? 'failed' : 'idle');
+                if (s.running) {
+                    out.textContent = 'Rebuilding… started ' + (s.started || '').replace('T', ' ').slice(0, 19) + ' UTC';
+                    btn.disabled = true;
+                    setTimeout(poll, 4000);
+                } else {
+                    btn.disabled = false;
+                    if (s.finished) out.textContent = 'Last refresh finished ' + s.finished.replace('T', ' ').slice(0, 19) + ' UTC — reload to see it.';
+                    if (s.error) out.textContent = 'Refresh failed: ' + s.error;
+                }
+            })
+            .catch(function () { setTimeout(poll, 6000); });
+    }
+
+    btn.addEventListener('click', function () {
+        btn.disabled = true;
+        out.textContent = 'Starting refresh…';
+        fetch('/leaderboard/admin/refresh', { method: 'POST', credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { out.textContent = d.message || ''; poll(); })
+            .catch(function (e) { out.textContent = 'Could not start: ' + e; btn.disabled = false; });
+    });
+
+    poll();
+})();
+</script>
+{% endblock %}

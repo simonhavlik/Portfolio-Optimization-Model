@@ -45,6 +45,7 @@ FUNDS = [
         'manager': 'Prem Watsa',
         'kind': 'listed',
         'ticker': 'FFH.TO',
+        'fx': 'CADUSD=X',
         'style': 'Value + macro hedge',
         'seat': 'Toronto, Canada',
         'since': 1985,
@@ -57,6 +58,7 @@ FUNDS = [
         'manager': 'Bill Ackman',
         'kind': 'listed',
         'ticker': 'PSH.L',
+        'fx': 'GBPUSD=X',
         'style': 'Concentrated activist',
         'seat': 'New York, US',
         'since': 2004,
@@ -170,7 +172,6 @@ ISSUER_ALIASES = {
 CRISIS_WINDOWS = [
     ('covid', 'COVID crash', '2020-02-19', '2020-03-23'),
     ('y2022', '2022 bear market', '2022-01-03', '2022-10-12'),
-    ('gfc', 'Global financial crisis', '2008-09-12', '2009-03-09'),
 ]
 
 # Metrics that get ranked, with direction (+1 = higher is better).

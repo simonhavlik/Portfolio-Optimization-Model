@@ -123,6 +123,71 @@ def _parse_information_table(raw: bytes) -> list[dict]:
     return rows
 
 
+def fund_filings(cik: str, limit: int = 28) -> list[dict]:
+    """Every 13F-HR on file, oldest first, de-duplicated by period."""
+    cik10 = cik.zfill(10)
+    payload = json.loads(_sec_get(f'https://data.sec.gov/submissions/CIK{cik10}.json'))
+    recent = payload['filings']['recent']
+    seen: dict[str, dict] = {}
+    for form, accession, filed, period in zip(recent['form'], recent['accessionNumber'],
+                                              recent['filingDate'], recent['reportDate']):
+        if not form.startswith('13F-HR'):
+            continue
+        # newest first, so the first filing seen for a period wins (amendments supersede)
+        if period not in seen:
+            seen[period] = {'form': form, 'accession': accession, 'filed': filed, 'period': period}
+    ordered = sorted(seen.values(), key=lambda f: f['period'])
+    return ordered[-limit:]
+
+
+def book_for_filing(cik: str, filing: dict) -> dict:
+    """Parsed and mapped book for one filing, cached by period."""
+    cache_name = f"13f_book_{cik}_{filing['period']}.json"
+    cached = _read_cache(cache_name, ttl=timedelta(days=400))
+    if cached:
+        return cached
+
+    cik10 = cik.zfill(10)
+    url, _ = _information_table_url(cik10, filing['accession'])
+    rows = _parse_information_table(_sec_get(url))
+    rows = [r for r in rows if not r.get('putCall')]
+
+    total = sum(float(r.get('value') or 0) for r in rows) or 1.0
+    for row in rows:
+        row['value'] = float(row.get('value') or 0)
+        row['weight'] = row['value'] / total
+
+    tickers = map_cusips([r['cusip'] for r in rows])
+    positions = []
+    covered = 0.0
+    for row in rows:
+        ticker = tickers.get(row['cusip'])
+        if ticker:
+            covered += row['value']
+        positions.append({
+            'issuer': row.get('nameOfIssuer', ''),
+            'cusip': row['cusip'],
+            'value': row['value'],
+            'shares': row.get('shares', 0.0),
+            'weight': row['weight'],
+            'ticker': ticker,
+        })
+
+    book = {
+        'cik': cik10,
+        'company': filing.get('company', ''),
+        'form': filing['form'],
+        'filed': filing['filed'],
+        'period': filing['period'],
+        'url': url,
+        'positions': positions,
+        'coverage': covered / total if total else 0.0,
+        'fetched_at': datetime.utcnow().isoformat(),
+    }
+    _write_cache(cache_name, book)
+    return book
+
+
 def fund_13f(cik: str, force: bool = False) -> dict:
     """Latest 13F long equity book for a manager, with weights resolved."""
     cache_name = f'13f_{cik}.json'

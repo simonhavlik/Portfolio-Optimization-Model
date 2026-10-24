@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+
+{% block title %}Fund Leaderboard — Portfolio Optimizer{% endblock %}
+{% block meta_description %}A five-year, evidence-based ranking of ten well-known funds and managers on Sharpe, Sortino, alpha, beta, drawdown, CVaR and crisis behaviour.{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/leaderboard/leaderboard.css">
+{% endblock %}
+
+{% block content %}
+<section class="lb">
+    <div class="lb-inner">
+
+        <p class="lb-kicker"><span class="pulse"></span>Fund intelligence<span class="sep">/</span><span class="mono">{{ board.window_years }}-year window</span></p>
+
+        <div class="lb-head">
+            <div class="lb-title-block">
+                <h1 class="lb-title">The fund leaderboard</h1>
+                <p class="lb-sub">Ten managers, one evidence base. Listed vehicles are priced directly; 13F filers are reconstructed from their disclosed long book. Ranked on risk-adjusted evidence, not reputation.</p>
+            </div>
+            <div class="lb-actions">
+                <a class="lb-btn" href="/leaderboard/card.png?metric=score" download>
+                    <i class="fas fa-image" aria-hidden="true"></i>LinkedIn card
+                </a>
+                <a class="lb-btn" href="/leaderboard.csv" download>
+                    <i class="fas fa-download" aria-hidden="true"></i>CSV
+                </a>
+                <a class="lb-btn lb-btn--accent" href="/upload">
+                    <i class="fas fa-plus" aria-hidden="true"></i>Analyse your own
+                </a>
+            </div>
+        </div>
+
+        <div class="lb-meta">
+            <span>As of <b>{{ board.as_of }}</b></span>
+            <span>Risk-free <b>{{ "%.1f"|format(board.risk_free * 100) }}%</b></span>
+            <span>Benchmark <b>{{ board.benchmark }}</b></span>
+            <span>Windows <b>COVID 2020 &middot; 2022</b></span>
+            <span class="lb-meta-note">13F books are long US equity only</span>
+        </div>
+
+        <div class="lb-charts">
+            <figure class="lb-chart lb-chart--scatter">
+                <figcaption><span class="mono">Risk vs return</span><span class="mono lb-legend">bubble = composite score</span></figcaption>
+                <div id="lb-scatter" class="lb-canvas"></div>
+            </figure>
+            <figure class="lb-chart lb-chart--bars">
+                <figcaption><span class="mono">Sharpe ratio</span><span class="mono lb-legend">radio {{ "%.1f"|format(board.risk_free * 100) }}%</span></figcaption>
+                <div id="lb-bars" class="lb-canvas"></div>
+            </figure>
+        </div>
+
+        <div class="lb-table-wrap">
+            <table class="lb-table" id="lb-table">
+                <thead>
+                    <tr>
+                        <th class="c-rank">#</th>
+                        <th class="c-fund">Fund</th>
+                        <th class="c-num" data-sort="score">Score</th>
+                        <th class="c-num" data-sort="sharpe_ratio">Sharpe</th>
+                        <th class="c-num" data-sort="sortino_ratio">Sortino</th>
+                        <th class="c-num" data-sort="alpha">Alpha</th>
+                        <th class="c-num" data-sort="max_drawdown">Max DD</th>
+                        <th class="c-num" data-sort="volatility">Vol</th>
+                        <th class="c-num" data-sort="beta">Beta</th>
+                        <th class="c-num" data-sort="covid">COVID</th>
+                        <th class="c-num" data-sort="y2022">2022</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in board.rows %}
+                    {% set m = row.metrics %}
+                    <tr class="lb-row" data-slug="{{ row.slug }}" tabindex="0">
+                        <td class="c-rank"><span class="rank">{{ loop.index }}</span></td>
+                        <td class="c-fund">
+                            <span class="fund-name">{{ row.name }}</span>
+                            <span class="fund-meta">{{ row.manager }}<span class="sep">·</span>{{ row.style }}
+                                <span class="tag {{ 'tag--13f' if row.kind == '13f' else 'tag--listed' }}">{{ '13F' if row.kind == '13f' else 'listed' }}</span>
+                            </span>
+                        </td>
+                        <td class="c-num"><span class="score-cell"><i style="--w: {{ row.score or 0 }}%"></i><b>{{ row.score or '—' }}</b></span></td>
+                        <td class="c-num">{{ "%.2f"|format(m.sharpe_ratio) if m.sharpe_ratio is defined and m.sharpe_ratio is not none else '—' }}</td>
+                        <td class="c-num">{{ "%.2f"|format(m.sortino_ratio) if m.sortino_ratio is defined and m.sortino_ratio is not none else '—' }}</td>
+                        <td class="c-num {{ 'up' if m.alpha is defined and m.alpha > 0 else 'down' }}">{{ "%+.1f"|format(m.alpha * 100) if m.alpha is defined and m.alpha is not none else '—' }}%</td>
+                        <td class="c-num down">{{ "%.1f"|format(m.max_drawdown * 100) if m.max_drawdown is defined and m.max_drawdown is not none else '—' }}%</td>
+                        <td class="c-num">{{ "%.1f"|format(m.volatility * 100) if m.volatility is defined and m.volatility is not none else '—' }}%</td>
+                        <td class="c-num">{{ "%.2f"|format(m.beta) if m.beta is defined and m.beta is not none else '—' }}</td>
+                        <td class="c-num {{ 'down' if row.crisis.covid is not none and row.crisis.covid < 0 else 'up' }}">{{ "%+.1f"|format(row.crisis.covid * 100) if row.crisis.covid is not none else '—' }}%</td>
+                        <td class="c-num {{ 'down' if row.crisis.y2022 is not none and row.crisis.y2022 < 0 else 'up' }}">{{ "%+.1f"|format(row.crisis.y2022 * 100) if row.crisis.y2022 is not none else '—' }}%</td>
+                    </tr>
+                    <tr class="lb-detail" data-detail="{{ row.slug }}" hidden>
+                        <td colspan="11">
+                            <div class="detail">
+                                <div class="detail-copy">
+                                    <p class="detail-blurb">{{ row.blurb }}</p>
+                                    <dl class="detail-facts">
+                                        <div><dt>Manager</dt><dd>{{ row.manager }}</dd></div>
+                                        <div><dt>Based</dt><dd>{{ row.seat }}</dd></div>
+                                        <div><dt>Since</dt><dd>{{ row.since }}</dd></div>
+                                        <div><dt>Vehicle</dt><dd>{{ row.ticker if row.kind == 'listed' else '13F long book' }}</dd></div>
+                                        <div><dt>Holdings</dt><dd>{{ row.holdings }}</dd></div>
+                                        <div><dt>13F filed</dt><dd>{{ row.filing or '—' }}</dd></div>
+                                        <div><dt>Coverage</dt><dd>{{ "%.0f"|format(row.coverage * 100) if row.coverage is not none else '—' }}%</dd></div>
+                                        <div><dt>Observations</dt><dd>{{ row.observations }} days from {{ row.start or '—' }}</dd></div>
+                                    </dl>
+                                </div>
+                                <div class="detail-metrics">
+                                    <div><span>Calmar</span><b>{{ "%.2f"|format(m.calmar_ratio) if m.calmar_ratio is defined else '—' }}</b></div>
+                                    <div><span>CVaR 95</span><b class="down">{{ "%.2f"|format(m.cvar_95 * 100) if m.cvar_95 is defined else '—' }}%</b></div>
+                                    <div><span>Information</span><b>{{ "%.2f"|format(m.information_ratio) if m.information_ratio is defined else '—' }}</b></div>
+                                    <div><span>Downside vol</span><b>{{ "%.1f"|format(m.downside_volatility * 100) if m.downside_volatility is defined else '—' }}%</b></div>
+                                    <div><span>Concentration</span><b>{{ "%.1f"|format(m.concentration * 100) if m.concentration is defined and m.concentration is not none else 'n/a' }}%</b></div>
+                                    <div><span>Total return</span><b class="{{ 'up' if m.total_return is defined and m.total_return > 0 else 'down' }}">{{ "%+.1f"|format(m.total_return * 100) if m.total_return is defined else '—' }}%</b></div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <p class="lb-foot">Ranking: mean percentile across Sharpe, Sortino, alpha, annual return, maximum drawdown, Calmar, CVaR, beta, volatility and concentration, direction-adjusted. A composite is a convenience, not a recommendation. Prices: Yahoo Finance. Holdings: SEC EDGAR 13F, long US equity only.</p>
+    </div>
+
+    <script id="lb-data" type="application/json">{{ board|tojson }}</script>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/leaderboard/leaderboard.js" defer></script>
+{% endblock %}

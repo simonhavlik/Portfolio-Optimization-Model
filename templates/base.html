@@ -1001,6 +1001,7 @@
                 <a href="/upload" class="nav-item{% if request.path.startswith('/upload') %} is-active{% endif %}"><span class="n">02</span>Upload</a>
                 <a href="/reports" class="nav-item{% if request.path.startswith('/report') %} is-active{% endif %}"><span class="n">03</span>Reports</a>
                 <a href="/optimize" class="nav-item{% if request.path.startswith('/optimize') %} is-active{% endif %}"><span class="n">04</span>Optimize</a>
+                <a href="/leaderboard" class="nav-item{% if request.path.startswith('/leaderboard') %} is-active{% endif %}"><span class="n">05</span>Leaderboard</a>
             </div>
 
             <div class="nav-actions">
@@ -1041,6 +1042,7 @@
             <a href="/upload"><span class="n">02</span>Upload</a>
             <a href="/reports"><span class="n">03</span>Reports</a>
             <a href="/optimize"><span class="n">04</span>Optimize</a>
+            <a href="/leaderboard"><span class="n">05</span>Leaderboard</a>
             {% if current_user.is_authenticated %}
             <a href="/profile"><span class="n">&middot;</span>Profile</a>
             {% if current_user.is_admin %}<a href="/admin"><span class="n">&middot;</span>Admin</a>{% endif %}

@@ -459,6 +459,130 @@ def custom_report(token):
 
 
 
+LEADERBOARD_ADMIN_EMAIL = 'havlik.simon@post.cz'
+_lb_refresh_state = {'running': False, 'started': None, 'finished': None, 'error': None}
+
+
+def _leaderboard_admin_ok() -> bool:
+    try:
+        return bool(current_user.is_authenticated and
+                    (current_user.email or '').strip().lower() == LEADERBOARD_ADMIN_EMAIL)
+    except Exception:
+        return False
+
+
+@app.route('/leaderboard')
+def leaderboard_view():
+    """Cross-sectional fund ranking, cached for a week."""
+    from services.leaderboard import build_board
+    board = build_board()
+    return render_template('leaderboard.html', board=board)
+
+
+@app.route('/leaderboard.csv')
+def leaderboard_csv():
+    import csv as _csv
+    import io as _io
+    from services.leaderboard import build_board
+
+    board = build_board()
+    metrics = [m['key'] for m in board.get('metrics', [])]
+    buf = _io.StringIO()
+    writer = _csv.writer(buf)
+    writer.writerow(['rank', 'fund', 'manager', 'kind', 'score'] + metrics +
+                    ['covid_2020', 'bear_2022', 'holdings', 'coverage', 'filing', 'observations'])
+    for index, row in enumerate(board.get('rows', []), start=1):
+        m = row.get('metrics') or {}
+        writer.writerow([index, row['name'], row['manager'], row['kind'], row.get('score')] +
+                        [m.get(k) for k in metrics] +
+                        [row.get('crisis', {}).get('covid'), row.get('crisis', {}).get('y2022'),
+                         row.get('holdings'), row.get('coverage'), row.get('filing'), row.get('observations')])
+    stream = _io.BytesIO(buf.getvalue().encode('utf-8'))
+    return send_file(stream, mimetype='text/csv', as_attachment=True,
+                     download_name=f"fund-leaderboard-{board.get('as_of', 'latest')}.csv")
+
+
+@app.route('/leaderboard/card.png')
+def leaderboard_card_image():
+    from services.leaderboard import build_board
+    from services.leaderboard_card import render_card
+
+    board = build_board()
+    fmt = 'landscape' if request.args.get('format') == 'landscape' else 'square'
+    stream = render_card(board, fmt)
+    return send_file(stream, mimetype='image/png', as_attachment=False,
+                     download_name=f"fund-leaderboard-{fmt}-{board.get('as_of', 'latest')}.png")
+
+
+@app.route('/leaderboard/admin')
+@login_required
+def leaderboard_admin():
+    if not _leaderboard_admin_ok():
+        abort(403)
+    from services.leaderboard import build_board
+    from services import edgar_13f
+    from services.leaderboard_funds import FUNDS
+
+    board = build_board()
+    rows = {row['slug']: row for row in board.get('rows', [])}
+    funds = []
+    for fund in FUNDS:
+        row = rows.get(fund['slug'], {})
+        latest_filing = None
+        if fund['kind'] == '13f':
+            try:
+                filings = edgar_13f.fund_filings(fund['cik'], limit=1)
+                latest_filing = filings[0]['period'] if filings else None
+            except Exception:
+                latest_filing = None
+        funds.append({
+            'slug': fund['slug'],
+            'name': fund['name'],
+            'kind': fund['kind'],
+            'used': row.get('filing'),
+            'latest': latest_filing,
+            'stale': bool(latest_filing and row.get('filing') and latest_filing > row['filing']),
+            'holdings': row.get('holdings'),
+            'coverage': row.get('coverage'),
+            'score': row.get('score'),
+        })
+    return render_template('leaderboard_admin.html', board=board, funds=funds,
+                           state=_lb_refresh_state, admin_email=LEADERBOARD_ADMIN_EMAIL)
+
+
+@app.route('/leaderboard/admin/refresh', methods=['POST'])
+@login_required
+def leaderboard_admin_refresh():
+    if not _leaderboard_admin_ok():
+        abort(403)
+    if _lb_refresh_state['running']:
+        return jsonify({'ok': False, 'message': 'A refresh is already running'}), 409
+    import threading
+    from services.leaderboard import build_board
+
+    def run():
+        _lb_refresh_state.update(running=True, started=datetime.utcnow().isoformat(),
+                                 finished=None, error=None)
+        try:
+            build_board(force=True)
+            _lb_refresh_state['finished'] = datetime.utcnow().isoformat()
+        except Exception as exc:
+            _lb_refresh_state['error'] = str(exc)
+        finally:
+            _lb_refresh_state['running'] = False
+
+    threading.Thread(target=run, daemon=True).start()
+    return jsonify({'ok': True, 'message': 'Refresh started'})
+
+
+@app.route('/leaderboard/admin/status')
+@login_required
+def leaderboard_admin_status():
+    if not _leaderboard_admin_ok():
+        abort(403)
+    return jsonify(_lb_refresh_state)
+
+
 @app.route('/reports')
 @page_login_required
 def reports_view():
@@ -2706,6 +2830,41 @@ def debug_session():
         'user_email': current_user.email if current_user and current_user.is_authenticated else None,
         'user_obj': str(current_user) if current_user else None
     })
+
+
+# =============================================================================
+# Leaderboard refresh scheduler
+# =============================================================================
+
+def _start_leaderboard_scheduler():
+    """Weekly, overnight, off-peak rebuild. Manual refresh stays available."""
+    if os.getenv('ENABLE_LEADERBOARD_SCHEDULER', '1') == '0':
+        return
+    import threading
+    import time as _time
+
+    def loop():
+        _time.sleep(120)
+        while True:
+            try:
+                from services.leaderboard import CACHE_DIR, build_board
+                path = CACHE_DIR / 'board.json'
+                stale = True
+                if path.exists():
+                    age = datetime.utcnow() - datetime.fromtimestamp(path.stat().st_mtime)
+                    stale = age > timedelta(days=7)
+                if stale and 1 <= datetime.utcnow().hour <= 4:
+                    app.logger.info('leaderboard: scheduled refresh starting')
+                    build_board(force=True)
+                    app.logger.info('leaderboard: scheduled refresh complete')
+            except Exception as exc:  # never let the scheduler kill the app
+                app.logger.warning('leaderboard scheduler: %s', exc)
+            _time.sleep(3600)
+
+    threading.Thread(target=loop, daemon=True, name='leaderboard-scheduler').start()
+
+
+_start_leaderboard_scheduler()
 
 
 # =============================================================================
