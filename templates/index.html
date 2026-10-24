@@ -1,6 +1,30 @@
 {% extends "base.html" %}
 
-{% block title %}Portfolio Optimizer{% endblock %}
+{% block title %}Portfolio Optimizer
+<div id="data-loader" class="data-loader no-print" role="status" aria-live="polite">
+    <div class="dl-bars"><span></span><span></span><span></span><span></span></div>
+    <div>
+        <p class="dl-title">Loading portfolio data</p>
+        <p class="dl-sub">prices · risk · charts</p>
+    </div>
+</div>
+<script>
+(function () {
+    const loader = document.getElementById('data-loader');
+    if (!loader) return;
+    requestAnimationFrame(() => loader.classList.add('is-visible'));
+    const started = Date.now();
+    window.hideDataLoader = function () {
+        const wait = Math.max(0, 700 - (Date.now() - started));
+        setTimeout(() => {
+            loader.classList.remove('is-visible');
+            setTimeout(() => loader.remove(), 400);
+        }, wait);
+    };
+    setTimeout(() => window.hideDataLoader && window.hideDataLoader(), 7000);
+})();
+</script>
+{% endblock %}
 
 {% block content %}
 
@@ -1094,7 +1118,8 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch('/api/example-charts{% if report_id %}?report={{ report_id }}{% endif %}', { headers: { 'Accept': 'application/json' } })
         .then(response => response.ok ? response.json() : Promise.reject(response.status))
         .then(renderAllCharts)
-        .catch(error => console.error('Chart data failed to load', error));
+        .then(() => { if (window.hideDataLoader) window.hideDataLoader(); })
+        .catch(error => { if (window.hideDataLoader) window.hideDataLoader(); console.error('Chart data failed to load', error); });
     {% endif %}
 });
 
