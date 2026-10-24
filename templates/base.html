@@ -229,8 +229,25 @@
         .bg-primary-50 { background-color: rgba(168, 130, 74, 0.08) !important; }
         .bg-primary-100 { background-color: rgba(168, 130, 74, 0.14) !important; }
 
-        a.bg-emerald-600, button.bg-emerald-600 { background-color: var(--brass) !important; }
-        a.hover\:bg-emerald-700:hover, button.hover\:bg-emerald-700:hover { background-color: var(--brass-deep) !important; }
+        a.bg-emerald-600, button.bg-emerald-600 { background-color: var(--brass-deep) !important; }
+        a.hover\:bg-emerald-700:hover, button.hover\:bg-emerald-700:hover { background-color: #6f542d !important; }
+
+        /* Quieter category chips */
+        .bg-purple-100 { background-color: #eee9f1 !important; }
+        .text-purple-700 { color: #5d4a68 !important; }
+        .bg-orange-100 { background-color: #f6ece1 !important; }
+        .text-orange-700 { color: #7a5330 !important; }
+        .bg-blue-100 { background-color: #e8edf3 !important; }
+        .text-blue-700 { color: #3f5166 !important; }
+        .bg-green-100 { background-color: #e9efe8 !important; }
+        .text-green-700 { color: #45603f !important; }
+        .bg-pink-100 { background-color: #f5e9ec !important; }
+        .text-pink-700 { color: #74434f !important; }
+
+        /* Navigation icons read as one instrument, not a colour chart */
+        nav .text-emerald-600, nav .text-purple-600, nav .text-cyan-600 {
+            color: #8a8578 !important;
+        }
 
         .bg-gradient-to-r.from-primary-600 {
             background-image: linear-gradient(118deg, #0e1116 0%, #1c2530 58%, #3b2f22 100%) !important;
@@ -263,10 +280,14 @@
         footer .text-slate-400 { color: #8d8577 !important; }
 
         /* Dense, deliberate rhythm */
-        main.max-w-7xl { max-width: 1200px; }
+        main.max-w-7xl { max-width: 1180px; }
 
         @media (min-width: 641px) {
             main { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+            .p-8 { padding: 1.5rem !important; }
+            .p-6 { padding: 1.15rem !important; }
+            .mb-8 { margin-bottom: 1.25rem !important; }
+            .gap-8 { gap: 1.5rem !important; }
         }
 
         @media (max-width: 640px) {
