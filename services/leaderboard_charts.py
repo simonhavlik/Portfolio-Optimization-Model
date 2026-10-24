@@ -107,7 +107,11 @@ def _crisis(board: dict) -> io.BytesIO:
     rows = [r for r in board['rows']
             if (r.get('crisis') or {}).get('covid') is not None
             or (r.get('crisis') or {}).get('y2022') is not None]
-    rows.sort(key=lambda r: (r['crisis'].get('y2022') if r['crisis'].get('y2022') is not None else -9), reverse=True)
+    def resilience(row):
+        values = [v for v in ((row.get('crisis') or {}).get('covid'), (row.get('crisis') or {}).get('y2022')) if v is not None]
+        return sum(values) / len(values) if values else -9
+
+    rows.sort(key=resilience, reverse=True)
     names = [r['name'] for r in rows]
     covid = [present(r, 'covid') for r in rows]
     bear = [present(r, 'y2022') for r in rows]
@@ -122,7 +126,7 @@ def _crisis(board: dict) -> io.BytesIO:
     ax.set_yticks(y)
     ax.set_yticklabels(names)
     ax.axvline(0, color='#3a3f47', linewidth=0.8)
-    ax.legend(facecolor=PANEL, edgecolor=GRID, labelcolor=TEXT, fontsize=8, loc='lower left')
+    ax.legend(facecolor=PANEL, edgecolor=GRID, labelcolor=TEXT, fontsize=8, loc='upper right')
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:.0f}%'))
     _decorate(ax, board, CHARTS['crisis']['title'], CHARTS['crisis']['sub'])
     fig.tight_layout()
