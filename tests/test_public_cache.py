@@ -82,6 +82,19 @@ class PublicCacheTests(unittest.TestCase):
         service._cached_data = {'metrics': {'sharpe_ratio': 1}}
         self.assertEqual(service.get_analysis()['metrics']['sharpe_ratio'], 1)
 
+    def test_serialization_runs_once_per_snapshot_and_refresh_invalidates(self):
+        cls, ns = self.example_class()
+        serialize = Mock(side_effect=lambda value: dict(value))
+        ns['serialize_for_template'] = serialize
+        service = cls()
+        service._cached_data = {'metrics': {'sharpe_ratio': 1}}
+        first = service.get_analysis()
+        self.assertIs(service.get_analysis(), first)
+        self.assertEqual(serialize.call_count, 1)
+        service._cached_data = {'metrics': {'sharpe_ratio': 2}}
+        self.assertEqual(service.get_analysis()['metrics']['sharpe_ratio'], 2)
+        self.assertEqual(serialize.call_count, 2)
+
     def test_initialize_does_not_refresh_on_restart(self):
         cls, ns = self.example_class()
         ns['current_app'] = types.SimpleNamespace(_get_current_object=lambda: object())

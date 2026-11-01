@@ -313,6 +313,9 @@ def _json_safe(value):
     return value
 
 
+_example_chart_response = None
+
+
 @app.route('/api/example-charts')
 def example_charts():
     """Chart payload for the example portfolio, fetched after first paint."""
@@ -343,8 +346,21 @@ def example_charts():
     }
     payload['charts'] = example_data['charts']
 
-    response = jsonify(_json_safe(payload))
-    response.headers['Cache-Control'] = 'public, max-age=300'
+    global _example_chart_response
+    import gzip
+    if not report and _example_chart_response and _example_chart_response[0] is example_data:
+        _, raw, compressed = _example_chart_response
+    else:
+        raw = app.json.dumps(_json_safe(payload)).encode('utf-8')
+        compressed = gzip.compress(raw, compresslevel=5)
+        if not report:
+            _example_chart_response = (example_data, raw, compressed)
+    use_gzip = request.accept_encodings['gzip'] > 0
+    response = app.response_class(compressed if use_gzip else raw, mimetype='application/json')
+    if use_gzip:
+        response.headers['Content-Encoding'] = 'gzip'
+    response.headers['Vary'] = 'Accept-Encoding'
+    response.headers['Cache-Control'] = 'private, max-age=300' if report else 'public, max-age=300'
     return response
 
 
@@ -2197,8 +2213,7 @@ def get_example_portfolio():
     Cached and updated every 6 hours.
     """
     try:
-        force_refresh = request.args.get('refresh', 'false').lower() == 'true'
-        analysis = example_portfolio_service.get_analysis(force_refresh)
+        analysis = example_portfolio_service.get_analysis()
         
         return jsonify({
             'success': True,

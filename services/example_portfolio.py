@@ -212,6 +212,7 @@ class ExamplePortfolioService:
         self._last_computed: Optional[datetime] = None
         self._app = None
         self._refreshing = False
+        self._template_snapshot = None
 
     def initialize(self):
         """
@@ -356,15 +357,18 @@ class ExamplePortfolioService:
             logger.warning("No saved analysis; serving fallback until scheduled refresh")
             self._cached_data = self._get_fallback_data()
 
-        # Convert dataclasses and numpy types to Python dicts for templates
-        result = serialize_for_template(self._cached_data)
-        
-        # Add has_arch_effects to metrics for template compatibility
+        # Serialize once per snapshot, rather than traversing multi-megabyte chart
+        # arrays on every page view. Refreshes replace _cached_data atomically.
+        source = self._cached_data
+        snapshot = self._template_snapshot
+        if snapshot is not None and snapshot[0] is source:
+            return snapshot[1]
+        result = serialize_for_template(source)
         if 'volatility_analysis' in result and 'metrics' in result:
             result['metrics']['has_arch_effects'] = result['volatility_analysis'].get('has_arch_effects', False)
-        
+        self._template_snapshot = (source, result)
         return result
-    
+
     def compute_custom(self, holdings: list, period: str = '2y',
                        name: str = 'Your portfolio',
                        description: str = '',
