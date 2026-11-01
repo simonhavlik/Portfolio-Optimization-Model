@@ -265,6 +265,20 @@ def allowed_file(filename):
 
 @app.route('/')
 def index():
+    """Dependency-free public first screen; also served directly at the edge."""
+    return send_file('static/landing/index.html', max_age=300)
+
+
+@app.route('/__landing/<asset>')
+def landing_asset(asset):
+    paths = {'runtime.js': 'static/landing/runtime.js', 'hero.js': 'static/hero/hero.js'}
+    if asset not in paths:
+        abort(404)
+    return send_file(paths[asset], max_age=300)
+
+
+@app.route('/example')
+def example():
     """Main dashboard view with example portfolio analysis."""
     try:
         # Get pre-computed example portfolio analysis
@@ -292,7 +306,7 @@ def index():
                              valuation=valuation,
                              appendix=appendix,
                              cca=cca,
-                             show_analysis=True)
+                             show_analysis=True, embedded=request.args.get('embedded') == '1')
     except Exception as e:
         import traceback
         logger.error(f"Error loading example portfolio: {e}")

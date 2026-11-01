@@ -2,6 +2,7 @@
 <html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
+    {% if embedded %}<base target="_top">{% endif %}
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Portfolio Optimizer{% endblock %}</title>
     
@@ -1018,6 +1019,8 @@
 </style>
 </head>
 <body class="{% block body_class %}{% endblock %} bg-slate-50 text-slate-800 min-h-screen antialiased">
+    {% if embedded %}<style>body{margin:0}main{padding-top:24px!important}</style>{% endif %}
+    {% if not embedded %}
     <!-- Navigation -->
     <nav class="site-nav" data-nav>
         <div class="nav-inner">
@@ -1087,11 +1090,13 @@
         </div>
     </nav>
 
+    {% endif %}
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {% block content %}{% endblock %}
     </main>
 
+    {% if not embedded %}
     <!-- Footer -->
     <footer class="border-t border-slate-200 bg-white mt-12">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -1106,6 +1111,7 @@
             </div>
         </div>
     </footer>
+    {% endif %}
 
 
     <script>
@@ -1321,6 +1327,9 @@
     </script>
 
     {% block extra_js %}{% endblock %}
+    {% if embedded %}<script>
+    (()=>{let timer;const resize=()=>{clearTimeout(timer);timer=setTimeout(()=>parent.postMessage({type:'optimizer-report-height',height:Math.ceil(document.documentElement.scrollHeight)},location.origin),100)};new ResizeObserver(resize).observe(document.body);addEventListener('load',resize);resize()})();
+    </script>{% endif %}
     
     <!-- Login Status Notification -->
     <script>

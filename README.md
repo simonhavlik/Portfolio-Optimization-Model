@@ -390,3 +390,19 @@ The example portfolio timer checks hourly and refreshes data older than seven da
 between 01:00 and 05:00 Europe/Prague. Its background refresh also updates valuation
 inputs, report images and comparable-company data. Saved report images are rendered
 from cached analysis in a background thread after startup.
+
+### First-screen delivery
+
+The public overview is a prerendered copy of the existing hero, with inline CSS,
+system fonts and no external render dependencies. Build it with
+`python scripts/build_landing.py` (Jinja2 is already a Flask dependency).
+The build enforces a 15 KB gzip first-screen budget. The complete analysis remains
+at `/example`, with an embedded version fetched only near the example section.
+Plotly, report markup and market data are outside the first-screen request.
+
+`edge/worker.mjs` embeds the generated HTML and deferred runtime. Deploy it as
+`optimizer-first-screen` in the existing Cloudflare account, then route only
+`optimizer.simonhavlik.com/` and `optimizer.simonhavlik.com/__landing/*` to it.
+All account, API, report, upload and other paths continue directly to Koyeb.
+The public shell contains no account-specific data or cookies. Roll back by
+removing these two routes; Koyeb serves the same shell and runtime as a fallback.

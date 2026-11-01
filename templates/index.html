@@ -244,7 +244,7 @@
 
 {% if report_id %}
 {% include "partials/report_hero.html" %}
-{% else %}
+{% elif not embedded %}
 {# Landing hero: instrument-panel aesthetic + scripted platform walkthrough.
    Included by index.html only. CSS: static/hero/hero.css · JS: static/hero/hero.js #}
 {% set holdings = example_data.holdings if example_data and example_data.holdings else [] %}
@@ -1276,7 +1276,7 @@
 {% if report_id %}
 <script src="/static/hero/hero.js" defer></script>
 <script src="/static/analysis/report.js" defer></script>
-{% else %}
+{% elif not embedded %}
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" defer></script>
 <script src="/static/hero/hero.js" defer></script>
 {% endif %}
