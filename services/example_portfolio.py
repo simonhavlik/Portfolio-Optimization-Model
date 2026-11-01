@@ -3,7 +3,7 @@ Portfolio Optimizer - Example Portfolio Service
 ================================================
 
 Pre-computed example portfolio for visitors.
-Runs advanced analysis ONCE at startup and caches results.
+Serves saved results; refreshes weekly overnight without relying on visits.
 Admin can manually refresh via admin panel.
 """
 
@@ -201,7 +201,7 @@ class ExamplePortfolioService:
     """
     Service for managing and serving the example portfolio.
     
-    CRITICAL: Computes analysis ONCE at startup and caches to disk.
+    CRITICAL: Startup and page reads only load saved data.
     Subsequent page loads serve from memory - NO recomputation.
     Admin can force refresh via admin panel.
     """
@@ -216,8 +216,8 @@ class ExamplePortfolioService:
     def initialize(self):
         """
         Initialize the service - call this once at app startup.
-        Loads the persisted cache first so restarts are instant, then
-        refreshes in the background when it is older than a week.
+        Loads the persisted cache. The independent overnight scheduler
+        handles refreshes, including an empty cache.
         """
         logger.info("Initializing example portfolio service...")
         self._app = current_app._get_current_object()
@@ -229,14 +229,23 @@ class ExamplePortfolioService:
             logger.info("Example portfolio loaded from disk cache")
             self._save_to_db()
         else:
-            logger.info("No cache found, computing fresh analysis...")
-            self._cached_data = self._compute_analysis()
-            self._last_computed = datetime.utcnow()
-            self._save_to_disk()
-            self._save_to_db()
-            logger.info("Example portfolio analysis complete and cached")
+            logger.warning("No saved analysis; serving fallback until scheduled refresh")
+            self._cached_data = self._get_fallback_data()
 
-        self.refresh_if_stale()
+    def start_scheduler(self):
+        """Check for weekly updates overnight in Prague, independently of visits."""
+        from zoneinfo import ZoneInfo
+        def loop():
+            import time
+            time.sleep(120)
+            while True:
+                try:
+                    if 1 <= datetime.now(ZoneInfo('Europe/Prague')).hour < 5:
+                        self.refresh_if_stale()
+                except Exception:
+                    logger.exception("Example portfolio scheduler failed")
+                time.sleep(3600)
+        threading.Thread(target=loop, daemon=True, name='example-scheduler').start()
 
     def _load_from_db(self) -> bool:
         """Load the persisted analysis from Postgres."""
@@ -288,6 +297,13 @@ class ExamplePortfolioService:
                     self._last_computed = datetime.utcnow()
                     self._save_to_disk()
                     self._save_to_db()
+                    from services.valuation import portfolio_valuation
+                    from services.report_charts import generate
+                    from services.cca import build_and_cache
+                    analysis = self.get_analysis()
+                    portfolio_valuation(analysis.get('holdings', []), refresh=True)
+                    generate(analysis)
+                    build_and_cache(analysis.get('holdings', []))
                     logger.info("Weekly example portfolio refresh complete")
             except Exception as e:
                 logger.error(f"Weekly example refresh failed: {e}")
@@ -303,21 +319,12 @@ class ExamplePortfolioService:
                 with open(CACHE_FILE, 'rb') as f:
                     cache_data = pickle.load(f)
                     
-                # Weekly cache window; staleness triggers a background refresh
+                # Serve the last successful snapshot even after its refresh date.
                 cache_time = cache_data.get('computed_at')
-                if cache_time:
-                    cache_age = datetime.utcnow() - cache_time
-                    if cache_age < CACHE_TTL:
-                        self._cached_data = cache_data.get('data')
-                        self._last_computed = cache_time
-                        self._cache_loaded = True
-                        return True
-                    else:
-                        logger.info(f"Disk cache is {cache_age.total_seconds()/3600:.1f} hours old, will recompute")
-                else:
-                    self._cached_data = cache_data.get('data')
-                    self._cache_loaded = True
-                    return True
+                self._cached_data = cache_data.get('data')
+                self._last_computed = cache_time
+                self._cache_loaded = self._cached_data is not None
+                return self._cache_loaded
         except Exception as e:
             logger.warning(f"Failed to load disk cache: {e}")
         
@@ -346,12 +353,8 @@ class ExamplePortfolioService:
         No database queries, no API calls, no computation.
         """
         if self._cached_data is None:
-            # Fallback - should not happen if initialize() was called
-            logger.warning("Cache not initialized, computing on demand")
-            self._cached_data = self._compute_analysis()
-            self._last_computed = datetime.utcnow()
-
-        self.refresh_if_stale()
+            logger.warning("No saved analysis; serving fallback until scheduled refresh")
+            self._cached_data = self._get_fallback_data()
 
         # Convert dataclasses and numpy types to Python dicts for templates
         result = serialize_for_template(self._cached_data)

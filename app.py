@@ -211,20 +211,17 @@ def create_app() -> Flask:
             initialize_example_portfolio()
             logger.info("Example portfolio service initialized")
 
-            from services.report_charts import generate as generate_report_charts
-            analysis = example_portfolio_service.get_analysis()
-            generate_report_charts(analysis)
-            logger.info("Report chart images ready")
-
+            # Render print images from saved data without blocking worker readiness.
             import threading
-            def _warm_cca():
-                with app.app_context():
-                    try:
-                        cca_service.build_and_cache(analysis.get('holdings', []))
-                        logger.info("CCA cache ready")
-                    except Exception as exc:
-                        logger.warning(f"CCA warm-up failed: {exc}")
-            threading.Thread(target=_warm_cca, daemon=True).start()
+            def _render_saved_charts():
+                try:
+                    from services.report_charts import generate
+                    generate(example_portfolio_service.get_analysis())
+                except Exception:
+                    logger.exception("Saved report chart rendering failed")
+            threading.Thread(target=_render_saved_charts, daemon=True,
+                             name='saved-report-charts').start()
+            example_portfolio_service.start_scheduler()
         except Exception as e:
             logger.warning(f"Could not initialize example portfolio service: {e}")
     

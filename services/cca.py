@@ -85,7 +85,7 @@ def build_cca(holdings, fundamentals_fn, top_n=5):
         ticker = (holding.get("ticker") or "").upper()
         if not ticker:
             continue
-        base = _fundamentals(ticker) or {}
+        base = _fundamentals(ticker, refresh=True) or {}
         pe = base.get("pe")
         price = None
         try:
@@ -103,7 +103,7 @@ def build_cca(holdings, fundamentals_fn, top_n=5):
 
         peer_pes = []
         for peer in peers:
-            data = _fundamentals(peer) or {}
+            data = _fundamentals(peer, refresh=True) or {}
             peer_pe = data.get("pe")
             if isinstance(peer_pe, (int, float)) and 2 < peer_pe < 120:
                 peer_pes.append(peer_pe)
@@ -159,7 +159,7 @@ def cached_cca():
     try:
         from models.database import db, AppCache
         row = db.session.get(AppCache, "cca_example")
-        if row and row.payload and (datetime.utcnow() - row.computed_at) < timedelta(days=CACHE_DAYS):
+        if row and row.payload:
             return row.payload
     except Exception:
         pass

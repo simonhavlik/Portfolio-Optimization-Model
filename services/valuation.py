@@ -33,20 +33,25 @@ def _remember(key: str, value) -> None:
     _memory[key] = {"value": value, "at": datetime.utcnow()}
 
 
-def damodaran_erp() -> Dict[str, Any]:
-    """Latest implied equity risk premium from Damodaran's annual workbook."""
+def damodaran_erp(*, refresh: bool = False) -> Dict[str, Any]:
+    """Read the saved ERP; only scheduled/explicit refreshes may use the network."""
     memo = _cached("erp", timedelta(hours=12))
-    if memo:
+    if memo and not refresh:
         return memo
 
     try:
         from models.database import db, AppCache
         row = db.session.get(AppCache, ERP_CACHE_KEY)
-        if row and row.payload and (datetime.utcnow() - row.computed_at) < ERP_MAX_AGE:
+        if row and row.payload and (not refresh or (datetime.utcnow() - row.computed_at) < ERP_MAX_AGE):
             _remember("erp", row.payload)
             return row.payload
     except Exception:
         row = None
+
+    if not refresh:
+        return {"value": 0.05, "year": None,
+                "source": "Fallback constant (scheduled ERP data unavailable)",
+                "fetched_at": None}
 
     value = None
     try:
@@ -108,24 +113,28 @@ def damodaran_erp() -> Dict[str, Any]:
     return value
 
 
-def _fundamentals(ticker: str) -> Optional[Dict[str, Any]]:
-    """Per-ticker owner-earnings inputs, cached in Postgres for a week."""
+def _fundamentals(ticker: str, *, refresh: bool = False) -> Optional[Dict[str, Any]]:
+    """Serve the last snapshot; refresh explicitly after the weekly TTL."""
     key = f"fundamentals:{ticker}"
     memo = _cached(key, timedelta(hours=12))
-    if memo is not None:
+    if memo is not None and not refresh:
         return memo
 
     payload = None
     try:
         from models.database import db, AppCache
         row = db.session.get(AppCache, key)
-        if row and row.payload and (datetime.utcnow() - row.computed_at) < FUND_CACHE_DAYS:
+        if row and row.payload and (not refresh or (datetime.utcnow() - row.computed_at) < timedelta(days=FUND_CACHE_DAYS)):
             payload = row.payload
     except Exception:
         row = None
 
+    if payload is None and not refresh:
+        return {"ticker": ticker}
+
     if payload is None:
         try:
+            time.sleep(1.2)
             import yfinance as yf
             info = yf.Ticker(ticker).info or {}
             payload = {
@@ -161,9 +170,9 @@ def _clip(value: float, low: float, high: float) -> float:
     return float(min(max(value, low), high))
 
 
-def portfolio_valuation(holdings: list, fallback_beta: float = 1.0) -> Dict[str, Any]:
+def portfolio_valuation(holdings: list, fallback_beta: float = 1.0, *, refresh: bool = False) -> Dict[str, Any]:
     """Owner-earnings implied return versus a CAPM cost of equity."""
-    erp = damodaran_erp()
+    erp = damodaran_erp(refresh=refresh)
     risk_free = float(getattr(config, "DEFAULT_RISK_FREE_RATE", 0.04) or 0.04)
     rows = []
     total_weight = 0.0
@@ -179,7 +188,7 @@ def portfolio_valuation(holdings: list, fallback_beta: float = 1.0) -> Dict[str,
         if not ticker or weight <= 0:
             continue
         total_weight += weight
-        fundamentals = _fundamentals(ticker) or {}
+        fundamentals = _fundamentals(ticker, refresh=refresh) or {}
 
         pe = fundamentals.get("pe")
         forward_pe = fundamentals.get("forward_pe")

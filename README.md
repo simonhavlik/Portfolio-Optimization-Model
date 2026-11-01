@@ -380,3 +380,13 @@ Sortino, F.A. and Price, L.N. (1994) 'Performance measurement in a downside risk
 ---
 
 © 2026 Šimon Havlík. Source available for reference and review.
+
+### Public-page cache discipline
+
+Opening a page or starting a worker only reads saved portfolio and valuation data,
+including older snapshots while an update is pending. Missing valuation inputs remain
+unavailable rather than causing a Yahoo or Damodaran request during page rendering.
+The example portfolio timer checks hourly and refreshes data older than seven days
+between 01:00 and 05:00 Europe/Prague. Its background refresh also updates valuation
+inputs, report images and comparable-company data. Saved report images are rendered
+from cached analysis in a background thread after startup.
