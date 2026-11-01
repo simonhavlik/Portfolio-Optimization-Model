@@ -594,6 +594,9 @@
                 <i class="fas fa-plus"></i> New analysis
             </a>
             {% else %}
+            <button type="button" onclick="window.print()" class="pdf-report-btn px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium transition flex items-center gap-2">
+                <i class="fas fa-file-pdf"></i> PDF report
+            </button>
             <button type="button" onclick="loadExamplePortfolio(); return false;" class="px-5 py-2.5 rounded-xl bg-primary-600 text-white font-medium hover:bg-primary-700 transition flex items-center gap-2">
                 <i class="fas fa-play"></i> Edit & Analyze
             </button>
