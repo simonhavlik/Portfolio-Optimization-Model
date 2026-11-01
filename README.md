@@ -401,8 +401,9 @@ at `/example`, with an embedded version fetched only near the example section.
 Plotly, report markup and market data are outside the first-screen request.
 
 `edge/worker.mjs` embeds the generated HTML and deferred runtime. Deploy it as
-`optimizer-first-screen` in the existing Cloudflare account, then route only
-`optimizer.simonhavlik.com/` and `optimizer.simonhavlik.com/__landing/*` to it.
-All account, API, report, upload and other paths continue directly to Koyeb.
+`optimizer-first-screen` in the existing Cloudflare account with the route
+`optimizer.simonhavlik.com/*`. It serves only `/` and the `/__landing/` runtime
+assets; every other request passes through to Koyeb unchanged. The wildcard also
+covers campaign/query-string visits to `/`, which exact Cloudflare routes miss.
 The public shell contains no account-specific data or cookies. Roll back by
-removing these two routes; Koyeb serves the same shell and runtime as a fallback.
+removing the Worker route; Koyeb serves the same shell and runtime as a fallback.
