@@ -41,6 +41,8 @@ References:
 
 import json
 import logging
+from urllib.parse import urlsplit
+from uuid import uuid4
 from typing import Dict, List, Optional, Any, Union
 from dataclasses import dataclass, asdict
 from enum import Enum
@@ -135,32 +137,35 @@ class LLMClient:
         self.max_tokens = max_tokens
         self._explicit_key = api_key is not None
         self.client = None
+        self._session_id = str(uuid4())
 
         if self._explicit_key and self.api_key:
-            self.client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
+            self.client = self._new_client()
+
+    def _new_client(self):
+        headers = {}
+        if urlsplit(self.base_url).hostname == "opencode.ai":
+            headers = {"x-opencode-session": self._session_id, "User-Agent": "curl/8.5.0"}
+        return openai.OpenAI(api_key=self.api_key, base_url=self.base_url, default_headers=headers)
 
     def _active_client(self):
-        """Resolve the switchable credential and keep the client in sync."""
+        """Resolve the active credential before sending each completion."""
         if not self._explicit_key:
-            try:
-                from services.api_keys import get_credential
-                credential = get_credential("deepseek")
-                key = credential.get("api_key")
-                if key and (key != self.api_key or credential.get("base_url") != self.base_url
-                            or credential.get("model") != self.model):
-                    self.api_key = key
-                    self.base_url = credential.get("base_url") or self.base_url
-                    self.model = credential.get("model") or self.model
-                    self.client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
-            except Exception as exc:
-                logger.warning("Could not resolve API credential: %s", exc)
+            from services.api_keys import get_credential
+
+            credential = get_credential("deepseek")
+            current = (self.api_key, self.base_url, self.model)
+            active = (credential["api_key"], credential["base_url"], credential["model"])
+            if active != current:
+                self.api_key, self.base_url, self.model = active
+                self.client = None
 
         if self.client is None:
             if not self.api_key:
                 raise RuntimeError("No LLM API key configured")
-            self.client = openai.OpenAI(api_key=self.api_key, base_url=self.base_url)
+            self.client = self._new_client()
         return self.client
-    
+
     def complete(
         self,
         prompt: str,
@@ -193,13 +198,13 @@ class LLMClient:
                 messages=messages,
                 temperature=temperature or self.temperature,
                 **({"max_tokens": max_tokens or self.max_tokens} if (max_tokens or self.max_tokens) else {}),
-                extra_body={"reasoning_effort": "low"},
+                extra_body={"reasoning_effort": "off" if urlsplit(self.base_url).hostname == "opencode.ai" else "low"},
             )
             
             return response.choices[0].message.content
             
         except Exception as e:
-            logger.error(f"LLM API error: {e}")
+            logger.error("LLM API error: %s", type(e).__name__)
             raise
     
     def chat(self, messages: list, temperature: float = 0.2,
@@ -210,7 +215,7 @@ class LLMClient:
             messages=messages,
             temperature=temperature,
             **({"max_tokens": max_tokens or self.max_tokens} if (max_tokens or self.max_tokens) else {}),
-            extra_body={"reasoning_effort": "low"},
+            extra_body={"reasoning_effort": "off" if urlsplit(self.base_url).hostname == "opencode.ai" else "low"},
         )
         return response.choices[0].message.content
 
