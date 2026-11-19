@@ -67,7 +67,7 @@
         {% if can_read_studio %}<a class="research-button" href="{{ url_for('leaderboard_studio') }}">LinkedIn studio</a>{% endif %}
         <a class="research-button research-accent" href="{{ url_for('leaderboard_styles') }}">16-year sector &amp; holdings analysis</a>
         <a class="research-button" href="{{ url_for('leaderboard_csv', period=board.cohort) }}">Download CSV</a>
-        <a class="research-button research-accent" href="#manager-focus">Compare managers</a>
+        <a class="research-button research-accent" href="#portfolio-explorer">Interactive chart</a>
       </nav>
     </header>
 
@@ -99,6 +99,8 @@
         <b>{{ ranked[0].score }}</b></div>
     </div>
     {% endif %}
+
+    {% include 'leaderboard_explorer.html' %}
 
     <section id="ranking" class="research-section" aria-labelledby="ranking-heading">
       <div class="research-section-head">
@@ -154,8 +156,6 @@
       <p id="manager-empty" role="status" hidden>No managers match that search.</p>
       {% else %}<p>Comparable performance is pending a complete price window.</p>{% endif %}
     </section>
-
-    {% include 'leaderboard_explorer.html' %}
 
     <section id="manager-focus" class="research-section" aria-labelledby="focus-heading">
       <div class="research-section-head">
