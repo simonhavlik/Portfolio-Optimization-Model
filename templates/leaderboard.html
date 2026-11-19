@@ -59,15 +59,13 @@
   <div class="research-inner">
     <header class="research-masthead">
       <div>
-        <p class="research-eyebrow">SEC Form 13F research</p>
         <h1>Fund leaderboard</h1>
-        <p class="research-deck">Compare returns, risk and quarterly holdings across {{ board.rows | length }} public equity books.</p>
+        <p class="research-deck">SEC Form 13F holdings, returns and risk</p>
       </div>
       <nav class="research-actions" aria-label="Leaderboard actions">
         {% if can_read_studio %}<a class="research-button" href="{{ url_for('leaderboard_studio') }}">LinkedIn studio</a>{% endif %}
-        <a class="research-button research-accent" href="{{ url_for('leaderboard_styles') }}">16-year sector &amp; holdings analysis</a>
+        <a class="nav-cta" href="{{ url_for('leaderboard_styles') }}">Sector analysis <span class="arr" aria-hidden="true">&rarr;</span></a>
         <a class="research-button" href="{{ url_for('leaderboard_csv', period=board.cohort) }}">Download CSV</a>
-        <a class="research-button research-accent" href="#portfolio-explorer">Interactive chart</a>
       </nav>
     </header>
 
@@ -80,25 +78,12 @@
       <p>{{ board.start or 'Awaiting price data' }}{% if board.as_of %} – {{ board.as_of }} <span>·</span> USD <span>·</span> SPY benchmark{% endif %}</p>
     </div>
 
-    <div class="research-stats">
-      <div><span>Managers tracked</span><strong>{{ board.rows | length }}</strong></div>
-      <div><span>Comparable portfolios</span><strong>{{ ranked | length }}</strong></div>
-      <div><span>Quarterly disclosures</span><strong>{{ '{:,}'.format(quarters) }}</strong></div>
-      <div><span>Earliest filing period</span><strong>{{ (board.rows | selectattr('archive') | map(attribute='archive.first') | min) if quarters else '—' }}</strong></div>
-    </div>
-
-    {% if ranked %}
-    {% set quiet = ranked | min(attribute='metrics.volatility') %}
-    {% set high = ranked | max(attribute='metrics.annualized_return') %}
-    <div class="research-read" aria-label="Comparison highlights">
-      <div><span>Lowest volatility</span><a href="{{ url_for('leaderboard_holdings', slug=quiet.slug) }}">{{ quiet.name }}</a>
-        <b>{{ percent(quiet.metrics.volatility) }}</b></div>
-      <div><span>Highest annual return</span><a href="{{ url_for('leaderboard_holdings', slug=high.slug) }}">{{ high.name }}</a>
-        <b>{{ percent(high.metrics.annualized_return, true) }}</b></div>
-      <div><span>Highest composite score</span><a href="{{ url_for('leaderboard_holdings', slug=ranked[0].slug) }}">{{ ranked[0].name }}</a>
-        <b>{{ ranked[0].score }}</b></div>
-    </div>
-    {% endif %}
+    <dl class="research-summary" aria-label="Archive coverage">
+      <div><dt>Managers</dt><dd>{{ board.rows | length }}</dd></div>
+      <div><dt>Rated in this window</dt><dd>{{ ranked | length }}</dd></div>
+      <div><dt>Quarterly disclosures</dt><dd>{{ '{:,}'.format(quarters) }}</dd></div>
+      <div><dt>Earliest filing</dt><dd>{{ (board.rows | selectattr('archive') | map(attribute='archive.first') | min) if quarters else '—' }}</dd></div>
+    </dl>
 
     {% include 'leaderboard_explorer.html' %}
 
@@ -114,7 +99,7 @@
       </div>
 
       {% if board.rows %}
-      <div class="research-table-wrap" tabindex="0" aria-label="Scrollable manager rankings">
+      <div class="research-table-wrap ranking-scroll" tabindex="0" aria-label="Scrollable manager rankings">
         <table class="research-table" id="manager-ranking">
           <thead>
             <tr>
@@ -133,11 +118,11 @@
             {% for row in board.rows %}
               {% set m = row.metrics %}
               <tr data-manager="{{ row.name }} {{ row.manager }}" {% if not m %}class="research-unranked"{% endif %}>
-                <td class="research-rank">{{ loop.index if row.score is not none else '—' }}</td>
+                <td class="research-rank" {% if row.reason %}title="{{ row.reason }}"{% endif %}>{{ loop.index if row.score is not none else '—' }}</td>
                 <th scope="row">
                   <a class="research-manager" href="{{ url_for('leaderboard_holdings', slug=row.slug) }}">{{ row.name }}</a>
                   <span class="research-meta">{{ row.manager }}{% if row.archive %} · {{ row.archive.quarters }} quarters{% endif %}</span>
-                  {% if row.reason %}<span class="research-meta">{{ row.reason }}</span>{% endif %}
+
                 </th>
                 <td class="research-number" data-value="{{ m.get('annualized_return', '') }}">{{ percent(m.get('annualized_return'), true) }}</td>
                 <td class="research-number" data-value="{{ m.get('volatility', '') }}">{{ percent(m.get('volatility')) }}</td>

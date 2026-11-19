@@ -1,6 +1,6 @@
 <section class="research-section" id="portfolio-explorer" aria-labelledby="explorer-heading"
          data-explorer="{{ url_for('leaderboard_explorer_data') }}">
-  <h2 id="explorer-heading">Portfolio history</h2>
+  <div class="explorer-heading"><h2 id="explorer-heading">Portfolio history</h2>
   <form class="research-quarter explorer-controls">
     <label>Measure<select id="explore-measure">
       <option value="value">Reported equity value</option><option value="top10">Top-ten concentration</option>
@@ -15,7 +15,7 @@
     <label>Manager<select id="explore-manager"><option value="">Select a manager</option></select></label>
     <button type="submit" class="research-button">Add to chart</button>
     <button type="button" class="research-button" id="explore-reset">Reset zoom</button>
-  </form>
+  </form></div>
   <div class="explorer-series" id="explore-series" aria-label="Selected managers"></div>
   <div class="explorer-canvas">
     <canvas id="explore-canvas" tabindex="0" aria-label="Interactive chart. Use arrow keys to inspect periods. Drag to zoom."></canvas>

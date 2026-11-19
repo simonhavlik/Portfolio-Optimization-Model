@@ -1,4 +1,4 @@
-.research-page { margin: 0; background: #091018; min-height: 100vh; }
+.research-page { margin: 0; background: var(--ink); min-height: 100vh; }
 .research-page *, .research-page *::before, .research-page *::after { box-sizing: border-box; }
 .research-page main { padding: 0; }
 .research-page .hidden { display: none !important; }
@@ -6,14 +6,14 @@
 .research-page footer p { margin: .3rem 0; }
 
 .research {
-    --research-bg: #091018;
-    --research-panel: #101b26;
-    --research-text: #eff6fc;
-    --research-muted: #a5b7c8;
-    --research-line: #2a3b4a;
-    --research-gold: #efc775;
-    --research-aqua: #83dbe0;
-    background: radial-gradient(ellipse at 83% 0%, #182e3e 0%, transparent 47rem), var(--research-bg);
+    --research-bg: var(--ink);
+    --research-panel: var(--surface);
+    --research-text: var(--text);
+    --research-muted: #a7a6a0;
+    --research-line: var(--line);
+    --research-gold: var(--brass);
+    --research-aqua: var(--brass-deep);
+    background: var(--research-bg);
     color: var(--research-text);
     margin: 0;
     padding: clamp(2.5rem, 5vw, 4.5rem) 0 5rem;
@@ -187,3 +187,57 @@
 .explorer-canvas { width: 100%; height: clamp(275px, 42vw, 420px); margin-top: .5rem; border: 1px solid #31414e; background: #101923; }
 #explore-canvas { width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: crosshair; }
 #explore-readout { min-height: 1.5em; font-variant-numeric: tabular-nums; }
+
+/* The leaderboard uses the same champagne controls and charcoal surfaces as the app shell. */
+.research-button {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--text);
+    font-size: .76rem;
+    font-weight: 600;
+}
+.research-button:hover { border-color: var(--brass); color: var(--brass-deep); }
+.research-actions .nav-cta { min-height: 32px; padding: 5px 11px; }
+.fund-board { padding-block: 1.2rem 2.5rem; font-size: .88rem; line-height: 1.4; }
+.fund-board .research-inner { max-width: 1440px; padding-inline: clamp(1rem, 3vw, 2.5rem); }
+.fund-board h1 { font-size: clamp(1.55rem, 2.5vw, 2rem); font-weight: 650; letter-spacing: -.035em; }
+.fund-board h2 { font-size: 1.05rem; font-weight: 650; letter-spacing: -.012em; }
+.fund-board .research-deck { margin-top: .28rem; font-size: .8rem; }
+.fund-board .research-section { margin-top: 1.35rem; padding-top: .78rem; border-top: 1px solid var(--line); }
+.fund-board .research-status { margin-top: .8rem; border-bottom: 1px solid var(--line); }
+.fund-board .research-tabs { border: 0; gap: .3rem; }
+.fund-board .research-tabs a { font-size: .8rem; padding: .43rem .55rem; }
+.fund-board .research-tabs a[aria-current="page"] { border-color: var(--brass); }
+.fund-board .research-status p { padding-block: .22rem; font-size: .73rem; }
+.research-summary { display: flex; flex-wrap: wrap; column-gap: 1.2rem; row-gap: .35rem; padding-block: .55rem; margin: 0; }
+.research-summary div { display: inline-flex; align-items: baseline; gap: .42rem; }
+.research-summary dt { color: var(--research-muted); font-size: .74rem; }
+.research-summary dd { margin: 0; color: var(--text); font: 650 .78rem 'JetBrains Mono', ui-monospace, monospace; }
+.fund-board .research-summary + #portfolio-explorer { margin-top: .15rem; }
+.explorer-heading { display: flex; justify-content: space-between; align-items: end; gap: .65rem; flex-wrap: wrap; }
+.explorer-heading h2 { padding-block: .42rem; }
+.explorer-controls { flex-wrap: wrap; margin-top: 0; gap: .4rem; }
+.explorer-controls label { min-width: min(11rem, 100%); }
+.explorer-controls select, .research-search input, .research-picker select { min-height: 32px; border-radius: 3px; padding: .29rem .52rem; font-size: .77rem; }
+.explorer-series { margin-top: .48rem; gap: .32rem; }
+.explorer-series button { min-height: 25px; padding: 3px 7px; font-size: .71rem; }
+.explorer-canvas { height: clamp(220px, 24vw, 300px); border-color: var(--line); background: var(--surface); }
+#explore-readout { margin-top: .35rem; font: .74rem 'JetBrains Mono', ui-monospace, monospace; }
+#portfolio-explorer .research-meta { font-size: .72rem; margin-top: .28rem; }
+.ranking-scroll { max-height: min(48rem, 68vh); }
+.ranking-scroll thead { position: sticky; top: 0; z-index: 2; }
+#manager-ranking :is(th,td) { padding: .36rem .55rem; }
+#manager-ranking tbody th { min-width: 11rem; }
+#manager-ranking .research-meta { font-size: .69rem; }
+.fund-board .research-table-wrap, .fund-board .research-split > div, .fund-board .research-method { border-radius: 3px; }
+@media (max-width: 690px) {
+    .fund-board .research-summary { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem .75rem; }
+    .explorer-controls { width: 100%; }
+    .explorer-controls label { flex: 1 1 9rem; }
+    .explorer-canvas { height: 220px; }
+    #manager-ranking tbody th { min-width: 8rem; }
+}

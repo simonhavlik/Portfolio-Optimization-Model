@@ -8,7 +8,7 @@
     const manager = section.querySelector('#explore-manager');
     const legend = section.querySelector('#explore-series');
     const readout = section.querySelector('#explore-readout');
-    const palette = ['#7ee8dc', '#f7bd71', '#aab8ff', '#f68ead', '#ade195', '#fc986e', '#dad3fe', '#74c3fa'];
+    const palette = ['#dbc084', '#9db4cc', '#97b3a2', '#c9a6b2', '#b5accc', '#e1a98a', '#d3c9b5', '#8ebaaf'];
     const percentages = new Set(['top10', 'weight_shift', 'return']);
     const chosen = new Set();
     let dataset;
@@ -80,14 +80,14 @@
         for (let i = 0; i < 5; i += 1) {
             const tick = minimum + i * (maximum - minimum) / 4;
             const vertical = y(tick);
-            context.strokeStyle = '#334552';
+            context.strokeStyle = '#272c32';
             context.lineWidth = 1;
             context.beginPath();
             context.moveTo(left, vertical);
             context.lineTo(right, vertical);
             context.stroke();
             context.textAlign = 'right';
-            context.fillStyle = '#c2ced8';
+            context.fillStyle = '#a7a6a0';
             context.fillText(formatValue(tick), left - 10, vertical + 4);
         }
         const labelCount = Math.min(end - start, Math.max(1, Math.floor((right - left) / 100)));
@@ -133,7 +133,7 @@
             context.stroke();
         }
         if (dragStart != null && hovered != null) {
-            context.fillStyle = 'rgba(126, 232, 220, .16)';
+            context.fillStyle = 'rgba(200, 161, 90, .16)';
             context.fillRect(x(Math.min(dragStart, hovered)), top,
                 Math.abs(x(hovered) - x(dragStart)), bottom - top);
         }
