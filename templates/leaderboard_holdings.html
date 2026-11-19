@@ -15,7 +15,7 @@
       {% if book %}
       <nav class="research-actions" aria-label="Holdings actions">
         <a class="research-button" href="{{ url_for('leaderboard_holdings', slug=fund.slug, quarter=selected, download='csv') }}">Download holdings CSV</a>
-        <a class="research-button research-accent" href="{{ url_for('fund_analysis', slug=fund.slug, quarter=selected) }}">Analyse this book</a>
+        <a class="research-button research-accent" href="{{ url_for('fund_analysis', slug=fund.slug, quarter=selected) }}">View portfolio analysis</a>
       </nav>
       {% endif %}
     </header>

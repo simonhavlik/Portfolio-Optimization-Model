@@ -26,8 +26,10 @@ PRICE_PERIOD = '10y'
 MIN_COVERAGE = .75
 MAX_FILING_AGE = pd.Timedelta(days=155)
 ARCHIVED_END = '2025-11-03'
-BOARDS = {'current': ('Latest five years', WINDOW_YEARS, None),
-          'long': ('Sixteen years', 16, None),
+DEFAULT_COHORT = '1y'
+RETURN_WINDOWS = {'1y': ('1 year', 1, None), '3y': ('3 years', 3, None),
+                  'current': ('5 years', WINDOW_YEARS, None)}
+BOARDS = {**RETURN_WINDOWS, 'long': ('Sixteen years', 16, None),
           'scion': ('Scion comparison · 2023–25', 2, ARCHIVED_END)}
 
 risk = RiskAnalytics()
@@ -111,23 +113,27 @@ def _weights_for(fund, book, mapping):
 def _series(fund: dict, books: list[dict], prices: dict, calendar: pd.DatetimeIndex,
             mapping: dict) -> tuple[pd.Series, pd.Series]:
     """Buy at the next close after publication, then hold until the next rebalance."""
+    schedule = [(book['filed'], _weights_for(fund, book, mapping)) for book in books]
+    return scheduled_returns(schedule, prices, calendar, after_close=True, max_age=MAX_FILING_AGE)
+
+
+def scheduled_returns(schedule, prices, calendar, *, after_close=False, max_age=None):
+    """Apply each dated allocation at the eligible market close and record price coverage."""
     returns = pd.Series(np.nan, index=calendar)
     coverage = pd.Series(np.nan, index=calendar)
-    for index, book in enumerate(books):
-        filed = pd.Timestamp(book['filed'])
-        rebalance = calendar.searchsorted(filed, side='right')
+    dates = [pd.Timestamp(day) for day, _ in schedule]
+    rebalances = calendar.searchsorted(dates, side='right' if after_close else 'left')
+    for index, (_, weights) in enumerate(schedule):
+        rebalance = rebalances[index]
         if rebalance >= len(calendar) - 1:
             break
-        cutoff = filed + MAX_FILING_AGE
-        stop = calendar.searchsorted(cutoff, side='right')
-        if index + 1 < len(books):
-            next_rebalance = calendar.searchsorted(pd.Timestamp(books[index + 1]['filed']), side='right')
-            stop = min(stop, next_rebalance + 1)
+        stop = len(calendar) if max_age is None else calendar.searchsorted(dates[index] + max_age, side='right')
+        if index + 1 < len(schedule):
+            stop = min(stop, rebalances[index + 1] + 1)
         if stop <= rebalance + 1:
             continue
 
         days = calendar[rebalance:stop]
-        weights = _weights_for(fund, book, mapping)
         usable = {t: w for t, w in weights.items()
                   if t in prices and pd.notna(prices[t].get(days[0]))}
         initial_coverage = sum(usable.values())
@@ -148,8 +154,8 @@ def _series(fund: dict, books: list[dict], prices: dict, calendar: pd.DatetimeIn
     return returns, coverage
 
 
-def _metrics(series: pd.Series, benchmark: pd.Series) -> dict:
-    m = risk.calculate_comprehensive_metrics(series, benchmark, risk_free_rate=RISK_FREE)
+def _metrics(series: pd.Series, benchmark: pd.Series, risk_free: float = RISK_FREE) -> dict:
+    m = risk.calculate_comprehensive_metrics(series, benchmark, risk_free_rate=risk_free)
     keys = ('annualized_return', 'total_return', 'volatility', 'sharpe_ratio', 'sortino_ratio',
             'calmar_ratio', 'max_drawdown', 'cvar_95', 'beta', 'alpha', 'information_ratio',
             'downside_volatility')
@@ -228,7 +234,9 @@ def _compile(cohort, archive, prices, mapping, pe_cache, stats, pricing=None):
         bench_log = bench_log.loc[:end]
     benchmark = np.expm1(bench_log)
     calendar = benchmark.index
-    window = benchmark.loc[calendar[-1] - pd.DateOffset(years=years):] if len(calendar) else benchmark
+    start = calendar[-1] - pd.DateOffset(years=years) if len(calendar) else None
+    window = benchmark.loc[start:] if start is not None else benchmark
+    full_window = start is not None and calendar[0] <= start and len(window) >= 21
     as_of = calendar[-1].date().isoformat() if len(calendar) else None
     # Keep the actual last session label in holidays and partial weeks.
     weekly_dates = window.groupby(window.index.to_period('W-FRI')).tail(1).index if len(window) else window.index
@@ -243,7 +251,7 @@ def _compile(cohort, archive, prices, mapping, pe_cache, stats, pricing=None):
         else:
             full, coverage = (series.reindex(calendar) for series in pricing[slug])
         series = full.reindex(window.index)
-        comparable = len(series) >= 252 and series.notna().all()
+        comparable = full_window and series.notna().all()
         metrics = _metrics(series, window) if comparable else {}
         if comparable:
             metrics['concentration'] = max((p['weight'] for p in positions), default=0)
@@ -269,7 +277,7 @@ def _compile(cohort, archive, prices, mapping, pe_cache, stats, pricing=None):
                      'simulation': _simulation(series) if comparable else None,
                      'size': sum(p['value'] for p in positions),
                      'disclosed_values': sorted(recent_values.items()),
-                     'pe': _format_pe(positions, pe_cache, as_of) if cohort == 'current' else {},
+                     'pe': _format_pe(positions, pe_cache, as_of) if cohort in RETURN_WINDOWS else {},
                      'curve': weekly.round(2).tolist() if weekly is not None else [],
                      'curve_dates': [d.date().isoformat() for d in weekly.index] if weekly is not None else [],
                      'latest_tops': {p['cusip']: p['weight'] for p in positions if p['weight'] >= .005},
@@ -296,8 +304,8 @@ def _saved_board(path: Path, revision: int) -> dict:
     return json.loads(path.read_bytes())
 
 
-def build_board(force: bool = False, cohort: str = 'current') -> dict:
-    """Normal visitor traffic only reads a snapshot. Refresh builds both cohorts."""
+def build_board(force: bool = False, cohort: str = 'current', *, windows=None) -> dict:
+    """Read saved rankings, or rebuild and persist the requested windows offline."""
     path = CACHE_DIR / BOARD_FILE
     if not force:
         from services.leaderboard_storage import BOARD_KEY, hydrate_snapshot, published_snapshot
@@ -326,15 +334,15 @@ def build_board(force: bool = False, cohort: str = 'current') -> dict:
     revision = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')
     calendar = prices[BENCHMARK].dropna().index
     pricing = {f['slug']: _series(f, archive[f['slug']], prices, calendar, mapping) for f in FUNDS}
-    payload = {}
-    for key in BOARDS:
+    payload = json.loads(path.read_bytes()) if windows and path.exists() else {}
+    from services.leaderboard_graphics import warm
+    for key in windows or BOARDS:
         board = _compile(key, archive, prices, mapping, pe_cache, stats, pricing=pricing)
         board.update(computed_at=stamp, revision=revision)
         priced = [row['pe']['weighted'] for row in board['rows'] if row['pe'].get('weighted')]
         board['pe_median'] = float(np.median(priced)) if priced else None
+        if key in {'current', 'long', 'scion'}:
+            warm(board)
         payload[key] = board
-    from services.leaderboard_graphics import warm
-    for board in payload.values():
-        warm(board)
     atomic_write(path, json.dumps(payload, allow_nan=False, separators=(',', ':')).encode())
     return payload[cohort]

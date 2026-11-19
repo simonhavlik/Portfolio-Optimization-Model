@@ -1,25 +1,32 @@
 <section class="research-section" id="portfolio-explorer" aria-labelledby="explorer-heading"
          data-explorer="{{ url_for('leaderboard_explorer_data') }}">
-  <div class="explorer-heading"><h2 id="explorer-heading">Portfolio history</h2>
-  <form class="research-quarter explorer-controls">
-    <label>Measure<select id="explore-measure">
-      <option value="value">Reported equity value</option><option value="top10">Top-ten concentration</option>
-      <option value="effective">Effective holdings</option><option value="weight_shift">Quarterly weight reshuffle</option>
-      <option value="new">New holdings</option><option value="exited">Exited holdings</option>
-      <option value="return">Calendar-year return</option>
-      <option value="risk:volatility">Calendar-year volatility</option>
-      <option value="risk:max_drawdown">Calendar-year max drawdown</option>
-      <option value="risk:sharpe_ratio">Calendar-year Sharpe ratio</option>
-      <option value="risk:alpha">Calendar-year alpha vs SPY</option>
-    </select></label>
-    <label>Manager<select id="explore-manager"><option value="">Select a manager</option></select></label>
-    <button type="submit" class="research-button">Add to chart</button>
-    <button type="button" class="research-button" id="explore-reset">Reset zoom</button>
-  </form></div>
-  <div class="explorer-series" id="explore-series" aria-label="Selected managers"></div>
-  <div class="explorer-canvas">
-    <canvas id="explore-canvas" tabindex="0" aria-label="Interactive chart. Use arrow keys to inspect periods. Drag to zoom."></canvas>
+  <div class="explorer-heading">
+    <h2 id="explorer-heading">Portfolio comparison</h2>
+    <form class="research-quarter explorer-controls" hidden>
+      <label>Measure<select id="explore-measure">
+        <option value="performance">Cumulative return</option>
+        <optgroup label="Filing history" id="explore-filings">
+          <option value="value">Reported equity value</option>
+          <option value="top10">Top-ten concentration</option>
+          <option value="effective">Effective holdings</option>
+          <option value="weight_shift">Quarterly weight reshuffle</option>
+          <option value="new">New holdings</option>
+          <option value="exited">Exited holdings</option>
+        </optgroup>
+        <optgroup label="Calendar-year risk and return">
+          <option value="return">Annual return</option>
+          <option value="risk:volatility">Annual volatility</option>
+          <option value="risk:max_drawdown">Annual max drawdown</option>
+          <option value="risk:sharpe_ratio">Annual Sharpe ratio</option>
+          <option value="risk:alpha">Annual alpha vs SPY</option>
+        </optgroup>
+      </select></label>
+      <label>Manager<select id="explore-manager" aria-label="Manager to add"><option value="">Select a manager</option></select></label>
+      <button type="submit" class="research-button">Add</button>
+      <button type="button" class="research-button" id="explore-reset">Reset zoom</button>
+    </form>
   </div>
-  <p id="explore-readout" aria-live="polite">Loading saved portfolio history.</p>
-  <p class="research-meta">Hover or use the arrow keys to compare values on the same date. Drag across the chart to zoom. Gaps indicate unavailable observations.</p>
+  <div id="explore-plot" role="region" aria-label="Interactive portfolio comparison"></div>
+  <p id="explore-readout" class="research-meta" role="status"></p>
+  <script id="explore-performance" type="application/json">{{ performance | tojson }}</script>
 </section>

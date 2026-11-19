@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% block analytics_assets %}{% endblock %}
+{% block body_class %}research-page{% endblock %}
+{% block title %}{{ fund.name if fund else timeline.name }} | Portfolio history{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='leaderboard/leaderboard.css', v='report-charts-1') }}">{% endblock %}
+{% macro percentage(value, sign=false) -%}
+{{ ('%+.1f%%' if sign else '%.1f%%') | format(value * 100) if value is not none else '—' }}
+{%- endmacro %}
+{% block content %}
+<article class="research fund-board">
+  <div class="research-inner">
+    <header class="research-masthead">
+      <div>
+        <h1>{{ fund.name if fund else timeline.name }}</h1>
+        <p class="research-deck">{{ 'Historical 13F portfolio report' if fund else 'Dated portfolio report' }}
+          {% if timeline and timeline.changes %} · {{ timeline.changes[0].date }} to {{ timeline.changes[-1].date }}{% endif %}</p>
+      </div>
+      <nav class="research-actions" aria-label="Report actions">
+      {% if fund %}
+        <a class="research-button" href="{{ url_for('leaderboard_view') }}">Leaderboard</a>
+        <a class="research-button" href="{{ url_for('leaderboard_holdings', slug=fund.slug) }}">Filing archive</a>
+        <form method="post" action="{{ url_for('update_fund_analysis', slug=fund.slug) }}">
+          <button class="research-button research-accent" type="submit">Update</button>
+        </form>
+      {% else %}
+        <a class="research-button" href="{{ url_for('reports_view') }}">Saved reports</a>
+      {% endif %}
+      </nav>
+    </header>
+    {% if refreshed %}<p class="research-meta" role="status">This report uses the latest published snapshot.</p>{% endif %}
+    {% if not timeline %}
+      <p class="research-deck">A saved report is unavailable for this manager. The filing archive is available.</p>
+    {% else %}
+    <dl class="research-summary" aria-label="Historical return and available coverage">
+      <div><dt>{{ 'Filing updates' if fund else 'Dated allocations' }}</dt><dd>{{ timeline.changes | length }}</dd></div>
+      <div><dt>Modeled sessions</dt><dd>{{ '{:,}'.format(timeline.modeled_days) }} / {{ '{:,}'.format(timeline.market_days) }}</dd></div>
+      <div><dt>Last calculated</dt><dd><time datetime="{{ computed_at.isoformat() }}">{{ computed_at.strftime('%Y-%m-%d') }}</time></dd></div>
+    </dl>
+
+    {% if timeline.chart.dates %}
+    <section class="research-section timeline-section" aria-labelledby="history-performance">
+      <div class="explorer-heading">
+        <h2 id="history-performance">Historical performance</h2>
+        <label class="research-quarter explorer-controls" for="timeline-metric" hidden>Measure
+          <select id="timeline-metric"><option value="values">Cumulative return</option><option value="drawdown">Drawdown</option></select>
+        </label>
+      </div>
+      <div class="timeline-plot" id="timeline-plot" role="region" aria-label="Interactive historical portfolio chart"></div>
+      <p>{{ timeline.benchmark }} uses the same trading dates as the modeled book. Returns restart after each pricing gap.</p>
+      <script id="timeline-data" type="application/json">{{ {'chart': timeline.chart, 'benchmark': timeline.benchmark} | tojson }}</script>
+    </section>
+    {% endif %}
+
+    <section class="research-section" aria-labelledby="history-risk">
+      <div class="research-section-head">
+        <div><h2 id="history-risk">Return and risk</h2>
+        {% if timeline.metrics %}<p>Longest continuously priced window · {{ timeline.metric_start }} to {{ timeline.metric_end }}</p>{% endif %}</div>
+      </div>
+      <div class="research-split">
+        <div>
+          {% if timeline.metrics %}
+          <table class="research-table research-keyvalue">
+            <tbody>
+              {% for key, label in [('annualized_return', 'Annualized return'), ('total_return', 'Cumulative return'), ('volatility', 'Annualized volatility'), ('max_drawdown', 'Max drawdown'), ('alpha', 'Alpha vs ' ~ timeline.benchmark), ('cvar_95', 'Expected shortfall (95%)')] %}
+              <tr><th scope="row">{{ label }}</th><td>{{ percentage(timeline.metrics.get(key)) }}</td></tr>
+              {% endfor %}
+              <tr><th scope="row">{{ timeline.benchmark }} cumulative return</th><td>{{ percentage(timeline.benchmark_return) }}</td></tr>
+              {% for key, label in [('sharpe_ratio', 'Sharpe ratio'), ('beta', 'Beta'), ('sortino_ratio', 'Sortino ratio')] %}
+              <tr><th scope="row">{{ label }}</th><td>{{ '%.2f' | format(timeline.metrics[key]) if timeline.metrics.get(key) is not none else '—' }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<p>The return and risk table needs 60 contiguous priced sessions. The dated allocations are below.</p>{% endif %}
+        </div>
+        <div>
+          <h3>Monte Carlo</h3>
+          {% if timeline.simulation %}
+          <p>{{ '{:,}'.format(timeline.simulation.paths) }} simulated paths of {{ timeline.simulation.horizon }} trading days, starting at $100. Each path samples 21-session blocks from the priced history.</p>
+          <table class="research-table research-keyvalue">
+            <tbody>
+              {% for key, label in [('low', '10th percentile'), ('median', 'Median'), ('high', '90th percentile')] %}
+              <tr><th scope="row">{{ label }}</th><td>{{ '$%.2f' | format(timeline.simulation[key]) }}</td></tr>
+              {% endfor %}
+              <tr><th scope="row">Paths below $100</th><td>{{ percentage(timeline.simulation.loss) }}</td></tr>
+            </tbody>
+          </table>
+          {% else %}<p>The simulation needs at least 21 contiguous priced sessions.</p>{% endif %}
+        </div>
+      </div>
+    </section>
+
+    <section class="research-section" aria-labelledby="history-changes">
+      <div class="research-section-head"><div><h2 id="history-changes">Portfolio changes</h2><p>Largest changes in weight between consecutive allocations.</p></div></div>
+      <div class="research-table-wrap ranking-scroll" tabindex="0" aria-label="Scrollable allocation history">
+        <table class="research-table">
+          <thead><tr>
+            <th scope="col">{{ 'Filed' if fund else 'Effective date' }}</th>{% if fund %}<th scope="col">Quarter</th>{% endif %}
+            <th scope="col" class="research-number">Holdings</th><th scope="col" class="research-number">Added</th>
+            <th scope="col" class="research-number">Exited</th><th scope="col" class="research-number">Weight shift</th>
+            <th scope="col">Largest changes</th>
+          </tr></thead>
+          <tbody>
+          {% for row in timeline.changes | reverse %}
+            <tr{% if highlighted is defined and highlighted == row.period %} class="timeline-highlight"{% endif %}>
+              <th scope="row">{{ row.date }}</th>
+              {% if fund %}<td><a class="research-link" href="{{ url_for('leaderboard_holdings', slug=fund.slug, quarter=row.period) }}">{{ row.period }}</a></td>{% endif %}
+              <td class="research-number">{{ row.count }}</td>
+              <td class="research-number">{{ row.added if row.added is not none else '—' }}</td>
+              <td class="research-number">{{ row.exited if row.exited is not none else '—' }}</td>
+              <td class="research-number">{{ percentage(row.shift) }}</td>
+              <td>{% for move in row.top %}<span class="timeline-move">{{ move.name }} {{ '%+.1f pp' | format(move.delta * 100) }}</span>{{ ' · ' if not loop.last }}{% else %}—{% endfor %}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <details class="research-method">
+      <summary>How the historical model works</summary>
+      <p>{{ 'Each filing takes effect at the close of the first trading day after publication. Models stop using a filing after 155 days. 13F filings cover reportable long holdings and exclude many exposures and actual trade dates.' if fund else 'Each allocation takes effect at the first market close on or after its effective date.' }} Weights drift until the next allocation. Trading days below {{ percentage(timeline.min_coverage) }} price coverage are left blank. Adjusted constituent returns account for dividends and splits.</p>
+      <p>The Sharpe ratio and alpha use a {{ percentage(timeline.risk_free) }} annual risk-free rate. Position weights can change because of market moves as well as trades.</p>
+    </details>
+    {% endif %}
+  </div>
+</article>
+{% endblock %}
+{% block extra_js %}
+{% if timeline and timeline.chart.dates %}
+<script defer src="https://cdn.plot.ly/plotly-basic-2.27.0.min.js"></script>
+<script defer src="{{ url_for('static', filename='report/chart-theme.js') }}"></script>
+<script defer src="{{ url_for('static', filename='report/portfolio-timeline.js') }}"></script>
+{% endif %}
+{% endblock %}

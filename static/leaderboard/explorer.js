@@ -1,239 +1,147 @@
 (() => {
-    const section = document.querySelector('[data-explorer]');
+    const section = document.getElementById('portfolio-explorer');
     if (!section) return;
 
-    const canvas = section.querySelector('canvas');
-    const context = canvas.getContext('2d');
+    const plot = section.querySelector('#explore-plot');
+    const form = section.querySelector('form');
     const measure = section.querySelector('#explore-measure');
     const manager = section.querySelector('#explore-manager');
-    const legend = section.querySelector('#explore-series');
-    const readout = section.querySelector('#explore-readout');
-    const palette = ['#dbc084', '#9db4cc', '#97b3a2', '#c9a6b2', '#b5accc', '#e1a98a', '#d3c9b5', '#8ebaaf'];
-    const percentages = new Set(['top10', 'weight_shift', 'return']);
-    const chosen = new Set();
-    let dataset;
-    let start = 0;
-    let end = 0;
-    let hovered = null;
-    let dragStart = null;
-    let bounds;
+    const status = section.querySelector('#explore-readout');
+    const performance = JSON.parse(section.querySelector('#explore-performance').textContent);
+    const selected = new Set(performance.selected);
+    const historySelection = new Set(['berkshire', 'citadel', 'bridgewater']);
+    const percentageMeasures = new Set(['top10', 'weight_shift', 'return',
+        'risk:volatility', 'risk:max_drawdown', 'risk:alpha']);
+    const config = {responsive: true, displayModeBar: false};
+    let history;
+    let loading;
+    let rendering = Promise.resolve();
 
-    const formatValue = (amount) => {
-        if (amount == null) return '—';
-        const metric = measure.value;
-        if (metric === 'value') {
-            return new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD',
-                notation: 'compact', maximumFractionDigits: 2}).format(amount);
-        }
-        if (metric.startsWith('sector:') || percentages.has(metric) || (metric.startsWith('risk:') && metric !== 'risk:sharpe_ratio')) {
-            return (100 * amount).toFixed(1) + '%';
-        }
-        return new Intl.NumberFormat('en-US', {maximumFractionDigits: 1}).format(amount);
-    };
-
-    const dates = () => (measure.value === 'return' || measure.value.startsWith('risk:'))
-        ? dataset.periods.filter(period => period.endsWith('12-31'))
-        : dataset.periods;
-
-    const point = (slug, date) => {
-        const metric = measure.value;
-        const entry = dataset.managers[slug];
-        if (metric === 'return') return entry.returns[date.slice(0, 4)];
-        if (metric.startsWith('risk:')) return entry.risk?.[date.slice(0, 4)]?.[metric.slice(5)];
-        const row = entry.history[date];
-        return metric.startsWith('sector:') ? row?.sectors[metric.slice(7)] : row?.[metric];
-    };
-
-    function inspect() {
-        const labels = dates();
-        if (hovered == null) {
-            readout.textContent = labels[start] + ' to ' + labels[end];
-            return;
-        }
-        const entries = Array.from(chosen, slug =>
-            dataset.managers[slug].name + ' ' + formatValue(point(slug, labels[hovered])));
-        readout.textContent = [labels[hovered], ...entries].join(' · ');
+    if (!window.Plotly) {
+        plot.hidden = true;
+        status.textContent = 'The comparison chart is unavailable. The rankings and filings are below.';
+        return;
     }
 
-    function draw() {
-        if (!dataset) return;
-        const pixelRatio = window.devicePixelRatio || 1;
-        const width = canvas.clientWidth;
-        const height = canvas.clientHeight;
-        canvas.width = width * pixelRatio;
-        canvas.height = height * pixelRatio;
-        context.scale(pixelRatio, pixelRatio);
-        context.font = '12px system-ui';
-        const left = 74;
-        const right = width - 18;
-        const top = 20;
-        const bottom = height - 34;
-        const labels = dates();
-        const selectedDates = labels.slice(start, end + 1);
-        const values = [...chosen].flatMap(slug => selectedDates.map(day => point(slug, day)))
-            .filter(Number.isFinite);
-        const minimum = Math.min(0, ...values);
-        const maximum = Math.max(...values, minimum + (values.length ? Number.EPSILON : 1));
-        const x = index => left + (right - left) * (index - start) / Math.max(1, end - start);
-        const y = value => bottom - (bottom - top) * (value - minimum) / (maximum - minimum);
-        bounds = {left, right};
-        for (let i = 0; i < 5; i += 1) {
-            const tick = minimum + i * (maximum - minimum) / 4;
-            const vertical = y(tick);
-            context.strokeStyle = '#272c32';
-            context.lineWidth = 1;
-            context.beginPath();
-            context.moveTo(left, vertical);
-            context.lineTo(right, vertical);
-            context.stroke();
-            context.textAlign = 'right';
-            context.fillStyle = '#a7a6a0';
-            context.fillText(formatValue(tick), left - 10, vertical + 4);
-        }
-        const labelCount = Math.min(end - start, Math.max(1, Math.floor((right - left) / 100)));
-        for (let i = 0; i <= labelCount; i += 1) {
-            const index = start + Math.round((end - start) * i / Math.max(1, labelCount));
-            context.textAlign = i === 0 ? 'left' : i === labelCount ? 'right' : 'center';
-            context.fillText(labels[index].slice(0, 7), x(index), bottom + 22);
-        }
-        [...chosen].forEach((slug, index) => {
-            context.strokeStyle = palette[index];
-            context.fillStyle = palette[index];
-            context.lineWidth = 2;
-            context.beginPath();
-            let connected = false;
-            selectedDates.forEach((day, offset) => {
-                const amount = point(slug, day);
-                if (!Number.isFinite(amount)) {
-                    connected = false;
-                    return;
-                }
-                const px = x(start + offset);
-                if (connected) context.lineTo(px, y(amount));
-                else context.moveTo(px, y(amount));
-                connected = true;
-            });
-            context.stroke();
-            if (measure.value === 'return' || measure.value.startsWith('risk:')) {
-                selectedDates.forEach((day, offset) => {
-                    const amount = point(slug, day);
-                    if (!Number.isFinite(amount)) return;
-                    context.beginPath();
-                    context.arc(x(start + offset), y(amount), 2.75, 0, Math.PI * 2);
-                    context.fill();
-                });
-            }
-        });
-        if (hovered != null) {
-            context.strokeStyle = '#e5edf3';
-            context.lineWidth = 1;
-            context.beginPath();
-            context.moveTo(x(hovered), top);
-            context.lineTo(x(hovered), bottom);
-            context.stroke();
-        }
-        if (dragStart != null && hovered != null) {
-            context.fillStyle = 'rgba(200, 161, 90, .16)';
-            context.fillRect(x(Math.min(dragStart, hovered)), top,
-                Math.abs(x(hovered) - x(dragStart)), bottom - top);
-        }
-        inspect();
+    function chart(dates, entries, metric) {
+        const dollars = metric === 'value';
+        const percent = metric === 'performance' || metric.startsWith('sector:') || percentageMeasures.has(metric);
+        const isAnnual = metric === 'return' || metric.startsWith('risk:');
+        const traces = entries.map(({name, values, benchmark}) => ({
+            type: 'scatter',
+            mode: isAnnual ? 'lines+markers' : 'lines',
+            name,
+            x: dates,
+            y: metric === 'performance' ? values.map(value => value / 100 - 1) : values,
+            line: benchmark ? {color: '#a9a49a', dash: 'dot', width: 1.75} : {width: 2},
+            marker: {size: 4},
+            connectgaps: false,
+            hovertemplate: '%{y:' + (dollars ? '$.3s' : percent ? '.2%' : ',.2~f') + '}',
+        }));
+        const layout = {
+            autosize: true,
+            margin: {t: 40, r: 22, b: 35, l: 62},
+            showlegend: true,
+            legend: {orientation: 'h', x: 0, y: 1.04, yanchor: 'bottom'},
+            hovermode: 'x unified',
+            xaxis: {type: 'date', hoverformat: isAnnual ? '%Y' : '%d %b %Y', automargin: true},
+            yaxis: {tickformat: dollars ? '$.3s' : percent ? '.0%' : ',.3~s', automargin: true},
+        };
+        // Serialize updates if users change controls while Plotly is laying out the chart.
+        rendering = rendering.catch(() => {}).then(() => Plotly.newPlot(plot, traces, layout, config));
+        return rendering;
     }
 
-    function reset() {
-        start = 0;
-        end = dates().length - 1;
-        hovered = null;
-        dragStart = null;
-        draw();
-    }
-
-    function updateLegend() {
-        const buttons = [...chosen].map((slug, index) => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'research-button';
-            button.style.setProperty('--series-color', palette[index]);
-            button.textContent = dataset.managers[slug].name + ' ×';
-            button.setAttribute('aria-label', 'Remove ' + dataset.managers[slug].name);
-            button.addEventListener('click', () => {
-                chosen.delete(slug);
-                updateLegend();
-            });
-            return button;
-        });
-        legend.replaceChildren(...buttons);
-        draw();
-    }
-
-    function dateIndex(event) {
-        const position = event.clientX - canvas.getBoundingClientRect().left;
-        const fraction = (position - bounds.left) / (bounds.right - bounds.left);
-        return Math.min(end, Math.max(start, start + Math.round((end - start) * fraction)));
-    }
-
-    canvas.addEventListener('pointerdown', event => {
-        if (!bounds || event.pointerType === 'touch') return;
-        dragStart = dateIndex(event);
-        canvas.setPointerCapture(event.pointerId);
-    });
-    canvas.addEventListener('pointermove', event => {
-        if (!bounds) return;
-        hovered = dateIndex(event);
-        draw();
-    });
-    canvas.addEventListener('pointerup', event => {
-        if (!bounds) return;
-        const stop = dateIndex(event);
-        if (dragStart != null && Math.abs(stop - dragStart) > 1) {
-            start = Math.min(stop, dragStart);
-            end = Math.max(stop, dragStart);
-        }
-        dragStart = null;
-        hovered = stop;
-        draw();
-    });
-    canvas.addEventListener('pointerleave', () => {
-        if (dragStart != null) return;
-        hovered = null;
-        draw();
-    });
-    canvas.addEventListener('keydown', event => {
-        if (!dataset || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-        event.preventDefault();
-        hovered = Math.max(start, Math.min(end, (hovered ?? start) + (event.key === 'ArrowRight' ? 1 : -1)));
-        draw();
-    });
-    section.querySelector('form').addEventListener('submit', event => {
-        event.preventDefault();
-        if (!dataset || !manager.value) return;
-        if (chosen.size >= palette.length && !chosen.has(manager.value)) {
-            readout.textContent = 'Remove a manager before adding another. The chart supports eight at a time.';
-            return;
-        }
-        chosen.add(manager.value);
-        updateLegend();
-    });
-    measure.addEventListener('change', reset);
-    section.querySelector('#explore-reset').addEventListener('click', () => { if (dataset) reset(); });
-    new ResizeObserver(draw).observe(canvas);
-
-    fetch(section.dataset.explorer)
-        .then(response => {
-            if (!response.ok) throw new Error('Portfolio history unavailable');
-            return response.json();
-        })
-        .then(data => {
-            dataset = data;
-            Object.entries(data.managers)
+    function listManagers(entries, selection) {
+        manager.replaceChildren(new Option('Select a manager', ''),
+            ...Object.entries(entries).filter(([slug]) => !selection.has(slug))
                 .sort(([, a], [, b]) => a.name.localeCompare(b.name))
-                .forEach(([slug, row]) => manager.add(new Option(row.name, slug)));
-            Object.entries(data.industries)
-                .forEach(([key, name]) => measure.add(new Option(name + ' exposure', 'sector:' + key)));
-            ['berkshire', 'citadel', 'bridgewater', 'renaissance'].filter(
-                slug => slug in data.managers).forEach(slug => chosen.add(slug));
-            reset();
-            updateLegend();
-        })
-        .catch(() => { readout.textContent = 'Saved portfolio history is temporarily unavailable.'; });
+                .map(([slug, row]) => new Option(row.name, slug)));
+    }
+
+    async function draw() {
+        const metric = measure.value;
+        if (metric === 'performance') {
+            listManagers(performance.curves, selected);
+            const entries = [...selected].map(slug => performance.curves[slug]);
+            if (performance.benchmark.length) entries.push({
+                name: 'SPY', values: performance.benchmark, benchmark: true,
+            });
+            status.textContent = selected.size
+                ? 'Weekly total returns from disclosed holdings. Click a legend entry to hide it. Drag to zoom.'
+                : 'SPY is shown. Choose a shorter return window to compare managers with continuous coverage.';
+            await chart(performance.dates, entries, metric);
+            return;
+        }
+
+        if (!history) {
+            status.textContent = 'Loading saved filing history…';
+            loading ??= fetch(section.dataset.explorer).then(response => {
+                if (!response.ok) throw new Error('History unavailable');
+                return response.json();
+            }).then(data => {
+                history = data;
+                const industries = document.createElement('optgroup');
+                industries.label = 'Sector exposure';
+                for (const [key, name] of Object.entries(data.industries)) {
+                    industries.append(new Option(name, 'sector:' + key));
+                }
+                measure.append(industries);
+            }).catch(error => {
+                loading = null;
+                throw error;
+            });
+            await loading;
+            if (metric !== measure.value) return;
+        }
+
+        listManagers(history.managers, historySelection);
+        const annual = metric === 'return' || metric.startsWith('risk:');
+        const dates = annual ? history.periods.filter(period => period.endsWith('12-31')) : history.periods;
+        const entries = [...historySelection].filter(slug => slug in history.managers).map(slug => {
+            const row = history.managers[slug];
+            const values = dates.map(date => {
+                if (metric === 'return') return row.returns[date.slice(0, 4)] ?? null;
+                if (annual) return row.risk?.[date.slice(0, 4)]?.[metric.slice(5)] ?? null;
+                const reading = row.history[date];
+                if (metric.startsWith('sector:')) return reading?.sectors?.[metric.slice(7)] ?? null;
+                return reading?.[metric] ?? null;
+            });
+            return {name: row.name, values};
+        });
+        status.textContent = 'Full archive. Gaps indicate periods without an observation.';
+        await chart(dates, entries, metric);
+    }
+
+    function render() {
+        draw().catch(() => { status.textContent = 'The selected chart is temporarily unavailable.'; });
+    }
+
+    form.addEventListener('submit', event => {
+        event.preventDefault();
+        if (!manager.value) return;
+        const selection = measure.value === 'performance' ? selected : historySelection;
+        if (selection.size >= 8) {
+            // Hidden traces can be removed simply by starting a fresh selection for this measure.
+            for (const slug of selection) {
+                const entries = measure.value === 'performance' ? performance.curves : history?.managers;
+                if (plot.data?.some(trace => trace.name === entries?.[slug]?.name && trace.visible === 'legendonly')) {
+                    selection.delete(slug);
+                }
+            }
+        }
+        if (selection.size >= 8) {
+            status.textContent = 'Hide a manager using the legend before adding another. Compare up to eight at once.';
+            return;
+        }
+        selection.add(manager.value);
+        render();
+    });
+    measure.addEventListener('change', render);
+    section.querySelector('#explore-reset').addEventListener('click', () => {
+        if (plot.data) Plotly.relayout(plot, {'xaxis.autorange': true, 'yaxis.autorange': true});
+    });
+    form.hidden = false;
+    if (!performance.selected.length) measure.value = 'value';
+    render();
 })();

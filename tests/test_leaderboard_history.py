@@ -159,3 +159,31 @@ def test_composite_keeps_exact_ranks_in_the_correct_direction():
     assert saved['a']['metric_ranks']['volatility'] == {'rank': 1, 'sample': 2}
     assert saved['a']['metric_ranks']['sharpe_ratio'] == {'rank': 2, 'sample': 2}
     assert 'metric_ranks' not in saved['c']
+
+
+def test_dated_allocations_apply_only_after_each_effective_close():
+    from math import log1p
+
+    from services.leaderboard import scheduled_returns
+
+    days = pd.bdate_range('2024-05-13', periods=6)
+    prices = {'A': pd.Series(log1p(.01), index=days), 'B': pd.Series(log1p(.03), index=days)}
+    schedule = [(days[0], {'A': 1.0}), (days[2], {'B': 1.0})]
+    returns, _ = scheduled_returns(schedule, prices, days)
+    assert pd.isna(returns.iloc[0])
+    assert returns.iloc[1:].tolist() == pytest.approx([.01, .01, .03, .03, .03])
+
+
+def test_dated_partial_updates_preserve_explicit_target_weights_and_exits():
+    from services.portfolio_history_import import allocation_csv, validate_snapshots
+
+    raw = """date,ticker,amount,basis,mode
+2020-06-30,AAPL,55,weight,change
+2020-06-30,GOOG,0,weight,change
+2020-03-31,AAPL,40,weight,snapshot
+2020-03-31,GOOG,30,weight,snapshot
+2020-03-31,MSFT,30,weight,snapshot
+"""
+    schedule = validate_snapshots(allocation_csv(raw))
+    assert schedule[0] == ('2020-03-31', {'AAPL': .4, 'GOOG': .3, 'MSFT': .3})
+    assert schedule[1] == ('2020-06-30', {'AAPL': .55, 'MSFT': .45})

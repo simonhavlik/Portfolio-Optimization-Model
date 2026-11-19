@@ -134,14 +134,6 @@
     .research-status { margin-top: 1.5rem; }
     .research-stats div { padding: .58rem .65rem; }
 }
-.research-plot { max-width: 820px; margin: .8rem auto 0; }
-.research-plot svg { display: block; height: auto; width: 100%; }
-.research-plot svg text { fill: var(--research-muted); font: 11px ui-monospace, monospace; }
-.research-gridline { stroke: var(--research-line); stroke-width: .8; }
-#growth-cursor { stroke: var(--research-text); stroke-width: 1; stroke-dasharray: 3 5; }
-#growth-readout, #growth-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem .9rem; font: .86rem ui-monospace, monospace; }
-#growth-controls { margin-top: .7rem; color: var(--research-muted); }
-#growth-range { width: min(100%, 32rem); accent-color: var(--research-gold); }
 .research-picker { flex-wrap: wrap; }
 .research .research-post-link { overflow-wrap: anywhere; margin: .65rem 0; }
 .research-post-link span { display: block; }
@@ -182,11 +174,7 @@
 
 .explorer-controls { align-items: end; }
 .explorer-controls label { min-width: min(14rem, 100%); }
-.explorer-series { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .75rem; }
-.explorer-series button { border-inline-start: 3px solid var(--series-color); }
-.explorer-canvas { width: 100%; height: clamp(275px, 42vw, 420px); margin-top: .5rem; border: 1px solid #31414e; background: #101923; }
-#explore-canvas { width: 100%; height: 100%; display: block; touch-action: pan-y; cursor: crosshair; }
-#explore-readout { min-height: 1.5em; font-variant-numeric: tabular-nums; }
+
 
 /* The leaderboard uses the same champagne controls and charcoal surfaces as the app shell. */
 .research-button {
@@ -223,10 +211,11 @@
 .explorer-controls { flex-wrap: wrap; margin-top: 0; gap: .4rem; }
 .explorer-controls label { min-width: min(11rem, 100%); }
 .explorer-controls select, .research-search input, .research-picker select { min-height: 32px; border-radius: 3px; padding: .29rem .52rem; font-size: .77rem; }
-.explorer-series { margin-top: .48rem; gap: .32rem; }
-.explorer-series button { min-height: 25px; padding: 3px 7px; font-size: .71rem; }
-.explorer-canvas { height: clamp(220px, 24vw, 300px); border-color: var(--line); background: var(--surface); }
-#explore-readout { margin-top: .35rem; font: .74rem 'JetBrains Mono', ui-monospace, monospace; }
+
+.explorer-controls[hidden] { display: none; }
+#explore-plot { height: clamp(280px, 27vw, 380px); margin-top: .45rem; border: 1px solid var(--line); background: var(--surface); }
+#explore-readout { margin-top: .32rem; min-height: 1.2em; }
+#manager-ranking td .research-meta { display: block; }
 #portfolio-explorer .research-meta { font-size: .72rem; margin-top: .28rem; }
 .ranking-scroll { max-height: min(48rem, 68vh); }
 .ranking-scroll thead { position: sticky; top: 0; z-index: 2; }
@@ -237,7 +226,12 @@
 @media (max-width: 690px) {
     .fund-board .research-summary { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem .75rem; }
     .explorer-controls { width: 100%; }
+    #explore-plot { height: 290px; }
     .explorer-controls label { flex: 1 1 9rem; }
-    .explorer-canvas { height: 220px; }
     #manager-ranking tbody th { min-width: 8rem; }
 }
+
+.timeline-plot { height: clamp(280px, 27vw, 380px); margin-top: .45rem; border: 1px solid var(--line); background: var(--surface); }
+.timeline-section .research-quarter { margin-top: 0; align-items: center; }
+.timeline-move { display: inline-block; white-space: nowrap; }
+.timeline-highlight { background: rgb(200 161 90 / .11); }

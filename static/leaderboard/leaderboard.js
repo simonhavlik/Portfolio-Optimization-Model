@@ -35,25 +35,6 @@ if (table && search) {
     }
 }
 
-const growthData = document.getElementById('growth-data');
-if (growthData) {
-    const data = JSON.parse(growthData.textContent);
-    const range = document.getElementById('growth-range');
-    const cursor = document.getElementById('growth-cursor');
-    const dateLabel = document.getElementById('growth-date');
-    const values = document.querySelectorAll('[data-growth-value]');
-    document.getElementById('growth-controls').hidden = false;
-    range.addEventListener('input', () => {
-        const i = Number(range.value);
-        const x = 50 + 646 * i / (data.dates.length - 1);
-        cursor.setAttribute('x1', x);
-        cursor.setAttribute('x2', x);
-        dateLabel.textContent = data.dates[i];
-        range.setAttribute('aria-valuetext', data.dates[i]);
-        values.forEach((element, n) => { element.textContent = '$' + data.values[n][i].toFixed(2); });
-    });
-}
-
 if (navigator.clipboard) {
     for (const button of document.querySelectorAll('[data-copy]')) {
         button.hidden = false;

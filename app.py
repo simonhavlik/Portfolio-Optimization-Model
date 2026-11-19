@@ -391,6 +391,8 @@ def example_charts():
 def analyse_custom():
     """Run the full report engine for user-supplied holdings."""
     data = request.get_json() or {}
+    if 'allocation_csv' in data:
+        return _analyse_dated_portfolio(data)
     holdings = data.get('holdings') or []
     clean = []
     for holding in holdings:
@@ -463,6 +465,99 @@ def analyse_custom():
     return jsonify({'success': True, 'report_url': f'/report/{token}', 'token': token})
 
 
+def _analyse_dated_portfolio(data):
+    from services.leaderboard import _read_prices
+    from services.portfolio_history_import import allocation_csv, validate_snapshots
+    from services.portfolio_timeline import allocation_changes, report
+
+    try:
+        source = data.get('allocation_csv')
+        if not isinstance(source, str) or len(source) > 100_000:
+            raise ValueError('Provide up to 100,000 characters of dated allocation rows.')
+        snapshots = allocation_csv(source)
+        schedule = validate_snapshots(snapshots)
+        risk_free = float(data.get('risk_free_rate', 0.045))
+        if not math.isfinite(risk_free) or not 0 <= risk_free <= 0.25:
+            raise ValueError('Use a risk-free rate between 0% and 25%.')
+        n_sims = min(max(int(data.get('n_simulations') or 5000), 200), 20000)
+        horizon = min(max(int(data.get('horizon_days') or 252), 21), 504)
+    except (TypeError, ValueError) as exc:
+        return jsonify({'error': str(exc)}), 400
+
+    from services.rate_limit import allow
+    if not allow(f"weekly:user:{session['user_id']}", 3, 604800):
+        return jsonify({'error': 'Weekly limit reached (3 analyses).'}), 429
+    benchmark = str(data.get('benchmark') or 'SPY').upper().strip()
+    if not benchmark.isalnum() or len(benchmark) > 8:
+        benchmark = 'SPY'
+
+    tickers = {benchmark, *(ticker for _, weights in schedule for ticker in weights)}
+    aliases = {ticker: market_data_service._normalize_ticker(ticker) for ticker in tickers}
+    saved = _read_prices(tickers | set(aliases.values()))
+    prices = {ticker: saved[ticker if ticker in saved else aliases[ticker]]
+              for ticker in tickers if ticker in saved or aliases[ticker] in saved}
+    start = pd.Timestamp(schedule[0][0])
+    latest = pd.Timestamp.today().normalize() - pd.Timedelta(days=7)
+    missing = [ticker for ticker in tickers if ticker not in prices or prices[ticker].empty
+               or prices[ticker].index[-1] < latest or prices[ticker].index[0] > start]
+    if missing:
+        fetched = market_data_service.fetch_batch_data(missing, period='max')
+        for ticker in missing:
+            quote = fetched.get(aliases[ticker])
+            if quote is not None:
+                returns = quote.returns.copy()
+                returns.index = pd.DatetimeIndex(returns.index).tz_localize(None).normalize()
+                prices[ticker] = returns.combine_first(prices[ticker]) if ticker in prices else returns
+
+    if benchmark not in prices or prices[benchmark].empty:
+        return jsonify({'error': f'Price history for {benchmark} is unavailable. Choose another benchmark.'}), 422
+
+    changes, previous = [], None
+    for day, weights in schedule:
+        positions = [{'id': ticker, 'name': ticker, 'weight': weight} for ticker, weight in weights.items()]
+        changes.append({'date': day, 'count': len(weights), **allocation_changes(previous, positions)})
+        previous = positions
+    name = str(data.get('name') or 'Your portfolio')[:120]
+    timeline = report(name, schedule, changes, prices, benchmark=benchmark,
+                      risk_free=risk_free, n_simulations=n_sims, horizon_days=horizon)
+    token = uuid4().hex
+    holdings = [{'ticker': ticker, 'weight': weight} for ticker, weight in schedule[-1][1].items()]
+    metrics = timeline['metrics']
+    db.session.add(AppCache(key=f'custom_analysis:{token}', computed_at=datetime.utcnow(),
+                            payload={'portfolio_timeline': timeline, 'snapshots': snapshots}))
+    db.session.add(SavedReport(user_id=session['user_id'], token=token, name=name, period='history',
+                               holdings=holdings, summary={**metrics, 'n_assets': len(holdings)}))
+    db.session.commit()
+    return jsonify({'success': True, 'report_url': url_for('custom_report', token=token), 'token': token})
+
+
+@app.route('/api/holdings-history', methods=['POST'])
+@login_required
+@rate_limit('holdings_history', 6, 3600)
+def extract_holdings_history():
+    from services.portfolio_history_import import extract_snapshots, validate_snapshots
+
+    try:
+        file = request.files.get('file')
+        if file:
+            if not file.filename.lower().endswith('.pdf'):
+                return jsonify({'error': 'Use a PDF statement or paste dated holdings.'}), 400
+            snapshots = extract_snapshots(pdf=file.read())
+        else:
+            text = (request.get_json(silent=True) or {}).get('text')
+            if not isinstance(text, str) or not text.strip():
+                return jsonify({'error': 'Paste dated holdings first.'}), 400
+            snapshots = extract_snapshots(text=text.strip())
+        if snapshots:
+            validate_snapshots(snapshots)
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 422
+    except Exception:
+        logger.exception('Dated holdings extraction failed')
+        return jsonify({'error': 'Could not read the dated holdings. Check the dates and amounts or paste the rows as CSV.'}), 422
+    return jsonify({'snapshots': snapshots})
+
+
 @app.route('/report/<token>')
 @page_login_required
 def custom_report(token):
@@ -470,6 +565,11 @@ def custom_report(token):
     if not row or not row.payload:
         abort(404)
     example_data = row.payload
+    if example_data.get('portfolio_timeline'):
+        if not SavedReport.query.filter_by(token=token, user_id=session['user_id']).first():
+            abort(404)
+        return render_template('portfolio_timeline.html', timeline=example_data['portfolio_timeline'],
+                               computed_at=row.computed_at, fund=None)
     valuation = None
     appendix = None
     cca = None
@@ -568,8 +668,8 @@ def vision_page():
 
 
 def _requested_board():
-    from services.leaderboard import BOARDS, build_board
-    cohort = request.args.get('period', 'current')
+    from services.leaderboard import BOARDS, DEFAULT_COHORT, build_board
+    cohort = request.args.get('period', DEFAULT_COHORT)
     if cohort not in BOARDS:
         abort(404)
     return build_board(cohort=cohort)
@@ -577,11 +677,10 @@ def _requested_board():
 
 @app.route('/leaderboard')
 def leaderboard_view():
-    from services.leaderboard import BOARDS
+    from services.leaderboard import RETURN_WINDOWS
     from services.leaderboard_charts import CHARTS
     from services.leaderboard_graphics import FEATURED
     from services.leaderboard_research import study_index
-    from services.leaderboard_interactive import comparison_plot
 
     board = _requested_board()
     studies = study_index()
@@ -598,11 +697,16 @@ def leaderboard_view():
         focus = next((row for row in board['rows'] if row['metrics']), None)
     peer_id = request.args.get('peer', '')
     peer = next((row for row in board['rows'] if row['slug'] == peer_id and row['metrics']), None)
-    plot = comparison_plot(board, focus, peer)
+    curves = {row['slug']: {'name': row['name'], 'values': row['curve']}
+              for row in board['rows'] if row.get('curve')}
+    benchmark = board.get('benchmark_curve', [])
+    selected = list(dict.fromkeys(slug for slug in [manager, peer_id, 'berkshire', *curves] if slug in curves))[:3]
+    performance = {'curves': curves, 'selected': selected, 'dates': [d for d, _ in benchmark],
+                   'benchmark': [v for _, v in benchmark]}
     response = app.make_response(render_template(
-        'leaderboard.html', board=board, cohorts=BOARDS, gallery=CHARTS, focus=focus,
+        'leaderboard.html', board=board, cohorts=RETURN_WINDOWS, gallery=CHARTS, focus=focus,
         featured=FEATURED, can_read_studio=_leaderboard_owner_session(),
-        studies=studies, study=study, requested_study=requested_study, plot=plot, peer=peer,
+        studies=studies, study=study, requested_study=requested_study, performance=performance, peer=peer,
     ))
     response.cache_control.private = True
     response.cache_control.no_store = True
@@ -868,67 +972,46 @@ def leaderboard_holdings(slug):
 
 @app.route('/leaderboard/<slug>')
 def fund_analysis(slug):
-    """Run the regular analysis pipeline on a single disclosed book."""
-    from services import fund_archive
-    from services.leaderboard import _fund_book, _read_prices, _weights
+    """Open the precomputed point-in-time report without running market analysis."""
     from services.leaderboard_funds import by_slug
+    from services.portfolio_timeline import FUND_REPORT_PREFIX
 
     fund = by_slug(slug)
     if not fund:
         abort(404)
-    period = request.args.get('quarter')
-    if period and period not in fund_archive.periods(slug):
-        abort(404)
-    book = _fund_book(fund, period)
-    if not book:
-        return redirect(f'/leaderboard/{slug}/holdings')
+    saved = db.session.get(AppCache, FUND_REPORT_PREFIX + slug)
+    return render_template('portfolio_timeline.html', timeline=saved.payload if saved else None,
+                           computed_at=saved.computed_at if saved else None, fund=fund,
+                           highlighted=request.args.get('quarter'),
+                           refreshed=request.args.get('updated') == '1')
 
-    from hashlib import sha256
-    # Price coverage and model inputs can change on a later publication.
+
+@app.route('/leaderboard/<slug>/update', methods=['POST'])
+@rate_limit('fund_timeline_update', 6, 3600)
+def update_fund_analysis(slug):
     from services.leaderboard import build_board
-    revision = build_board().get('revision', '')
-    inputs = [revision, *(f['accession'] for f in book['sources'])]
-    model_hash = sha256(' '.join(inputs).encode()).hexdigest()[:12]
-    key_suffix = f'{slug}-{book["period"]}-{model_hash}'
-    cache_key = f'fund_analysis:{key_suffix}'
-    row = db.session.get(AppCache, cache_key)
-    payload = row.payload if row and row.payload else None
-    if not payload:
-        weights = _weights(fund, book)
-        benchmarks = {'SPY', 'VT', 'QQQ', 'IWM', 'GLD'}
-        prices = _read_prices(set(weights) | benchmarks)
-        benchmark = prices.get('SPY')
-        if benchmark is None or benchmark.empty:
-            abort(503, description='The cached benchmark is unavailable.')
-        end = min(pd.Timestamp(book['period']), pd.Timestamp(benchmark.index[-1]))
-        start = end - pd.DateOffset(years=5)
-        markets = {}
-        holdings = []
-        for ticker, weight in sorted(weights.items(), key=lambda item: -item[1])[:30]:
-            if ticker not in prices:
-                continue
-            observations = prices[ticker].loc[start:end]
-            if len(observations) >= 250 and observations.index[-1] >= end - pd.Timedelta(days=7):
-                holdings.append({'ticker': ticker, 'weight': weight})
-                markets[ticker] = observations
-        if len(holdings) < 2:
-            abort(422, description='This disclosure has too little cached price history for a full portfolio report.')
-        for ticker in sorted(benchmarks):
-            if ticker in prices:
-                markets[ticker] = prices[ticker].loc[start:end]
-        coverage = sum(h['weight'] for h in holdings)
-        analysis = example_portfolio_service.compute_custom(
-            holdings, period='5y', name=fund['name'], benchmark='SPY',
-            description=f'{book["period"]} snapshot · {coverage:.0%} of disclosed equity value priced',
-            n_simulations=1000, market_snapshot=markets)
-        payload = _finite_json(serialize_for_template(analysis))
-        if not payload.get('metrics'):
-            abort(422, description='This disclosure has too little overlapping price history.')
-        db.session.merge(AppCache(key=cache_key, payload=payload, computed_at=datetime.utcnow()))
-        db.session.commit()
+    from services.leaderboard_funds import by_slug
+    from services.portfolio_timeline import FUND_REPORT_PREFIX, fund_report
+    from sqlalchemy import text
 
-    return render_template('index.html', example_data=payload, valuation=None, appendix=None,
-                           cca=None, report_id=f'fund-{key_suffix}', show_analysis=True)
+    fund = by_slug(slug)
+    if not fund:
+        abort(404)
+    key = FUND_REPORT_PREFIX + slug
+    saved = db.session.get(AppCache, key)
+    revision = build_board().get('revision')
+    if saved and revision == saved.payload.get('revision'):
+        return redirect(url_for('fund_analysis', slug=slug, updated='1'), code=303)
+    if db.engine.dialect.name == 'postgresql':
+        locked = db.session.scalar(text("SELECT pg_try_advisory_xact_lock(hashtext('fund_timeline_update'))"))
+        if not locked:
+            return redirect(url_for('fund_analysis', slug=slug), code=303)
+    payload = fund_report(fund)
+    if not payload:
+        return redirect(url_for('fund_analysis', slug=slug), code=303)
+    db.session.merge(AppCache(key=key, payload={**payload, 'revision': revision}, computed_at=datetime.utcnow()))
+    db.session.commit()
+    return redirect(url_for('fund_analysis', slug=slug, updated='1'), code=303)
 
 
 def _refresh_authorized() -> bool:

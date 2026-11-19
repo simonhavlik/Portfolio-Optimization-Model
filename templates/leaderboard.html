@@ -3,11 +3,19 @@
 {% block body_class %}research-page{% endblock %}
 {% block title %}Fund leaderboard | Portfolio Optimizer{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='leaderboard/leaderboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='leaderboard/leaderboard.css', v='report-charts-1') }}">
 {% endblock %}
 
 {% macro percent(value, signed=false) -%}
 {{ ('%+.1f%%' if signed else '%.1f%%') | format(value * 100) if value is not none else '—' }}
+{%- endmacro %}
+
+{% macro compact_value(value) -%}
+{%- if value >= 1e9 -%}{{ '$%.2fB' | format(value / 1e9) }}
+{%- elif value >= 1e6 -%}{{ '$%.1fM' | format(value / 1e6) }}
+{%- elif value -%}{{ '${:,.0f}'.format(value) }}
+{%- else -%}—
+{%- endif -%}
 {%- endmacro %}
 
 {% macro figure(key, label, hero=false) %}
@@ -70,17 +78,17 @@
     </header>
 
     <div class="research-status">
-      <nav class="research-tabs" aria-label="Comparison period">
+      <nav class="research-tabs" aria-label="Return window">
         {% for key, details in cohorts.items() %}
           <a href="{{ url_for('leaderboard_view', period=key) }}" {% if key == board.cohort %}aria-current="page"{% endif %}>{{ details[0] }}</a>
         {% endfor %}
       </nav>
-      <p>{{ board.start or 'Awaiting price data' }}{% if board.as_of %} – {{ board.as_of }} <span>·</span> USD <span>·</span> SPY benchmark{% endif %}</p>
+      <p>{% if board.cohort not in cohorts %}Archived study <span>·</span> {% endif %}{{ board.start or 'Awaiting price data' }}{% if board.as_of %} – {{ board.as_of }} <span>·</span> USD <span>·</span> SPY benchmark{% endif %}</p>
     </div>
 
     <dl class="research-summary" aria-label="Archive coverage">
       <div><dt>Managers</dt><dd>{{ board.rows | length }}</dd></div>
-      <div><dt>Rated in this window</dt><dd>{{ ranked | length }}</dd></div>
+      <div><dt>Ranked in window</dt><dd>{{ ranked | length }}</dd></div>
       <div><dt>Quarterly disclosures</dt><dd>{{ '{:,}'.format(quarters) }}</dd></div>
       <div><dt>Earliest filing</dt><dd>{{ (board.rows | selectattr('archive') | map(attribute='archive.first') | min) if quarters else '—' }}</dd></div>
     </dl>
@@ -103,15 +111,15 @@
         <table class="research-table" id="manager-ranking">
           <thead>
             <tr>
-              <th scope="col">Rank</th><th scope="col">Manager / filing history</th>
+              <th scope="col">Rank</th><th scope="col">Manager</th>
               {% for key, label in [('annualized_return', 'Annual return'), ('volatility', 'Volatility'), ('score', 'Score'),
                                      ('sharpe_ratio', 'Sharpe'), ('max_drawdown', 'Drawdown'),
-                                     ('beta', 'Beta'), ('pe', 'Trailing P/E'), ('coverage', 'Min. coverage')] %}
+                                     ('beta', 'Beta'), ('pe', 'Trailing P/E'), ('observations', 'Priced sessions')] %}
               <th scope="col" class="research-number" data-sort="{{ key }}" {% if key == 'score' %}aria-sort="descending"{% endif %}>
                 <span>{{ label }}</span>
               </th>
               {% endfor %}
-              <th scope="col">Report</th>
+              <th scope="col" class="research-number" data-sort="size">Disclosed equity</th><th scope="col">Report</th>
             </tr>
           </thead>
           <tbody>
@@ -131,8 +139,9 @@
                 <td class="research-number" data-value="{{ m.get('max_drawdown', '') }}">{{ percent(m.get('max_drawdown')) }}</td>
                 <td class="research-number" data-value="{{ m.get('beta', '') }}">{{ '%.2f' | format(m.beta) if m.beta is defined else '—' }}</td>
                 <td class="research-number" data-value="{{ row.pe.get('weighted') or '' }}" {% if row.pe.get('weighted') %}title="{{ percent(row.pe.coverage) }} positive P/E coverage · {{ row.pe.at }}"{% endif %}>{{ '%.1f×' | format(row.pe.weighted) if row.pe.get('weighted') else '—' }}</td>
-                <td class="research-number" data-value="{{ row.coverage if row.coverage is not none else '' }}">{{ percent(row.coverage) }}</td>
-                <td>{% if row.archive %}<a class="research-link" href="{{ url_for('fund_analysis', slug=row.slug, quarter=row.period or row.archive.last) }}">Analyse book</a>{% else %}—{% endif %}</td>
+                <td class="research-number" data-value="{{ row.observations }}">{{ row.observations }} / {{ board.observations }}</td>
+                <td class="research-number" data-value="{{ row.size }}" {% if row.period %}title="Filing period {{ row.period }} · {{ row.holdings }} holdings"{% endif %}>{{ compact_value(row.size) }}{% if row.period %}<span class="research-meta">{{ row.period }}</span>{% endif %}</td>
+                <td>{% if row.archive %}<a class="research-link" href="{{ url_for('fund_analysis', slug=row.slug) }}">View analysis</a>{% else %}—{% endif %}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -194,37 +203,6 @@
       </div>
       {% endif %}
     </section>
-
-    {% if plot %}
-    <details class="research-method research-lineplot" {% if request.args.get('manager') %}open{% endif %}>
-      <summary>Explore growth of $100</summary>
-      <div class="research-plot">
-        <svg viewBox="0 0 716 210" width="716" height="210" role="img" aria-label="Weekly value of a hypothetical $100 from {{ board.start }} to {{ board.as_of }}">
-          {% for amount, y in plot.ticks %}
-            <text x="43" y="{{ y + 3 }}" text-anchor="end">${{ amount }}</text>
-            <line x1="50" x2="696" y1="{{ y }}" y2="{{ y }}" class="research-gridline"></line>
-          {% endfor %}
-          {% for x, year in plot.years %}
-            <text x="{{ x }}" y="192" text-anchor="middle">{{ year }}</text>
-            <line x1="{{ x }}" x2="{{ x }}" y1="15" y2="175" class="research-gridline"></line>
-          {% endfor %}
-          {% for trace in plot.traces %}
-            <polyline fill="none" stroke="{{ trace.color }}" stroke-width="2" points="{{ trace.points }}"><title>{{ trace.label }}</title></polyline>
-          {% endfor %}
-          <line id="growth-cursor" x1="{{ plot.cursor }}" x2="{{ plot.cursor }}" y1="15" y2="175"></line>
-        </svg>
-        <div id="growth-readout" aria-live="polite">
-          <time id="growth-date">{{ plot.dates[-1] }}</time>
-          {% for trace in plot.traces %}<span style="color: {{ trace.color }}">{{ trace.label }} <b data-growth-value>${{ '%.2f' | format(trace['values'][-1]) }}</b></span>{% endfor %}
-        </div>
-        <div id="growth-controls" hidden>
-          <label for="growth-range">Trading week</label>
-          <input id="growth-range" type="range" min="0" max="{{ plot.dates | length - 1 }}" step="1" value="{{ plot.dates | length - 1 }}">
-        </div>
-        <script id="growth-data" type="application/json">{{ {'dates': plot.dates, 'values': plot.traces | map(attribute='values') | list} | tojson }}</script>
-      </div>
-    </details>
-    {% endif %}
 
     <details class="research-method research-archive" id="filing-index">
       <summary>Filing archives for all {{ board.rows | length }} managers</summary>
@@ -298,4 +276,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<script defer src="{{ url_for('static', filename='leaderboard/explorer.js') }}"></script><script src="{{ url_for('static', filename='leaderboard/leaderboard.js') }}" defer></script>{% endblock %}
+<script defer src="https://cdn.plot.ly/plotly-basic-2.27.0.min.js"></script>
+<script defer src="{{ url_for('static', filename='report/chart-theme.js') }}"></script>
+<script defer src="{{ url_for('static', filename='leaderboard/explorer.js', v='report-charts-1') }}"></script>
+<script defer src="{{ url_for('static', filename='leaderboard/leaderboard.js', v='report-charts-1') }}"></script>
+{% endblock %}

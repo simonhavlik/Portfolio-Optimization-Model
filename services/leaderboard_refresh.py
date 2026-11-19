@@ -51,6 +51,7 @@ def refresh_all(batch_size: int = 20, pause_seconds: float = 1.2, max_rounds: in
     from services.leaderboard_storage import publish
     from services.leaderboard_market import refresh_mapping
     from services.market_data import market_data_service
+    from services.portfolio_timeline import publish_fund_reports
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     with LOCK_FILE.open('ab') as lock:
@@ -100,9 +101,10 @@ def refresh_all(batch_size: int = 20, pause_seconds: float = 1.2, max_rounds: in
                 if data is not None and len(data.returns):
                     prices[BENCHMARK] = data.returns
                     atomic_write(PRICES_FILE, pickle.dumps(prices))
-            build_board(force=True)
+            board = build_board(force=True)
             rebuild()
             publish(board_path=CACHE_DIR / BOARD_FILE, studies_path=MANIFEST, prices=prices)
+            publish_fund_reports(prices=prices, revision=board['revision'])
             return _save_state(running=False, last_run=now.isoformat(), last_build=now.isoformat(),
                                fetched_total=state().get('fetched_total', 0) + fetched, remaining=remaining,
                                last_error=f'{errors} price series unavailable' if errors else None)
