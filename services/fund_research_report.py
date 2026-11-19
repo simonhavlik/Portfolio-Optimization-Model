@@ -106,7 +106,9 @@ def render_report(fig, data, style):
 
     _heading(fig,.525,.499,'Portfolio exposure and valuation')
     historical = style.get('history', {}).get(slug, {})
-    quarter = max((date for date in historical if date <= board['as_of']), default=None)
+    quarter = row.get('period')
+    if quarter not in historical:
+        quarter = max((date for date in historical if date <= board['as_of']), default=None)
     profile = historical.get(quarter,{})
     industries = style.get('industries',{})
     leaders = sorted(profile.get('sectors',{}).items(),key=lambda item:-item[1])[:4]

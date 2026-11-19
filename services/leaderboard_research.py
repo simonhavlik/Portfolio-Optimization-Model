@@ -192,7 +192,7 @@ def _short(slug):
         "gates-trust": "Gates Trust",
         "davis": "Davis",
         "de-shaw": "D. E. Shaw",
-        "horizon-kinetics": "Horizon Kinetics",
+        "horizon-kinetics": "Horizon",
         "akre": "Akre",
         "southeastern": "Southeastern",
         "valley-forge": "Valley Forge",
@@ -345,6 +345,8 @@ def _ledger(canvas, data, columns):
                 fontfamily="DejaVu Sans Mono",
             )
             text = note["ticker"] or note["issuer"]
+            if not single and len(text) > 10:
+                text = text[:9] + '…'
             if len(text) > 13:
                 text = text[:12] + "…"
             if not single:
