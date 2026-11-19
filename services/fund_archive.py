@@ -200,7 +200,8 @@ def quarter_snapshot(filings, period, previous, prior_positions):
     sources = [
         {key: doc[key] for key in ("accession", "filed", "url", "form", "mode", "format")}
         | {"adjusted_units": any("reported_value" in p for p in doc["positions"]),
-           "reconciliation": doc.get("reconciliation")}
+           "reconciliation": doc.get("reconciliation"),
+           "attributed_sequence": doc.get("attributed_sequence")}
         for doc in filings
     ]
     payload = {

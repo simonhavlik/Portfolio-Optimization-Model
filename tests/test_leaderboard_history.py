@@ -187,3 +187,20 @@ def test_dated_partial_updates_preserve_explicit_target_weights_and_exits():
     schedule = validate_snapshots(allocation_csv(raw))
     assert schedule[0] == ('2020-03-31', {'AAPL': .4, 'GOOG': .3, 'MSFT': .3})
     assert schedule[1] == ('2020-06-30', {'AAPL': .55, 'MSFT': .45})
+
+
+def test_parent_filing_includes_only_the_sec_attributed_manager_rows():
+    cover = b"""<otherManager2>
+      <sequenceNumber>1</sequenceNumber><otherManager><cik>0001336528</cik></otherManager>
+    </otherManager2>"""
+    table = b"""<informationTable>
+      <infoTable><nameOfIssuer>Test</nameOfIssuer><cusip>025816109</cusip>
+      <value>200</value><otherManager>1, 2</otherManager></infoTable>
+      <infoTable><nameOfIssuer>Different manager</nameOfIssuer><cusip>594918104</cusip>
+      <value>125</value><otherManager>11</otherManager></infoTable></informationTable>"""
+    meta = {'filed': '2026-08-14', 'period': '2026-06-30', 'form': '13F-HR'}
+    doc = parse_filing(cover + table, meta, manager_cik='0001336528')
+    assert doc['source_value'] == 325
+    assert doc['attributed_sequence'] == '1'
+    assert [p['cusip'] for p in doc['positions']] == ['025816109']
+    assert parse_filing(cover + table, meta, manager_cik='0002026053') is None

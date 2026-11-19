@@ -45,6 +45,7 @@ FUNDS = [
         'manager': 'Bill Ackman',
         'kind': '13f',
         'cik': '0001336528',
+        'reporting_parent': {'cik': '0002026053', 'first_period': '2026-06-30'},
         'style': 'Concentrated activist',
         'seat': 'New York, US',
         'since': 2004,

@@ -144,7 +144,7 @@ def _legacy_rows(text: str) -> list[dict]:
     return rows
 
 
-def parse_filing(raw: bytes, filing: dict) -> dict:
+def parse_filing(raw: bytes, filing: dict, manager_cik: str | None = None) -> dict | None:
     text = raw.decode('utf-8', errors='replace')
     header = re.search(r'CONFORMED PERIOD OF REPORT:\s*(\d{8})', text)
     period = filing.get('period')
@@ -233,20 +233,42 @@ def parse_filing(raw: bytes, filing: dict) -> dict:
         doc['reconciliation'] = reconciliation
     if empty_filing:
         doc['no_disclosed_positions'] = True
+    if manager_cik:
+        # The SEC cover page maps the manager number in each information-table row to its CIK.
+        sequence = None
+        for manager in re.findall(r'<(?:[\w.-]+:)?otherManager2\b[^>]*>(.*?)</(?:[\w.-]+:)?otherManager2>', text, re.S):
+            cik = re.search(r'<(?:[\w.-]+:)?cik>\s*(\d+)\s*</', manager)
+            number = re.search(r'<(?:[\w.-]+:)?sequenceNumber>\s*(\d+)\s*</', manager)
+            if cik and number and int(cik[1]) == int(manager_cik):
+                sequence = number[1]
+                break
+        attributed = [position for line, position in zip(lines, positions)
+                      if sequence in (line.get('otherManager') or '').replace(' ', '').split(',')]
+        if not attributed:
+            return None
+        doc.update(positions=attributed, attributed_manager=manager_cik, attributed_sequence=sequence,
+                   source_position_count=len(positions), source_value=sum(p['value'] for p in positions))
     return normalize_filing(doc) if doc.get('accession') else doc
 
 
 def download_history(funds: list[dict], retry_failures: bool = False, since=None, limit=None) -> None:
     """Cache each SEC filing independently so interrupted imports can resume."""
     for fund in funds:
-        cik = fund['cik']
-        url = f'https://data.sec.gov/submissions/CIK{cik}.json'
-        payload = json.loads(edgar_13f._sec_get(url))
-        filings = edgar_13f._submission_arrays(payload, strict=True)
+        parent = fund.get('reporting_parent')
+        sources = [(fund['cik'], None)]
+        if parent:
+            sources.append((parent['cik'], parent['first_period']))
+        filings = []
+        for cik, first_period in sources:
+            url = f'https://data.sec.gov/submissions/CIK{cik}.json'
+            payload = json.loads(edgar_13f._sec_get(url))
+            filings.extend((filing, cik, fund['cik'] if first_period else None)
+                           for filing in edgar_13f._submission_arrays(payload, strict=True)
+                           if not first_period or filing['period'] >= first_period)
         counts = defaultdict(int)
-        ordered = sorted((f for f in filings if not since or f['filed'] >= since),
-                         key=lambda f: f['filed'], reverse=True)
-        for filing in ordered[:limit]:
+        ordered = sorted((entry for entry in filings if not since or entry[0]['filed'] >= since),
+                         key=lambda entry: entry[0]['filed'], reverse=True)
+        for filing, cik, attributed_manager in ordered[:limit]:
             accession = filing['accession']
             target = ARCHIVE / fund['slug'] / f'{accession}.json'
             failed = target.with_suffix('.error')
@@ -256,7 +278,8 @@ def download_history(funds: list[dict], retry_failures: bool = False, since=None
             document_url = (f'https://www.sec.gov/Archives/edgar/data/{int(cik)}/'
                             f"{accession.replace('-', '')}/{accession}.txt")
             try:
-                book = parse_filing(edgar_13f._sec_get(document_url), {**filing, 'url': document_url})
+                book = parse_filing(edgar_13f._sec_get(document_url), {**filing, 'url': document_url},
+                                    manager_cik=attributed_manager)
             except (ValueError, TypeError, SyntaxError) as exc:
                 atomic_write(failed, str(exc).encode())
                 counts['unparsed'] += 1
@@ -264,6 +287,9 @@ def download_history(funds: list[dict], retry_failures: bool = False, since=None
             except OSError as exc:
                 print(f'{fund["slug"]} {accession}: {exc}', flush=True)
                 counts['request failures'] += 1
+                continue
+            if book is None:
+                counts['not attributed'] += 1
                 continue
             atomic_write(target, json.dumps(book, separators=(',', ':')).encode())
             failed.unlink(missing_ok=True)
