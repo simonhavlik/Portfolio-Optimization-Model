@@ -62,6 +62,7 @@
       </div>
       <nav class="research-actions" aria-label="Leaderboard actions">
         {% if can_read_studio %}<a class="research-button" href="{{ url_for('leaderboard_studio') }}">LinkedIn studio</a>{% endif %}
+        <a class="research-button research-accent" href="{{ url_for('leaderboard_styles') }}">16-year sector &amp; holdings analysis</a>
         <a class="research-button" href="{{ url_for('leaderboard_csv', period=board.cohort) }}">Download CSV</a>
         <a class="research-button research-accent" href="#manager-focus">Compare managers</a>
       </nav>

@@ -27,6 +27,7 @@ MIN_COVERAGE = .75
 MAX_FILING_AGE = pd.Timedelta(days=155)
 ARCHIVED_END = '2025-11-03'
 BOARDS = {'current': ('Latest five years', WINDOW_YEARS, None),
+          'long': ('Sixteen years', 16, None),
           'scion': ('Scion comparison · 2023–25', 2, ARCHIVED_END)}
 
 risk = RiskAnalytics()
@@ -233,7 +234,7 @@ def _compile(cohort, archive, prices, mapping, pe_cache, stats):
         archive_stats = stats.get(slug, {})
         recent_values = {}
         if as_of:
-            first_year = str(int(as_of[:4]) - 10)
+            first_year = str(int(as_of[:4]) - max(10, years))
             for book in books:
                 if book['period'] >= first_year and book['filed'] <= as_of:
                     recent_values[book['period']] = sum(p['value'] for p in book['positions']

@@ -137,7 +137,9 @@ def publish(*, board_path, studies_path, prices, drafts=None):
         db.session.commit()
     _cache(BOARD_KEY, boards)
     _cache(STUDIES_KEY, studies)
-    for filename, key in [('cusip_map.json', CUSIP_KEY), ('pe_ratios.json', VALUATION_KEY)]:
+    for filename, key in [('cusip_map.json', CUSIP_KEY), ('pe_ratios.json', VALUATION_KEY),
+                          ('holdings_style.json', 'leaderboard:holdings_style'),
+                          ('issuer_industries.json', 'leaderboard:issuer_industries')]:
         path = board_path.parent / filename
         if path.is_file():
             _cache(key, json.loads(path.read_bytes()))

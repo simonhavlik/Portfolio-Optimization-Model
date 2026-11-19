@@ -51,63 +51,6 @@ class Study:
 STUDIES = (
     Study("berkshire", "Inside Buffett’s public equity book", "current", "filings", ("berkshire",)),
     Study("scion", "Inside Michael Burry’s long book", "scion", "filings", ("scion",)),
-    Study("burry-buffett", "Burry vs. Buffett", "scion", "risk", ("berkshire", "scion", "duquesne")),
-    Study(
-        "efficiency",
-        "Was the extra risk worth it?",
-        "current",
-        "efficiency",
-        ("berkshire", "duquesne", "himalaya", "valley-forge"),
-    ),
-    Study(
-        "crises",
-        "What happened in the selloff?",
-        "scion",
-        "crises",
-        ("berkshire", "scion", "duquesne", "pershing", "valueact"),
-    ),
-    Study(
-        "shared-stocks",
-        "NVIDIA, Visa and Mastercard",
-        "scion",
-        "securities",
-        ("berkshire", "scion", "duquesne", "valley-forge", "citadel", "renaissance"),
-    ),
-    Study(
-        "activists",
-        "The quarter-to-quarter activist book",
-        "scion",
-        "changes",
-        ("pershing", "valueact", "elliott"),
-    ),
-    Study(
-        "turnover",
-        "Counting changes across disclosures",
-        "scion",
-        "changes",
-        ("third-point", "baupost", "greenlight", "abrams", "appaloosa"),
-    ),
-    Study(
-        "simulation",
-        "The range behind a $100 investment",
-        "scion",
-        "simulation",
-        ("berkshire", "scion", "duquesne"),
-    ),
-    Study(
-        "concentration",
-        "How much can one holding decide?",
-        "current",
-        "concentration",
-        ("himalaya", "valley-forge", "abrams", "berkshire", "soros", "tiger-global", "lone-pine"),
-    ),
-    Study(
-        "coverage",
-        "What the biggest 13Fs leave visible",
-        "current",
-        "coverage",
-        ("bridgewater", "citadel", "point72", "renaissance", "berkshire", "fairfax", "markel"),
-    ),
 )
 
 
@@ -347,7 +290,7 @@ def _ledger(canvas, data, columns):
     rows = (len(notes) + columns - 1) // columns
     cell_height = (first_y - last_y) / rows
     width = 1 / columns
-    colors = {s: ACCENTS[i] for i, s in enumerate(data["study"].funds)}
+    colors = {s: ACCENTS[i % len(ACCENTS)] for i, s in enumerate(data["study"].funds)}
     for col in range(columns):
         x = col * width
         layout = (
@@ -472,8 +415,12 @@ def _plot_notes(fig, data):
     box = ax.get_position()
     reserve = 0.145
     ax.set_position([box.x0, box.y0, box.width, box.height - reserve])
+    for companion in fig.axes:
+        if companion.get_label() == '<colorbar>':
+            bounds = companion.get_position()
+            companion.set_position([bounds.x0, box.y0, bounds.width, box.height - reserve])
     # The short timeline stays in historical time even for a simulated or cross-sectional plot.
-    temporal = data["study"].chart not in {"crises", "simulation", "securities", "coverage"}
+    temporal = data["study"].chart not in {"crises", "simulation", "securities", "coverage", "universe"}
     if temporal:
         first, last = pd.Timestamp(data["board"]["start"]), pd.Timestamp(data["board"]["as_of"])
     else:
@@ -1108,29 +1055,54 @@ def rebuild():
     mapping = _mapping()
     for ticker, series in market.items():
         market[ticker] = series.tz_localize(None) if series.index.tz is not None else series
-    keys = {study.cohort for study in STUDIES}
+    from services.holdings_style_figures import TOPICS, main_chart, report
+    from services.holdings_style import load
+
+    styles = load()
+    classifications = CACHE_DIR / 'issuer_industries.json'
+    sector_ids = json.loads(classifications.read_bytes()) if classifications.is_file() else {}
+    for cusip, row in sector_ids.items():
+        row['key'] = f"cik:{row['cik']}" if row.get('cik') and row.get('sic') not in {'6722', '6726'} else cusip
+    crowd = {p['key']: p['count'] for p in styles.get('crowded', [])}
+    group = tuple(styles.get('universe', []))
+    studies = (*STUDIES, *(Study(key, title, 'long', 'universe', group)
+                          for key, (title, _) in TOPICS.items() if group))
+    keys = {study.cohort for study in studies}
     boards = {key: build_board(cohort=key) for key in keys}
     index = {}
     revision = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
-    for study in STUDIES:
+    for study in studies:
         board = boards[study.cohort]
         if not board.get("revision"):
             continue
-        data = _study_data(study, board, books, market, mapping)
-        if study.chart == "securities":
-            stocks = [("NVIDIA", "NVDA"), ("Visa", "V"), ("Mastercard", "MA")]
-            data["security_attribution"] = {}
+        if study.chart == 'universe':
+            candidates = []
+            preferred_keys = {row['key'] for row in styles['crowded'][:22]}
             for slug in study.funds:
-                stats = []
-                for cusip, (_, symbol) in zip(SECURITIES, stocks):
-                    weight = data["latest"][slug].get(cusip, 0)
-                    model = data["series"][slug].iloc[-252:]
-                    coefficient = float("nan")
-                    if weight and symbol in market and model.notna().sum() >= 200:
-                        coefficient = model.corr(np.expm1(market[symbol]))
-                    tag = f" / {coefficient:+.2f}" if np.isfinite(coefficient) else ""
-                    stats.append(f"{weight:.1%}{tag}")
-                data["security_attribution"][slug] = stats
+                filings = [f for f in books[slug] if f['period'] <= styles['as_of']][-8:]
+                for previous, filing in zip(filings, filings[1:]):
+                    before = fund_archive.aggregate(previous, equity_only=True)
+                    after = fund_archive.aggregate(filing, equity_only=True)
+                    changes = [r for r in fund_archive.changes(after, before) if r['shares_change']]
+                    if study.key == 'entry-exit':
+                        changes = [r for r in changes if r['action'] in {'New','Exited'}]
+                    elif study.key == 'concentration':
+                        changes = [r for r in changes if r['weight'] >= .05 or r['weight']-r['weight_change'] >= .05]
+                    elif study.key in {'crowding','shared-stocks','sector-history','sector-gaps'}:
+                        if study.key == 'crowding':
+                            preferred = [r for r in changes if sector_ids.get(r['cusip'], {}).get('key') in preferred_keys]
+                        elif study.key == 'shared-stocks':
+                            preferred = [r for r in changes if 3 <= crowd.get(sector_ids.get(r['cusip'], {}).get('key'), 0)]
+                        elif study.key == 'sector-history':
+                            preferred = [r for r in changes if sector_ids.get(r['cusip'], {}).get('sector') == 'BusEq']
+                        else:
+                            preferred = [r for r in changes if r['cusip'] not in sector_ids]
+                        if preferred:
+                            changes = preferred
+                    candidates.extend(_disclosed_moves(study, slug, filing, changes, mapping))
+            data = {'study': study, 'board': board, 'notes': _select_notes(study, candidates)}
+        else:
+            data = _study_data(study, board, books, market, mapping)
         count = len(data["notes"])
         if count < 15:
             raise ValueError(f"{study.key} has only {count} dated portfolio changes")
@@ -1142,20 +1114,19 @@ def rebuild():
         main, ledger = sheet.subfigures(2, 1, height_ratios=[chart_height, ledger_height], hspace=0)
         main.set_facecolor(PAGE)
         ledger.set_facecolor(PAGE)
-        fig = _page(data, canvas=main)
-        if study.chart == "filings":
-            _disclosure_chart(fig, data)
-        elif study.chart in {"securities", "coverage"}:
-            _matrix_chart(fig, data)
-        elif study.chart == "crises":
-            _crisis_chart(fig, data)
+        if study.chart == 'universe':
+            main_chart(main, study, styles)
         else:
-            _time_chart(fig, data)
+            _disclosure_chart(_page(data, canvas=main), data)
         label_count = _plot_notes(main, data)
         _ledger(ledger, data, columns)
         _export(sheet, revision, study.key, "chart")
-        fig = _page(data, report=True)
-        _report(fig, data)
+        if study.chart == 'universe':
+            fig = plt.figure(figsize=(5.35, 6.65), dpi=400, facecolor=PAGE)
+            report(fig, study, styles)
+        else:
+            fig = _page(data, report=True)
+            _report(fig, data)
         _export(fig, revision, study.key, "report")
         index[study.key] = {
             "title": study.title,

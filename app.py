@@ -608,6 +608,51 @@ def leaderboard_view():
     return response
 
 
+@app.route('/leaderboard/styles')
+def leaderboard_styles():
+    from services.holdings_style import load, pair_detail
+    from services.leaderboard_funds import by_slug
+
+    data = load()
+    if not data:
+        abort(503)
+    end = request.args.get('quarter', data['as_of'])
+    if end not in data['periods']:
+        abort(404)
+    universe = data['universe']
+    first = request.args.get('first')
+    second = request.args.get('second')
+    detail = None
+    if first or second:
+        if first not in universe or second not in universe or first == second:
+            abort(404)
+        detail = pair_detail(end, first, second)
+    managers = {slug: by_slug(slug)['name'] for slug in universe}
+    sector = request.args.get('industry', 'BusEq')
+    if sector not in data['industries']:
+        abort(404)
+    if detail and request.args.get('format') == 'csv':
+        import csv
+        from io import StringIO
+
+        output = StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['issuer', 'industry', first, second, 'shared_weight'])
+        for row in detail['positions']:
+            writer.writerow([row['issuer'], row['sector'], row['a'], row['b'], row['overlap']])
+        response = app.response_class(output.getvalue(), mimetype='text/csv')
+        response.headers['Content-Disposition'] = 'attachment; filename="shared-holdings.csv"'
+        return response
+    pairs = sorted(data['pairs'], key=lambda pair: -pair['overlap'])
+    observed = [slug for slug in universe if end in data['history'][slug]]
+    annual = [quarter for quarter in data['periods'] if quarter.endswith('-12-31')]
+    if data['as_of'] not in annual:
+        annual.append(data['as_of'])
+    return render_template('leaderboard_styles.html', data=data, end=end, managers=managers, pairs=pairs,
+                           detail=detail, first=first, second=second, sector=sector,
+                           annual=annual, observed=observed)
+
+
 @app.route('/leaderboard/studio')
 def leaderboard_studio():
     if not _leaderboard_admin_ok():

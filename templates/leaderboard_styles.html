@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Investment styles and sector exposures | Portfolio Optimizer{% endblock %}
+{% block analytics_assets %}{% endblock %}
+{% block body_class %}research-page{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='leaderboard/leaderboard.css') }}">{% endblock %}
+{% macro pct(x) %}{{ '%.1f%%' | format(x * 100) if x is not none else '—' }}{% endmacro %}
+{% block content %}
+<section class="research fund-board"><div class="research-inner">
+  <header class="research-masthead"><div>
+    <p class="research-eyebrow">SEC Form 13F research</p><h1>Sector allocation and investment styles</h1>
+    <p class="research-deck">{{ managers | length }} largest disclosed books in the tracked universe · {{ data.start }} to {{ data.as_of }}</p>
+  </div><a class="research-button" href="{{ url_for('leaderboard_view') }}">Fund rankings</a></header>
+
+  <form class="research-quarter research-picker" method="get">
+    <div><label for="quarter">Reported quarter</label><select id="quarter" name="quarter">{% for q in data.periods | reverse %}<option {% if q == end %}selected{% endif %}>{{ q }}</option>{% endfor %}</select></div>
+    <div><label for="industry">Industry history</label><select id="industry" name="industry">{% for group, label in data.industries.items() %}<option value="{{group}}" {% if group == sector %}selected{% endif %}>{{label}}</option>{% endfor %}</select></div>
+    <button class="research-button" type="submit">View allocations</button>
+  </form>
+  <section class="research-section">
+    <h2>Industry weights by manager · {{ end }}</h2>
+    <div class="research-table-wrap" tabindex="0" role="region" aria-label="Industry weights">
+      <table class="research-table"><thead><tr><th scope="col">Manager</th>{% for label in data.industries.values() %}<th scope="col">{{ label }}</th>{% endfor %}<th scope="col">Top 10</th><th scope="col">Effective positions</th></tr></thead>
+      <tbody>{% for slug in observed %}{% set m=data.history[slug][end] %}
+      <tr><th scope="row"><a class="research-link" href="{{ url_for('leaderboard_holdings',slug=slug,quarter=end) }}">{{managers[slug]}}</a></th>
+      {% for group in data.industries %}{% set x=m.sectors[group] %}<td class="research-number" style="background:rgba(66, 192, 189, {{ '%.3f'|format(x * 0.6) }})">{{pct(x)}}</td>{% endfor %}
+      <td class="research-number">{{pct(m.top10)}}</td><td class="research-number">{{m.effective}}</td></tr>{% endfor %}</tbody></table>
+    </div>
+  </section>
+  <section class="research-section">
+    <h2>{{ data.industries[sector] }} · 16-year history</h2>
+    <div class="research-table-wrap" tabindex="0" role="region" aria-label="Annual industry exposure by manager">
+      <table class="research-table"><thead><tr><th scope="col">Manager</th>{% for q in annual %}<th scope="col">{{ q[:4] }}</th>{% endfor %}</tr></thead>
+      <tbody>{% for slug, manager in managers.items() %}
+      <tr><th scope="row">{{manager}}</th>{% for q in annual %}{% set m=data.history[slug].get(q) %}{% set x=m.sectors[sector] if m else none %}<td class="research-number" {% if x is not none %}style="background:rgba(66, 192, 189, {{ '%.3f'|format(x * 0.6) }})"{% endif %}>{{pct(x)}}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+    </div>
+  </section>
+  <section class="research-section" id="shared">
+    <h2>Shared holdings and portfolio behavior</h2>
+    <p>Shared weight sums the smaller allocation in each matched holding. Industry match uses the same calculation across classified industries. Return correlation uses common priced sessions with at least 252 observations.</p>
+    <form class="research-quarter research-picker" action="{{ url_for('leaderboard_styles') }}#shared" method="get">
+      <input type="hidden" name="quarter" value="{{end}}"><input type="hidden" name="industry" value="{{sector}}">
+      {% for name, selection in [('first',first),('second',second)] %}
+      <div><label for="{{name}}">{{ 'First manager' if name == 'first' else 'Second manager' }}</label>
+      <select id="{{name}}" name="{{name}}" required><option value="">Select</option>{% for slug, manager in managers.items() %}<option value="{{slug}}" {% if selection == slug %}selected{% endif %}>{{manager}}</option>{% endfor %}</select></div>{% endfor %}
+      <button class="research-button" type="submit">Compare holdings</button>
+    </form>
+    {% if detail %}
+    <p>{{ managers[first] }} and {{ managers[second] }} share {{ detail.shared }} holdings, accounting for {{ pct(detail.overlap) }} overlap on {{ end }}.
+    <a class="research-link" href="{{ url_for('leaderboard_styles',quarter=end,first=first,second=second,format='csv') }}">Download all shared holdings</a></p>
+    <div class="research-table-wrap"><table class="research-table"><thead><tr><th scope="col">Issuer</th><th scope="col">Industry</th><th scope="col">{{managers[first]}}</th><th scope="col">{{managers[second]}}</th></tr></thead>
+    <tbody>{% for row in detail.positions[:50] %}<tr><th scope="row">{{row.issuer}}</th><td>{{data.industries[row.sector]}}</td><td class="research-number">{{pct(row.a)}}</td><td class="research-number">{{pct(row.b)}}</td></tr>{% endfor %}</tbody></table></div>
+    {% elif first %}<p>A comparable filing is unavailable for at least one manager in this quarter.</p>{% endif %}
+    <details class="research-method" {% if not first %}open{% endif %}><summary>{{ pairs | length }} manager pairs · {{ data.as_of }}</summary>
+    <div class="research-table-wrap"><table class="research-table">
+      <thead><tr><th scope="col">Pair</th><th scope="col">Shared positions</th><th scope="col">Shared weight</th><th scope="col">Industry match</th><th scope="col">Return correlation</th><th scope="col">Common days</th></tr></thead>
+      <tbody>{% for row in pairs %}<tr><th scope="row"><a class="research-link" href="{{ url_for('leaderboard_styles', quarter=data.as_of, first=row.left, second=row.right) }}#shared">{{managers[row.left]}} / {{managers[row.right]}}</a></th><td class="research-number">{{row.shared}}</td><td class="research-number">{{pct(row.overlap)}}</td><td class="research-number">{{pct(row.sectors)}}</td><td class="research-number">{{'%.2f'|format(row.correlation) if row.correlation is not none else '—'}}</td><td class="research-number">{{row.priced_days}}</td></tr>{% endfor %}</tbody>
+    </table></div></details>
+  </section>
+  {% if data.annual_returns %}
+  <section class="research-section">
+    <h2>Calendar-year returns on the priced long books</h2>
+    <p>Shown for complete calendar years with continuous price coverage at the 75% minimum. Returns compound from the published positions and exclude fees, shorts and unreported assets.</p>
+    {% set years = data.annual_returns.SPY.keys() | list | sort %}
+    <div class="research-table-wrap" tabindex="0" role="region" aria-label="Annual portfolio returns">
+      <table class="research-table"><thead><tr><th scope="col">Manager</th>{% for year in years %}<th scope="col">{{year}}</th>{% endfor %}</tr></thead>
+      <tbody>{% for slug in ['SPY'] + data.universe %}<tr><th scope="row">{{ managers.get(slug,slug) }}</th>
+      {% for year in years %}<td class="research-number">{{ pct(data.annual_returns[slug].get(year)) }}</td>{% endfor %}</tr>{% endfor %}</tbody></table>
+    </div>
+  </section>
+  {% endif %}
+  <p class="research-deck">Industry groups use the latest SEC SIC codes and the Fama–French 12-industry map. Historical allocations use the shares and values reported in each quarter. Unresolved issuers remain unclassified. The cohort is selected by reported equity value in {{ data.as_of }}.</p>
+</div></section>
+{% endblock %}
