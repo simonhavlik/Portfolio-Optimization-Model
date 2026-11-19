@@ -35,7 +35,7 @@ from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
 from functools import wraps
 
-from flask import Flask, render_template, request, jsonify, abort, session, redirect, send_file
+from flask import Flask, render_template, request, jsonify, abort, session, redirect, send_file, url_for
 from flask_cors import CORS
 from flask_login import LoginManager, current_user, login_required, login_user
 from werkzeug.utils import secure_filename
