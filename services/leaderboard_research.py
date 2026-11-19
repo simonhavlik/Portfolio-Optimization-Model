@@ -69,20 +69,22 @@ def asset_path(revision: str, key: str, panel: str, extension: str):
     return DIRECTORY / f"{revision}-{key}-{panel}.{extension}"
 
 
-def _source_books():
+def _source_books(*, include_quarters=False):
+    """Load effective books and, optionally, every reported quarter from each accession."""
     from flask import has_app_context
 
-    if has_app_context():
-        return {fund["slug"]: fund_archive.timeline(fund_archive.documents(fund["slug"])) for fund in FUNDS}
-    return {
-        fund["slug"]: fund_archive.timeline(
-            [
-                normalize_filing(json.loads(file.read_bytes()))
-                for file in (ARCHIVE / fund["slug"]).glob("??????????-??-??????.json")
-            ]
-        )
-        for fund in FUNDS
-    }
+    timelines, reported = {}, {}
+    for fund in FUNDS:
+        slug = fund['slug']
+        if has_app_context():
+            docs = fund_archive.documents(slug)
+        else:
+            docs = [normalize_filing(json.loads(path.read_bytes()))
+                    for path in (ARCHIVE / slug).glob('??????????-??-??????.json')]
+        timelines[slug] = fund_archive.timeline(docs)
+        if include_quarters:
+            reported[slug] = fund_archive.quarter_books(docs)
+    return (timelines, reported) if include_quarters else timelines
 
 
 def _study_data(study, board, books, market, mapping):
@@ -241,9 +243,9 @@ def _select_notes(study, candidates):
         selected = []
         for i in range(21):
             selected.extend(group[i] for group in groups if len(group) > i)
-            if len(selected) >= 21:
+            if len(selected) >= max(21, len(study.funds)):
                 break
-        selected = selected[:21]
+        selected = selected[:max(21, len(study.funds))]
     return sorted(selected, key=lambda r: (r["filed"], r["fund"], -abs(r["delta"]), r["cusip"]))
 
 
@@ -726,7 +728,7 @@ def _export(fig, revision, key, panel):
     atomic_write(asset_path(revision, key, panel, "webp"), preview.getvalue())
 
 
-def rebuild():
+def rebuild(only=None):
     """Prepare all share images offline from saved prices and original filings."""
     books = _source_books()
     market = _read_prices()
@@ -743,7 +745,7 @@ def rebuild():
     for cusip, row in sector_ids.items():
         row['key'] = f"cik:{row['cik']}" if row.get('cik') and row.get('sic') not in {'6722', '6726'} else cusip
     crowd = {p['key']: p['count'] for p in styles.get('crowded', [])}
-    group = tuple(styles.get('universe', [])[:20])
+    group = tuple(styles.get('universe', []))
     style_visual_data = {**styles, 'universe': group,
                          'pairs': [pair for pair in styles.get('pairs', [])
                                    if pair['left'] in group and pair['right'] in group]}
@@ -751,9 +753,11 @@ def rebuild():
                           for key, (title, _) in TOPICS.items() if group))
     keys = {study.cohort for study in studies}
     boards = {key: build_board(cohort=key) for key in keys}
-    index = {}
+    index = study_index() if only else {}
     revision = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
     for study in studies:
+        if only and study.key not in only:
+            continue
         board = boards[study.cohort]
         if not board.get("revision"):
             continue
@@ -793,7 +797,7 @@ def rebuild():
         columns = 4 if count > 63 else 3 if count > 33 else 2
         lines = (count + columns - 1) // columns
         ledger_height = 0.88 + lines * 0.146
-        chart_height = 5.04
+        chart_height = 7.1 if study.chart == 'universe' and len(study.funds) > 25 else 5.04
         sheet = plt.figure(figsize=(12.8, chart_height + ledger_height), dpi=300, facecolor=PAGE)
         main, ledger = sheet.subfigures(2, 1, height_ratios=[chart_height, ledger_height], hspace=0)
         main.set_facecolor(PAGE)

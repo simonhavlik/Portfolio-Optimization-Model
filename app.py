@@ -646,14 +646,23 @@ def leaderboard_styles():
     if end not in data['periods']:
         abort(404)
     universe = data['universe']
+    tracked = data.get('tracked', universe)
     first = request.args.get('first')
     second = request.args.get('second')
-    detail = None
+    detail, common_quarters, common_risk = None, [], []
     if first or second:
-        if first not in universe or second not in universe or first == second:
+        if first not in tracked or second not in tracked or first == second:
             abort(404)
-        detail = pair_detail(end, first, second)
-    managers = {slug: by_slug(slug)['name'] for slug in universe}
+        history = data['history']
+        common_quarters = sorted(history[first].keys() & history[second].keys(), reverse=True)
+        if 'quarter' not in request.args and common_quarters:
+            end = common_quarters[0]
+        if end in common_quarters:
+            detail = pair_detail(end, first, second)
+        risks = data.get('annual_risk', {})
+        left, right = risks.get(first, {}), risks.get(second, {})
+        common_risk = [(year, left[year], right[year]) for year in sorted(left.keys() & right.keys())]
+    managers = {slug: by_slug(slug)['name'] for slug in tracked}
     sector = request.args.get('industry', 'BusEq')
     if sector not in data['industries']:
         abort(404)
@@ -670,13 +679,13 @@ def leaderboard_styles():
         response.headers['Content-Disposition'] = 'attachment; filename="shared-holdings.csv"'
         return response
     pairs = sorted(data['pairs'], key=lambda pair: -pair['overlap'])
-    observed = [slug for slug in universe if end in data['history'][slug]]
+    observed = [slug for slug in tracked if end in data['history'][slug]]
     annual = [quarter for quarter in data['periods'] if quarter.endswith('-12-31')]
     if data['as_of'] not in annual:
         annual.append(data['as_of'])
     return render_template('leaderboard_styles.html', data=data, end=end, managers=managers, pairs=pairs,
                            detail=detail, first=first, second=second, sector=sector,
-                           annual=annual, observed=observed)
+                           annual=annual, observed=observed, common_quarters=common_quarters, common_risk=common_risk)
 
 
 @app.route('/leaderboard/studio/verify', methods=['GET', 'POST'])

@@ -179,13 +179,33 @@ def _score(rows: list[dict]) -> None:
         if len(scores) < 2:
             continue
         ranked = (scores.rank(method='average') - 1) * 100 / (len(scores) - 1)
+        positions = scores.rank(method='min', ascending=False)
         for row in eligible:
-            if row['slug'] in ranked:
-                row.setdefault('percentiles', {})[key] = round(float(ranked[row['slug']]), 1)
+            slug = row['slug']
+            if slug in ranked:
+                row.setdefault('percentiles', {})[key] = round(float(ranked[slug]), 1)
+                row.setdefault('metric_ranks', {})[key] = {'rank': int(positions[slug]), 'sample': len(scores)}
     for row in rows:
         values = list(row.get('percentiles', {}).values())
         row['score'] = round(sum(values) / len(values), 1) if values else None
     rows.sort(key=lambda r: (r['score'] is None, -(r['score'] or 0), r['name']))
+
+
+def matched_risk_ranks(first, second, slug):
+    """Compare ranks on identical manager membership in both time windows."""
+    samples = [{row['slug']: row['metrics'] for row in board['rows'] if row['metrics']}
+               for board in (first, second)]
+    common = samples[0].keys() & samples[1].keys()
+    if slug not in common:
+        return None
+    result = []
+    for metrics in samples:
+        focus = metrics[slug]
+        result.append({
+            'volatility': 1 + sum(metrics[peer]['volatility'] < focus['volatility'] for peer in common),
+            'sharpe': 1 + sum(metrics[peer]['sharpe_ratio'] > focus['sharpe_ratio'] for peer in common),
+        })
+    return len(common), result
 
 
 def _format_pe(positions: list[dict], pe_cache: dict, as_of: str | None) -> dict:
@@ -201,7 +221,7 @@ def _format_pe(positions: list[dict], pe_cache: dict, as_of: str | None) -> dict
     return result
 
 
-def _compile(cohort, archive, prices, mapping, pe_cache, stats):
+def _compile(cohort, archive, prices, mapping, pe_cache, stats, pricing=None):
     title, years, end = BOARDS[cohort]
     bench_log = prices.get(BENCHMARK, pd.Series(dtype=float)).dropna()
     if end:
@@ -218,7 +238,10 @@ def _compile(cohort, archive, prices, mapping, pe_cache, stats):
         books = archive[slug]
         latest = next((book for book in reversed(books) if not as_of or book['filed'] <= as_of), None)
         positions = _book_positions(fund, latest, mapping)
-        full, coverage = _series(fund, books, prices, calendar, mapping)
+        if pricing is None:
+            full, coverage = _series(fund, books, prices, calendar, mapping)
+        else:
+            full, coverage = (series.reindex(calendar) for series in pricing[slug])
         series = full.reindex(window.index)
         comparable = len(series) >= 252 and series.notna().all()
         metrics = _metrics(series, window) if comparable else {}
@@ -301,9 +324,11 @@ def build_board(force: bool = False, cohort: str = 'current') -> dict:
     pe_cache = valuation._load()
     stamp = datetime.now(timezone.utc).isoformat()
     revision = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')
+    calendar = prices[BENCHMARK].dropna().index
+    pricing = {f['slug']: _series(f, archive[f['slug']], prices, calendar, mapping) for f in FUNDS}
     payload = {}
     for key in BOARDS:
-        board = _compile(key, archive, prices, mapping, pe_cache, stats)
+        board = _compile(key, archive, prices, mapping, pe_cache, stats, pricing=pricing)
         board.update(computed_at=stamp, revision=revision)
         priced = [row['pe']['weighted'] for row in board['rows'] if row['pe'].get('weighted')]
         board['pe_median'] = float(np.median(priced)) if priced else None

@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from services.leaderboard import _metrics, _simulation
+from services.leaderboard import _metrics, build_board, matched_risk_ranks
 from services.leaderboard_funds import CRISIS_WINDOWS
 from services.leaderboard_research import (
     ACCENTS, PAGE, PAPER, SOFT, _axis, _drawdown, _metric, _paths, _rule, _short, _table,
@@ -45,6 +45,19 @@ def render_report(fig, data, style):
     named.extend((name, _metrics(returns, spy)) for name, returns in benchmarks)
     named.extend((_short(r['slug']), r['metrics']) for r in peers)
 
+    ranks = data['rows'][slug].get('metric_ranks', {})
+    if 'volatility' in ranks and 'sharpe_ratio' in ranks:
+        vol, sharpe = ranks['volatility'], ranks['sharpe_ratio']
+        text = (f"Volatility {vol['rank']}/{vol['sample']} (lowest first) · "
+                f"Sharpe {sharpe['rank']}/{sharpe['sample']} (highest first)")
+        fig.text(.982, .985, text, ha='right', va='top', color=SOFT, fontsize=8.4)
+    if slug == 'berkshire':
+        matched = matched_risk_ranks(board, build_board(cohort='scion'), slug)
+        if matched:
+            count, (five, two) = matched
+            line = (f"Same {count} managers · Sharpe rank {five['sharpe']} (5y) / {two['sharpe']} (2023–25) "
+                    f"· Volatility rank {five['volatility']} / {two['volatility']}")
+            fig.text(.982, .916, line, ha='right', color=SOFT, fontsize=8)
     _heading(fig, .018, .902, 'Performance, downside and benchmark-relative efficiency')
     measure = [
         ('Cumulative return','total_return','+.1%'),

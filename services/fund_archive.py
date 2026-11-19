@@ -110,6 +110,14 @@ def timeline(filings: list[dict]) -> list[dict]:
     return list(effective.values())
 
 
+def quarter_books(filings: list[dict]) -> dict[str, dict]:
+    """Latest usable disclosure for each quarter, including late amendments."""
+    books = {}
+    for filing in sorted(filings, key=lambda f: (f['filed'], f['mode'] != 'original', f['accession'])):
+        _update(books, filing)
+    return books
+
+
 def quarter_book(filings: list[dict], period: str) -> dict | None:
     books = {}
     for filing in sorted(filings, key=lambda f: (f["filed"], f["mode"] != "original", f["accession"])):
@@ -122,7 +130,7 @@ def aggregate(book: dict | None, *, equity_only: bool = False) -> list[dict]:
     """Collapse manager allocation rows while preserving security and option classes."""
     positions: dict[tuple, dict] = {}
     for row in (book or {}).get("positions", []):
-        if equity_only and (row["option"] or row["quantity_type"] != "SH"):
+        if equity_only and (row["option"] or row["quantity_type"] != "SH" or row["value"] <= 0):
             continue
         key = position_key(row)
         if key not in positions:
@@ -191,7 +199,8 @@ def quarter_snapshot(filings, period, previous, prior_positions):
     rows = changes(positions, prior_positions) if valid_previous else positions
     sources = [
         {key: doc[key] for key in ("accession", "filed", "url", "form", "mode", "format")}
-        | {"adjusted_units": any("reported_value" in p for p in doc["positions"])}
+        | {"adjusted_units": any("reported_value" in p for p in doc["positions"]),
+           "reconciliation": doc.get("reconciliation")}
         for doc in filings
     ]
     payload = {

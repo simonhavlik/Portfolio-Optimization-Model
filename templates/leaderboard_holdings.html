@@ -32,7 +32,7 @@
         {% if book %}
           <p>Reported {{ book.filed }} · U.S. dollars · {{ filings | length }} source filing{{ 's' if filings | length != 1 }}</p>
           <details class="research-method"><summary>SEC filings and amendments</summary>
-            <ul>{% for filing in filings %}<li><a class="research-link" href="{{ filing.url }}">{{ filing.filed }} · {{ filing.form }}</a> · {{ filing.mode }} · {{ filing.format }}{% if filing.adjusted_units %} · values filed in thousands, shown in USD{% endif %}</li>{% endfor %}</ul>
+            <ul>{% for filing in filings %}<li><a class="research-link" href="{{ filing.url }}">{{ filing.filed }} · {{ filing.form }}</a> · {{ filing.mode }} · {{ filing.format }}{% if filing.reconciliation and filing.reconciliation.status == 'summary differs' %}<span title="The filing summary and information-table totals differ. Holdings reflect the individual reported entries."> · Summary differs from table</span>{% endif %}{% if filing.adjusted_units %} · values filed in thousands, shown in USD{% endif %}</li>{% endfor %}</ul>
           </details>
           <div class="research-table-wrap" tabindex="0" aria-label="Scrollable disclosed holdings">
             <table class="research-table research-holdings">

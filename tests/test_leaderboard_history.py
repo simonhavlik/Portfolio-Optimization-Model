@@ -119,3 +119,43 @@ def test_incorrect_xml_row_count_requires_a_reconciled_value_and_all_source_rows
     assert len(parse_filing(raw, meta)['positions']) == 1
     with pytest.raises(ValueError, match='entry count'):
         parse_filing(raw.replace(b'>620</tableValueTotal>', b'>621</tableValueTotal>'), meta)
+
+
+def test_late_amendment_belongs_to_the_quarter_without_replacing_the_current_book():
+    from services.fund_archive import quarter_books
+
+    earlier = filing('2024-05-15', '2024-03-31', 'original', 'AAA')
+    later = filing('2024-08-15', '2024-06-30', 'original', 'BBB')
+    amended = filing('2024-08-16', '2024-03-31', 'restatement', 'CCC')
+    assert quarter_books([earlier, later, amended])['2024-03-31']['positions'][0]['cusip'] == 'CCC'
+    assert timeline([earlier, later, amended])[-1]['positions'][0]['cusip'] == 'BBB'
+
+
+def test_legacy_cusip_padding_principal_type_and_signed_values():
+    document = b"""<TABLE>
+    Issuer                   Title   CUSIP        Value      Qty
+    ABB LTD                  ADR    375204          343    15295 SH      SOLE
+    US ISSUER                NOTE   012345678       174    12000PRN      SOLE
+    PROSHARES TRUST          ETF    74347R297      -3842    38420 SH      SOLE
+    </TABLE>"""
+    record = parse_filing(document, {'period': '2010-09-30', 'filed': '2010-11-15', 'form': '13F-HR'})
+    positions = record['positions']
+    assert positions[0]['cusip'] == '000375204'
+    assert positions[1]['quantity_type'] == 'PRN'
+    assert positions[2]['value'] == -3_842_000
+    assert len(aggregate(record, equity_only=True)) == 1
+
+
+def test_composite_keeps_exact_ranks_in_the_correct_direction():
+    from services.leaderboard import _score
+
+    rows = [
+        {'slug': 'a', 'name': 'A', 'metrics': {'volatility': .12, 'sharpe_ratio': .4}},
+        {'slug': 'b', 'name': 'B', 'metrics': {'volatility': .30, 'sharpe_ratio': .7}},
+        {'slug': 'c', 'name': 'C', 'metrics': {}},
+    ]
+    _score(rows)
+    saved = {row['slug']: row for row in rows}
+    assert saved['a']['metric_ranks']['volatility'] == {'rank': 1, 'sample': 2}
+    assert saved['a']['metric_ranks']['sharpe_ratio'] == {'rank': 2, 'sample': 2}
+    assert 'metric_ranks' not in saved['c']
