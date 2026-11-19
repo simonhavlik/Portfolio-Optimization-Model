@@ -22,7 +22,8 @@ def _load() -> dict:
     try:
         return json.loads(PE_FILE.read_text())
     except (OSError, ValueError):
-        return {}
+        from services.leaderboard_storage import VALUATION_KEY, hydrate_snapshot
+        return hydrate_snapshot(PE_FILE, VALUATION_KEY) or {}
 
 
 def _save(payload: dict) -> None:
@@ -88,8 +89,6 @@ def weights_pe(weights: dict[str, float], cache: dict) -> dict:
     values = sorted(pe for _, pe in pairs)
     mid = len(values) // 2
     median = values[mid] if len(values) % 2 else (values[mid - 1] + values[mid]) / 2
-    covered = sum(weights.get(t, 0) for t, _ in [(t, cache[t]['trailing']) for t in weights
-                                                  if t in cache and cache[t].get('trailing')])
     return {'weighted': round(weighted, 1) if weighted else None,
             'median': round(median, 1),
-            'coverage': round(min(1.0, covered), 3)}
+            'coverage': round(min(1.0, total_weight), 3)}

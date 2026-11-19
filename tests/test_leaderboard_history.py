@@ -1,0 +1,121 @@
+import pandas as pd
+import pytest
+
+from services.filing_history import parse_filing
+from services.fund_archive import aggregate, changes, quarter_book, timeline
+from services.leaderboard import _series, _simulation
+
+
+def filing(filed, period, mode, cusip, value=100):
+    return {'filed': filed, 'period': period, 'mode': mode, 'accession': filed,
+            'positions': [{'cusip': cusip, 'issuer': cusip, 'class': 'COM',
+                           'quantity_type': 'SH', 'option': '', 'value': value, 'shares': 1}]}
+
+
+def test_legacy_grouped_cusips_and_manager_rows_are_kept():
+    raw = b"""CONFORMED PERIOD OF REPORT: 20080630
+<TABLE>
+  CUSIP     Value
+American Express    Com    025816 10 9     648,880 17,225,400
+                                           73,196  1,943,100
+</TABLE>
+"""
+    doc = parse_filing(raw, {'filed': '2008-08-15', 'form': '13F-HR'})
+    rows = aggregate(doc)
+    assert doc['period'] == '2008-06-30'
+    assert rows[0]['cusip'] == '025816109'
+    assert rows[0]['value'] == 722_076_000
+
+
+def test_xml_units_follow_filing_date_and_the_quantity_type_is_kept():
+    raw = b"""<ns:informationTable xmlns:ns="test"><ns:infoTable>
+      <ns:nameOfIssuer>Test</ns:nameOfIssuer><ns:cusip>025816109</ns:cusip>
+      <ns:value>620</ns:value><ns:shrsOrPrnAmt><ns:sshPrnamt>5</ns:sshPrnamt>
+      <ns:sshPrnamtType>PRN</ns:sshPrnamtType></ns:shrsOrPrnAmt>
+    </ns:infoTable></ns:informationTable>"""
+    doc = parse_filing(raw, {'filed': '2023-02-14', 'period': '2022-12-31', 'form': '13F-HR'})
+    assert doc['positions'][0]['value'] == 620
+    assert aggregate(doc, equity_only=True) == []
+
+
+def test_amendments_are_point_in_time_and_old_quarters_do_not_replace_new_books():
+    q1, q2 = '2024-03-31', '2024-06-30'
+    first = filing('2024-05-15', q1, 'original', 'AAA')
+    add = filing('2024-05-17', q1, 'addition', 'BBB')
+    next_quarter = filing('2024-08-14', q2, 'original', 'CCC')
+    late = filing('2024-08-20', q1, 'restatement', 'BBB')
+    snapshots = timeline([late, first, next_quarter, add])
+    assert [book['filed'] for book in snapshots] == [first['filed'], add['filed'], next_quarter['filed']]
+    assert {row['cusip'] for row in snapshots[1]['positions']} == {'AAA', 'BBB'}
+    assert quarter_book([late, first, add], q1)['positions'][0]['cusip'] == 'BBB'
+    changes_by_cusip = {row['cusip']: row for row in changes(aggregate(snapshots[-1]), aggregate(snapshots[1]))}
+    assert changes_by_cusip['AAA']['action'] == 'Exited'
+    assert changes_by_cusip['AAA']['value'] == 0
+
+
+def test_return_begins_after_the_rebalance_close():
+    days = pd.bdate_range('2024-05-15', periods=6)
+    book = filing('2024-05-15', '2024-03-31', 'original', 'AAA')
+    logs = pd.Series(.05, index=days)
+    returns, coverage = _series({'slug': 'test'}, [book], {'A': logs}, days, {'AAA': 'A'})
+    assert returns.iloc[:2].isna().all()
+    assert returns.iloc[2] == pytest.approx(.0512710964)
+    assert coverage.iloc[2] == 1
+
+
+def test_simulation_is_repeatable_and_has_a_deterministic_flat_case():
+    returns = pd.Series([0.0] * 252)
+    result = _simulation(returns)
+    assert result == {'low': 100.0, 'median': 100.0, 'high': 100.0, 'loss': 0.0}
+    mixed = pd.Series([.01, -.012, .002] * 100)
+    assert _simulation(mixed) == _simulation(mixed)
+
+
+def test_postgres_price_payload_preserves_the_trading_calendar():
+    from services.leaderboard_storage import _pack, _unpack
+
+    source = pd.Series([.005, -.003, .02], index=pd.bdate_range('2024-05-24', periods=3))
+    result = _unpack(_pack(source))
+    pd.testing.assert_series_equal(source, result, check_freq=False, check_index_type=False)
+
+
+def test_unit_transition_keeps_the_as_reported_number_for_audited_exceptions():
+    from services.filing_history import normalize_filing
+
+    source = {'accession': '0001037389-23-000119', 'positions': [{'value': 922454}]}
+    normalized = normalize_filing(source)
+    assert normalized['positions'][0] == {'value': 922454000, 'reported_value': 922454}
+    assert normalize_filing(normalized) == normalized
+    assert source['positions'][0]['value'] == 922454
+
+
+def test_material_disclosures_and_largest_addition_and_reduction_are_annotated():
+    from services.leaderboard_research import STUDIES, _disclosed_moves, _select_notes
+
+    study = STUDIES[0]
+    notes = []
+    for day in pd.date_range('2020-01-01', periods=12, freq='QS'):
+        stamp = day.date().isoformat()
+        book = {'filed': stamp, 'period': stamp, 'accession': stamp, 'url': 'https://www.sec.gov/'}
+        changes = [
+            {'issuer': cusip, 'cusip': cusip, 'action': action, 'shares_change': shares,
+             'weight_change': delta, 'weight': .1}
+            for cusip, action, shares, delta in [
+                ('A', 'Reduced', -25, -.11), ('B', 'New', 10, .07),
+                ('C', 'Increased', 4, .05), ('D', 'Increased', 2, .01)]
+        ]
+        notes.extend(_disclosed_moves(study, 'berkshire', book, changes, {}))
+    result = _select_notes(study, notes)
+    assert len(result) == 36
+    assert {row['cusip'] for row in result} == {'A', 'B', 'C'}
+
+
+def test_incorrect_xml_row_count_requires_a_reconciled_value_and_all_source_rows():
+    raw = b"""<tableEntryTotal>0</tableEntryTotal><tableValueTotal>620</tableValueTotal>
+      <informationTable><infoTable><nameOfIssuer>Example</nameOfIssuer>
+      <cusip>025816109</cusip><value>620</value><shrsOrPrnAmt><sshPrnamt>5</sshPrnamt>
+      </shrsOrPrnAmt></infoTable></informationTable>"""
+    meta = {'filed': '2024-02-14', 'period': '2023-12-31', 'form': '13F-HR'}
+    assert len(parse_filing(raw, meta)['positions']) == 1
+    with pytest.raises(ValueError, match='entry count'):
+        parse_filing(raw.replace(b'>620</tableValueTotal>', b'>621</tableValueTotal>'), meta)

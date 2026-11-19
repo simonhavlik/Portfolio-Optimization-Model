@@ -128,6 +128,8 @@ def _parse_information_table(raw: bytes) -> list[dict]:
                 for sub in child:
                     if _local_name(sub.tag) == 'sshPrnamt':
                         record['shares'] = float(sub.text or 0)
+                    elif _local_name(sub.tag) == 'sshPrnamtType':
+                        record['quantityType'] = (sub.text or '').strip()
             elif name in ('putCall', 'investmentDiscretion'):
                 record[name] = (child.text or '').strip()
             else:
@@ -137,7 +139,7 @@ def _parse_information_table(raw: bytes) -> list[dict]:
     return rows
 
 
-def _submission_arrays(payload: dict) -> list[dict]:
+def _submission_arrays(payload: dict, strict: bool = False) -> list[dict]:
     """All filing rows, newest chunks included, as flat records."""
     rows = []
     blocks = [payload['filings']['recent']]
@@ -146,6 +148,8 @@ def _submission_arrays(payload: dict) -> list[dict]:
             blocks.append(json.loads(_sec_get(
                 f"https://data.sec.gov/submissions/{extra['name']}")))
         except Exception:
+            if strict:
+                raise
             continue
     for block in blocks:
         forms = block.get('form', [])

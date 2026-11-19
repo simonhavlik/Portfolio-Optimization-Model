@@ -172,14 +172,14 @@ class AdvancedStatistics:
         - Johnson SU (flexible shape)
         """
         returns_clean = returns.dropna()
+        n = len(returns_clean)
         results = {}
         
         # Normal distribution
         try:
             mu, sigma = stats.norm.fit(returns_clean)
-            ks_stat, p_val = stats.kstest(returns_clean, 'norm', args=(mu, sigma))
+            ks_stat, p_val = stats.kstest(returns_clean, stats.norm(loc=mu, scale=sigma).cdf)
             log_lik = np.sum(stats.norm.logpdf(returns_clean, mu, sigma))
-            n = len(returns_clean)
             aic = 2 * 2 - 2 * log_lik
             bic = np.log(n) * 2 - 2 * log_lik
             

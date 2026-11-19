@@ -330,13 +330,19 @@ def _json_safe(value):
 _example_chart_response = None
 
 
+def _report_cache_entry(report):
+    if report.startswith('fund-'):
+        return db.session.get(AppCache, f'fund_analysis:{report[5:]}')
+    return db.session.get(AppCache, f'custom_analysis:{report}')
+
+
 @app.route('/api/example-charts')
 def example_charts():
     """Chart payload for the example portfolio, fetched after first paint."""
     report = request.args.get('report')
     try:
         if report:
-            row = db.session.get(AppCache, f'custom_analysis:{report}')
+            row = _report_cache_entry(report)
             if not row:
                 return jsonify({'error': 'unknown report'}), 404
             example_data = row.payload
@@ -487,14 +493,12 @@ def custom_report(token):
 
 
 LEADERBOARD_ADMIN_EMAIL = 'havlik.simon@post.cz'
-_chart_locks: dict = {}
-_lb_refresh_state = {'running': False, 'started': None, 'finished': None, 'error': None}
 
 
 def _leaderboard_admin_ok() -> bool:
     try:
-        return bool(current_user.is_authenticated and
-                    (current_user.email or '').strip().lower() == LEADERBOARD_ADMIN_EMAIL)
+        return bool(current_user.is_authenticated and current_user.is_active and
+                    current_user.email_verified and (current_user.email or '').strip().lower() == LEADERBOARD_ADMIN_EMAIL)
     except Exception:
         return False
 
@@ -549,7 +553,7 @@ def vision_page():
 
     # the sacrifice cards are chosen from the data, not written by hand
     def pick(key, reverse=True):
-        return sorted(rows, key=lambda r: r['metrics'].get(key) or 0, reverse=reverse)[0]
+        return sorted(rows, key=lambda r: r['metrics'].get(key) or 0, reverse=reverse)[0] if rows else None
 
     best_alpha = pick('alpha')
     worst_dd = pick('max_drawdown', reverse=False)
@@ -562,103 +566,258 @@ def vision_page():
     )
 
 
+def _requested_board():
+    from services.leaderboard import BOARDS, build_board
+    cohort = request.args.get('period', 'current')
+    if cohort not in BOARDS:
+        abort(404)
+    return build_board(cohort=cohort)
+
+
 @app.route('/leaderboard')
 def leaderboard_view():
-    """Cross-sectional fund ranking, cached for a week."""
-    from services.leaderboard import build_board
-    board = build_board()
-    return render_template('leaderboard.html', board=board)
+    from services.leaderboard import BOARDS
+    from services.leaderboard_charts import CHARTS
+    from services.leaderboard_graphics import FEATURED
+    from services.leaderboard_research import study_index
+    from services.leaderboard_interactive import comparison_plot
+
+    board = _requested_board()
+    studies = study_index()
+    default_study = 'scion' if board['cohort'] == 'scion' else 'berkshire'
+    requested_study = request.args.get('study', default_study if default_study in studies else None)
+    study = studies.get(requested_study) if requested_study else None
+    if requested_study and not study:
+        abort(404)
+    manager = request.args.get('manager')
+    focus = next((row for row in board['rows'] if row['slug'] == manager), None)
+    if manager and focus is None:
+        abort(404)
+    if focus is None:
+        focus = next((row for row in board['rows'] if row['metrics']), None)
+    peer_id = request.args.get('peer', '')
+    peer = next((row for row in board['rows'] if row['slug'] == peer_id and row['metrics']), None)
+    plot = comparison_plot(board, focus, peer)
+    response = app.make_response(render_template(
+        'leaderboard.html', board=board, cohorts=BOARDS, gallery=CHARTS, focus=focus,
+        featured=FEATURED, can_read_studio=_leaderboard_admin_ok(),
+        studies=studies, study=study, requested_study=requested_study, plot=plot, peer=peer,
+    ))
+    response.cache_control.private = True
+    response.cache_control.no_store = True
+    return response
+
+
+@app.route('/leaderboard/studio')
+def leaderboard_studio():
+    if not _leaderboard_admin_ok():
+        abort(404)
+    from services.leaderboard_research import study_index
+    from services.leaderboard_storage import DRAFTS_KEY
+
+    entry = db.session.get(AppCache, DRAFTS_KEY)
+    from services.leaderboard_funds import FUNDS
+    drafts = entry.payload if entry and entry.payload else []
+    manager = request.args.get('manager', '')
+    if manager and manager not in {fund['slug'] for fund in FUNDS}:
+        abort(404)
+    tagged = [(index, draft) for index, draft in enumerate(drafts, 1)
+              if not manager or manager in draft.get('funds', [])]
+    response = app.make_response(render_template('leaderboard_studio.html', drafts=tagged,
+                                                 studies=study_index(), funds=FUNDS, manager=manager))
+    response.cache_control.private = True
+    response.cache_control.no_store = True
+    response.headers['X-Robots-Tag'] = 'noindex, noarchive'
+    return response
 
 
 @app.route('/leaderboard.csv')
 def leaderboard_csv():
-    import csv as _csv
-    import io as _io
-    from services.leaderboard import build_board
+    import csv
+    import io
+    board = _requested_board()
 
-    board = build_board()
-    metrics = [m['key'] for m in board.get('metrics', [])]
-    buf = _io.StringIO()
-    writer = _csv.writer(buf)
-    writer.writerow(['rank', 'fund', 'manager', 'kind', 'score'] + metrics +
-                    ['covid_2020', 'bear_2022', 'holdings', 'coverage', 'filing', 'observations'])
-    for index, row in enumerate(board.get('rows', []), start=1):
-        m = row.get('metrics') or {}
-        writer.writerow([index, row['name'], row['manager'], row['kind'], row.get('score')] +
-                        [m.get(k) for k in metrics] +
-                        [row.get('crisis', {}).get('covid'), row.get('crisis', {}).get('y2022'),
-                         row.get('holdings'), row.get('coverage'), row.get('filing'), row.get('observations')])
-    stream = _io.BytesIO(buf.getvalue().encode('utf-8'))
-    return send_file(stream, mimetype='text/csv', as_attachment=True,
-                     download_name=f"fund-leaderboard-{board.get('as_of', 'latest')}.csv")
+    metrics = [m['key'] for m in board['metrics']]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(['rank', 'fund', 'manager', 'cohort_start', 'cohort_end', 'score'] + metrics +
+                    ['covid_2020', 'bear_2022', 'holdings', 'min_price_coverage', 'filing', 'observations'])
+    rank = 0
+    for row in board['rows']:
+        if row['score'] is not None:
+            rank += 1
+        writer.writerow([rank if row['score'] is not None else '', row['name'], row['manager'],
+                         board['start'], board['as_of'], row['score']] +
+                        [row['metrics'].get(k) for k in metrics] +
+                        [row['crisis'].get('covid'), row['crisis'].get('y2022'), row['holdings'],
+                         row['coverage'], row['filing'], row['observations']])
+    return send_file(io.BytesIO(buf.getvalue().encode('utf-8')), mimetype='text/csv',
+                     as_attachment=True, download_name=f"fund-leaderboard-{board['cohort']}.csv")
 
 
 @app.route('/leaderboard/card.png')
 def leaderboard_card_image():
-    from services.leaderboard import build_board
-    from services.leaderboard_card import render_card
-
-    board = build_board()
-    fmt = 'landscape' if request.args.get('format') == 'landscape' else 'square'
-    stream = render_card(board, fmt)
-    return send_file(stream, mimetype='image/png', as_attachment=False,
-                     download_name=f"fund-leaderboard-{fmt}-{board.get('as_of', 'latest')}.png")
+    from flask import url_for
+    return redirect(url_for('leaderboard_chart', key='atlas', ext='png',
+                            period=request.args.get('period', 'current')))
 
 
-@app.route('/leaderboard/chart/<key>.png')
-def leaderboard_chart(key):
-    from pathlib import Path
-    from services.leaderboard import build_board
-    from services.leaderboard_charts import CHARTS, render
+@app.route('/leaderboard/chart/<key>.<ext>')
+def leaderboard_chart(key, ext):
+    import re
+    from services.leaderboard_charts import CHARTS
+    from services.leaderboard_graphics import FEATURED, chart_file
+    from services.leaderboard_storage import hydrate_asset
 
-    if key not in CHARTS:
+    if (key not in CHARTS and key not in FEATURED) or ext not in {'webp', 'png'}:
         abort(404)
-    board = build_board()
-    cache_dir = Path('data/leaderboard_cache')
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    cache = cache_dir / f"chart_{key}_{board.get('as_of', 'latest')}_v2.png"
-    if not cache.exists():
-        import threading
-        lock = _chart_locks.setdefault(key, threading.Lock())
-        with lock:
-            if not cache.exists():
-                stream = render(board, key)
-                cache.write_bytes(stream.getvalue())
-    return send_file(cache, mimetype='image/png', max_age=86400)
+    board = _requested_board()
+    revision = request.args.get('v')
+    if revision:
+        if not re.fullmatch(r'[0-9]{20}', revision):
+            abort(404)
+        board = {**board, 'revision': revision}
+    elif key not in board.get('charts', []):
+        abort(404)
+    path = chart_file(board, key, ext).resolve()
+    if not path.is_file() and not hydrate_asset(path):
+        abort(404)
+    response = send_file(path, mimetype=f'image/{ext}',
+                         download_name=f"optimizer-{key}-{board['cohort']}.{ext}",
+                         as_attachment=ext == 'png' and request.args.get('view') != '1', max_age=31536000 if revision else 300)
+    if revision:
+        response.cache_control.immutable = True
+    return response
+
+
+@app.route('/leaderboard/research/<study>/<panel>.<ext>')
+def leaderboard_research_asset(study, panel, ext):
+    import re
+    from services.leaderboard_research import asset_path, study_index
+    from services.leaderboard_storage import hydrate_asset
+
+    info = study_index().get(study)
+    if not info or panel not in {'chart', 'report'} or ext not in {'png', 'webp'}:
+        abort(404)
+    revision = request.args.get('v', info['revision'])
+    if not re.fullmatch(r'[0-9]{20}', revision):
+        abort(404)
+    path = asset_path(revision, study, panel, ext).resolve()
+    if not path.is_file() and not hydrate_asset(path):
+        abort(404)
+    response = send_file(path, mimetype=f'image/{ext}', download_name=f'{study}-{panel}.{ext}',
+                         as_attachment=request.args.get('download') == '1',
+                         max_age=31536000 if request.args.get('v') else 300)
+    if request.args.get('v'):
+        response.cache_control.immutable = True
+    return response
+
+
+@app.route('/leaderboard/<slug>/holdings')
+def leaderboard_holdings(slug):
+    import csv
+    import io
+    from services import fund_archive
+    from services.leaderboard_funds import by_slug
+
+    fund = by_slug(slug)
+    if fund is None:
+        abort(404)
+    dates = fund_archive.periods(slug)
+    selected = request.args.get('quarter') or (dates[0] if dates else None)
+    if selected and selected not in dates:
+        abort(404)
+    snapshot = fund_archive.saved_quarter(slug, selected) if selected else None
+    if selected and snapshot is None:
+        abort(503, description='This filing is awaiting its holdings publication.')
+    snapshot = snapshot or {'book': None, 'filings': [], 'previous': None, 'rows': []}
+    rows = snapshot['rows']
+    previous = snapshot['previous']
+    if request.args.get('download') == 'csv':
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(['period', 'previous_period', 'issuer', 'cusip', 'class', 'option', 'quantity_type',
+                         'shares', 'value_usd', 'weight', 'change', 'shares_change', 'weight_change'])
+        for row in rows:
+            writer.writerow([selected, previous, row['issuer'], row['cusip'], row['class'], row['option'],
+                             row['quantity_type'], row['shares'], row['value'], row['weight'],
+                             row.get('action'), row.get('shares_change'), row.get('weight_change')])
+        return send_file(io.BytesIO(buf.getvalue().encode()), mimetype='text/csv', as_attachment=True,
+                         download_name=f'{slug}-{selected or "holdings"}.csv')
+    page_size = 75
+    pages = max(1, (len(rows) + page_size - 1) // page_size)
+    page = request.args.get('page', default=1, type=int)
+    if page < 1 or page > pages:
+        abort(404)
+    start = (page - 1) * page_size
+    return render_template('leaderboard_holdings.html', fund=fund, dates=dates, selected=selected,
+                           book=snapshot['book'], filings=snapshot['filings'], rows=rows[start:start + page_size],
+                           page=page, pages=pages, total=len(rows), prior=previous)
 
 
 @app.route('/leaderboard/<slug>')
 def fund_analysis(slug):
-    """The fund's own book, run through the standard portfolio analysis."""
-    from services.leaderboard import _fund_book, _weights, _window
-    from services.leaderboard_funds import ISSUER_ALIASES, by_slug
-    from services import edgar_13f
+    """Run the regular analysis pipeline on a single disclosed book."""
+    from services import fund_archive
+    from services.leaderboard import _fund_book, _read_prices, _weights
+    from services.leaderboard_funds import by_slug
 
     fund = by_slug(slug)
     if not fund:
         abort(404)
+    period = request.args.get('quarter')
+    if period and period not in fund_archive.periods(slug):
+        abort(404)
+    book = _fund_book(fund, period)
+    if not book:
+        return redirect(f'/leaderboard/{slug}/holdings')
 
-    cache_key = f'fund_analysis:{slug}'
+    from hashlib import sha256
+    # Price coverage and model inputs can change on a later publication.
+    from services.leaderboard import build_board
+    revision = build_board().get('revision', '')
+    inputs = [revision, *(f['accession'] for f in book['sources'])]
+    model_hash = sha256(' '.join(inputs).encode()).hexdigest()[:12]
+    key_suffix = f'{slug}-{book["period"]}-{model_hash}'
+    cache_key = f'fund_analysis:{key_suffix}'
     row = db.session.get(AppCache, cache_key)
     payload = row.payload if row and row.payload else None
     if not payload:
-        if fund['kind'] == 'listed':
-            holdings = [{'ticker': fund['ticker'], 'weight': 1.0}]
-        else:
-            book = _fund_book(fund)
-            weights = _weights(fund, book)
-            holdings = [{'ticker': t, 'weight': w} for t, w in weights.items()]
+        weights = _weights(fund, book)
+        benchmarks = {'SPY', 'VT', 'QQQ', 'IWM', 'GLD'}
+        prices = _read_prices(set(weights) | benchmarks)
+        benchmark = prices.get('SPY')
+        if benchmark is None or benchmark.empty:
+            abort(503, description='The cached benchmark is unavailable.')
+        end = min(pd.Timestamp(book['period']), pd.Timestamp(benchmark.index[-1]))
+        start = end - pd.DateOffset(years=5)
+        markets = {}
+        holdings = []
+        for ticker, weight in sorted(weights.items(), key=lambda item: -item[1])[:30]:
+            if ticker not in prices:
+                continue
+            observations = prices[ticker].loc[start:end]
+            if len(observations) >= 250 and observations.index[-1] >= end - pd.Timedelta(days=7):
+                holdings.append({'ticker': ticker, 'weight': weight})
+                markets[ticker] = observations
         if len(holdings) < 2:
-            abort(404)
+            abort(422, description='This disclosure has too little cached price history for a full portfolio report.')
+        for ticker in sorted(benchmarks):
+            if ticker in prices:
+                markets[ticker] = prices[ticker].loc[start:end]
+        coverage = sum(h['weight'] for h in holdings)
         analysis = example_portfolio_service.compute_custom(
-            holdings, period='5y', name=fund['name'],
-            description=fund['blurb'][:160], benchmark='SPY')
+            holdings, period='5y', name=fund['name'], benchmark='SPY',
+            description=f'{book["period"]} snapshot · {coverage:.0%} of disclosed equity value priced',
+            n_simulations=1000, market_snapshot=markets)
         payload = _finite_json(serialize_for_template(analysis))
-        db.session.add(AppCache(key=cache_key, payload=payload, computed_at=datetime.utcnow()))
+        if not payload.get('metrics'):
+            abort(422, description='This disclosure has too little overlapping price history.')
+        db.session.merge(AppCache(key=cache_key, payload=payload, computed_at=datetime.utcnow()))
         db.session.commit()
 
     return render_template('index.html', example_data=payload, valuation=None, appendix=None,
-                           cca=None, report_id=f"fund-{slug}", show_analysis=True)
+                           cca=None, report_id=f'fund-{key_suffix}', show_analysis=True)
 
 
 def _refresh_authorized() -> bool:
@@ -670,30 +829,6 @@ def _refresh_authorized() -> bool:
     from models.database import ApiCredential
     row = ApiCredential.query.filter_by(provider='leaderboard_refresh', is_active=True).first()
     return bool(row and token == row.api_key)
-
-
-@app.route('/api/leaderboard/refresh', methods=['POST'])
-def api_leaderboard_refresh():
-    """Explicit, gradual price refresh. Never called by page views or deploys."""
-    if not _refresh_authorized():
-        abort(403)
-    from services import leaderboard_refresh as refresh
-    from services.leaderboard_refresh import state as refresh_state
-
-    current = refresh_state()
-    if current.get('running'):
-        return jsonify({'ok': True, 'message': 'already running', 'state': current})
-
-    import threading
-
-    def run():
-        try:
-            refresh.refresh_all()
-        except Exception as exc:
-            refresh._save_state(running=False, last_error=str(exc))
-
-    threading.Thread(target=run, daemon=True, name='leaderboard-refresh').start()
-    return jsonify({'ok': True, 'message': 'refresh started', 'state': refresh_state()})
 
 
 @app.route('/api/leaderboard/status')
@@ -718,78 +853,26 @@ def leaderboard_admin():
     if not _leaderboard_admin_ok():
         abort(403)
     from services.leaderboard import build_board
-    from services import edgar_13f
+    from services.fund_archive import stats
     from services.leaderboard_funds import FUNDS
 
     board = build_board()
     rows = {row['slug']: row for row in board.get('rows', [])}
+    archive = stats()
     funds = []
     for fund in FUNDS:
-        row = rows.get(fund['slug'], {})
-        latest_filing = earliest_filing = None
-        available = parseable = ingested = 0
-        if fund['kind'] == '13f':
-            from pathlib import Path
-            try:
-                filings = edgar_13f.fund_filings(fund['cik'], limit=None)
-                available = len(filings)
-                latest_filing = filings[-1]['period'] if filings else None
-                earliest_filing = filings[0]['period'] if filings else None
-                # structured XML information tables start with the 2013 filings
-                parseable = len([f for f in filings if f['period'] >= '2013-01-01'])
-                ingested = len(list(Path('data/leaderboard_cache').glob(f"13f_book_{fund['cik']}_*.json")))
-            except Exception:
-                pass
+        slug = fund['slug']
+        row = rows.get(slug, {})
+        items = archive.get(slug, {})
         funds.append({
-            'slug': fund['slug'],
-            'name': fund['name'],
-            'kind': fund['kind'],
-            'used': row.get('filing'),
-            'latest': latest_filing,
-            'earliest': earliest_filing,
-            'available': available,
-            'parseable': parseable,
-            'ingested': ingested,
-            'stale': bool(latest_filing and row.get('filing') and latest_filing > row['filing']),
-            'holdings': row.get('holdings'),
-            'coverage': row.get('coverage'),
+            'slug': slug, 'name': fund['name'], 'kind': '13f',
+            'used': row.get('filing'), 'latest': items.get('last'), 'earliest': items.get('first'),
+            'available': items.get('quarters', 0), 'ingested': items.get('filings', 0),
+            'holdings': row.get('holdings'), 'coverage': row.get('coverage'),
             'score': row.get('score'),
         })
     return render_template('leaderboard_admin.html', board=board, funds=funds,
-                           state=_lb_refresh_state, admin_email=LEADERBOARD_ADMIN_EMAIL)
-
-
-@app.route('/leaderboard/admin/refresh', methods=['POST'])
-@login_required
-def leaderboard_admin_refresh():
-    if not _leaderboard_admin_ok():
-        abort(403)
-    if _lb_refresh_state['running']:
-        return jsonify({'ok': False, 'message': 'A refresh is already running'}), 409
-    import threading
-    from services.leaderboard_refresh import refresh_all
-
-    def run():
-        _lb_refresh_state.update(running=True, started=datetime.utcnow().isoformat(),
-                                 finished=None, error=None)
-        try:
-            refresh_all()
-            _lb_refresh_state['finished'] = datetime.utcnow().isoformat()
-        except Exception as exc:
-            _lb_refresh_state['error'] = str(exc)
-        finally:
-            _lb_refresh_state['running'] = False
-
-    threading.Thread(target=run, daemon=True).start()
-    return jsonify({'ok': True, 'message': 'Refresh started'})
-
-
-@app.route('/leaderboard/admin/status')
-@login_required
-def leaderboard_admin_status():
-    if not _leaderboard_admin_ok():
-        abort(403)
-    return jsonify(_lb_refresh_state)
+                           admin_email=LEADERBOARD_ADMIN_EMAIL)
 
 
 @app.route('/reports')
@@ -829,9 +912,7 @@ def report_xlsx():
 
     report = request.args.get('report')
     if report:
-        row = db.session.get(AppCache, f'custom_analysis:{report}')
-        if not row and report.startswith('fund-'):
-            row = db.session.get(AppCache, f'fund_analysis:{report[5:]}')
+        row = _report_cache_entry(report)
         example_data = row.payload if row else None
     else:
         example_data = example_portfolio_service.get_analysis()
@@ -855,9 +936,7 @@ def report_csv():
 
     report = request.args.get('report')
     if report:
-        row = db.session.get(AppCache, f'custom_analysis:{report}')
-        if not row and report.startswith('fund-'):
-            row = db.session.get(AppCache, f'fund_analysis:{report[5:]}')
+        row = _report_cache_entry(report)
         example_data = row.payload if row else None
     else:
         example_data = example_portfolio_service.get_analysis()
@@ -3042,42 +3121,6 @@ def debug_session():
         'user_email': current_user.email if current_user and current_user.is_authenticated else None,
         'user_obj': str(current_user) if current_user else None
     })
-
-
-# =============================================================================
-# Leaderboard refresh scheduler
-# =============================================================================
-
-def _start_leaderboard_scheduler():
-    """Opt-in weekly refresh, in small paused batches. Off unless enabled."""
-    if os.getenv('ENABLE_LEADERBOARD_SCHEDULER', '0') != '1':
-        return
-    import threading
-    import time as _time
-
-    def loop():
-        _time.sleep(120)
-        while True:
-            try:
-                from services.leaderboard import CACHE_DIR, build_board
-                path = CACHE_DIR / 'board.json'
-                stale = True
-                if path.exists():
-                    age = datetime.utcnow() - datetime.fromtimestamp(path.stat().st_mtime)
-                    stale = age > timedelta(days=7)
-                if stale and 1 <= datetime.utcnow().hour <= 4:
-                    from services.leaderboard_refresh import refresh_all
-                    app.logger.info('leaderboard: scheduled gradual refresh starting')
-                    refresh_all()
-                    app.logger.info('leaderboard: scheduled gradual refresh complete')
-            except Exception as exc:  # never let the scheduler kill the app
-                app.logger.warning('leaderboard scheduler: %s', exc)
-            _time.sleep(3600)
-
-    threading.Thread(target=loop, daemon=True, name='leaderboard-scheduler').start()
-
-
-_start_leaderboard_scheduler()
 
 
 # =============================================================================

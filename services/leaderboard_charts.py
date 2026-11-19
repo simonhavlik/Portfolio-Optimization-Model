@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import date
 import io
+
+import matplotlib.dates as mdates
 
 import matplotlib
 
@@ -78,7 +81,7 @@ def _hbar(board: dict, key: str, *, metric: str | None = None, pct: bool = False
     names = [r['name'] for r in rows][::-1]
     values = [measure(r) for r in rows][::-1]
 
-    fig, ax = plt.subplots(figsize=(8.4, 4.6), dpi=150)
+    fig, ax = plt.subplots(figsize=(8.4, max(4.6, 1.75 + .28 * len(names))), dpi=150)
     fig.patch.set_facecolor(INK)
     colours = [BRASS if v >= 0 else DOWN for v in values]
     bars = ax.barh(names, values, color=colours, height=0.62)
@@ -150,15 +153,20 @@ def _growth(board: dict) -> io.BytesIO:
     fig.patch.set_facecolor(INK)
     palette = ['#e8cd97', '#8fa3b8', '#c07a6a', '#7fa08a', '#a99bc4',
                '#d9c9a8', '#7f8a94', '#b98f62', '#9aa7b8', '#8c8272']
+    if board.get('benchmark_curve'):
+        dates, levels = zip(*board['benchmark_curve'])
+        ax.plot([date.fromisoformat(d) for d in dates], levels, color=MUTED, linestyle='--',
+                linewidth=1, label=board['benchmark'])
     for index, row in enumerate(board['rows']):
         curve = row.get('curve') or []
         if len(curve) < 3:
             continue
-        if max(curve) < 10:  # older seeds stored a 1-based index
-            curve = [value * 100 for value in curve]
-        ax.plot(range(len(curve)), curve, linewidth=1.4 if index == 0 else 1.0,
-                color=palette[index % len(palette)], alpha=0.95 if index < 3 else 0.65,
-                label=row['name'] if index < 4 else None)
+        dates = [date.fromisoformat(d) for d in row['curve_dates']]
+        ax.plot(dates, curve, linewidth=1.4 if index < 4 else 1,
+                color=palette[index % len(palette)], alpha=0.95 if index < 5 else 0.55,
+                label=row['name'] if index < 6 else None)
+    ax.xaxis.set_major_locator(mdates.YearLocator())
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
     ax.axhline(100, color='#3a3f47', linewidth=0.7, linestyle='--')
     ax.legend(facecolor=PANEL, edgecolor=GRID, labelcolor=TEXT, fontsize=7.5, loc='upper left', framealpha=0.9)
     ax.set_ylabel('Index (start = 100)')
@@ -207,7 +215,7 @@ def _pe(board: dict) -> io.BytesIO:
     values = [r['pe']['weighted'] for r in rows]
     median = board.get('pe_median')
 
-    fig, ax = plt.subplots(figsize=(8.4, 4.6), dpi=150)
+    fig, ax = plt.subplots(figsize=(8.4, max(4.6, 1.75 + .28 * len(names))), dpi=150)
     fig.patch.set_facecolor(INK)
     bars = ax.barh(names, values, color=BRASS, height=0.62)
     if median:
@@ -250,22 +258,3 @@ def render(board: dict, key: str) -> io.BytesIO:
     if key == 'beta':
         return _hbar(board, 'beta', metric='beta', signed=False)
     raise KeyError(key)
-
-
-def warm(board: dict, cache_dir, as_of: str | None = None) -> int:
-    """Pre-render every chart once, so the page never fans out eight cold renders."""
-    from pathlib import Path
-    cache_dir = Path(cache_dir)
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    stamp = as_of or board.get('as_of', 'latest')
-    written = 0
-    for key in CHARTS:
-        path = cache_dir / f'chart_{key}_{stamp}_v2.png'
-        if path.exists():
-            continue
-        try:
-            path.write_bytes(render(board, key).getvalue())
-            written += 1
-        except Exception:
-            continue
-    return written

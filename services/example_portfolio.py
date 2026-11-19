@@ -11,6 +11,7 @@ import json
 import pickle
 import os
 import threading
+from types import SimpleNamespace
 from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 import logging
@@ -375,7 +376,8 @@ class ExamplePortfolioService:
                        risk_free_rate: float = 0.045,
                        benchmark: str = 'SPY',
                        n_simulations: int = 5000,
-                       horizon_days: int = 252) -> Dict[str, Any]:
+                       horizon_days: int = 252,
+                       market_snapshot: Optional[Dict[str, "pd.Series"]] = None) -> Dict[str, Any]:
         """Run the exact example pipeline for arbitrary holdings."""
         normalised = []
         total = sum(float(h.get('weight') or 0) for h in holdings) or 1.0
@@ -394,7 +396,7 @@ class ExamplePortfolioService:
             'benchmark': benchmark,
             'n_simulations': n_simulations,
             'horizon_days': horizon_days,
-        })
+        }, market_snapshot=market_snapshot)
 
     def refresh_cache(self) -> Dict[str, Any]:
         """
@@ -436,7 +438,8 @@ class ExamplePortfolioService:
             logger.error(f"Failed to clear cache: {e}")
             return False
     
-    def _compute_analysis(self, portfolio: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _compute_analysis(self, portfolio: Optional[Dict[str, Any]] = None,
+                          market_snapshot: Optional[Dict[str, "pd.Series"]] = None) -> Dict[str, Any]:
         """
         Compute comprehensive portfolio analysis.
         This is the HEAVY operation - takes ~10 seconds.
@@ -456,7 +459,11 @@ class ExamplePortfolioService:
         horizon_days = int(portfolio.get('horizon_days') or 252)
 
         # Fetch market data
-        batch_data = market_data_service.fetch_batch_data(tickers, period=period)
+        if market_snapshot is None:
+            batch_data = market_data_service.fetch_batch_data(tickers, period=period)
+        else:
+            batch_data = {ticker: SimpleNamespace(returns=np.expm1(market_snapshot[ticker]), prices=None)
+                          for ticker in tickers if ticker in market_snapshot}
         valid_data = {t: d for t, d in batch_data.items() if d is not None}
         
         if len(valid_data) < 2:
@@ -466,14 +473,20 @@ class ExamplePortfolioService:
         # Build returns DataFrame
         returns_df = pd.DataFrame({t: d.returns for t, d in valid_data.items()}).dropna()
         
+        if len(returns_df) < 60:
+            return self._get_fallback_data(portfolio)
+
         # Portfolio returns
         weights_array = np.array([weights_dict.get(t, 0) for t in returns_df.columns])
         weights_array = weights_array / weights_array.sum()  # Normalize
         portfolio_returns = returns_df @ weights_array
         
         # Market data for beta calculation
-        spy_data = market_data_service.fetch_historical_data(benchmark, period=period)
-        market_returns = spy_data.returns if spy_data else None
+        if market_snapshot is None:
+            spy_data = market_data_service.fetch_historical_data(benchmark, period=period)
+            market_returns = spy_data.returns if spy_data else None
+        else:
+            market_returns = np.expm1(market_snapshot[benchmark]).reindex(returns_df.index)
 
         # 1. Risk Metrics
         logger.info("Computing risk metrics...")
@@ -549,7 +562,9 @@ class ExamplePortfolioService:
         # 15. Benchmarks
         logger.info("Fetching benchmark data...")
         bench_list = [benchmark, 'VT'] if benchmark != 'VT' else [benchmark, 'SPY']
-        benchmarks = risk_analytics.get_benchmark_data(bench_list, period=period)
+        benchmarks = (risk_analytics.get_benchmark_data(bench_list, period=period) if market_snapshot is None
+                      else {t: np.expm1(market_snapshot[t]).reindex(returns_df.index)
+                            for t in bench_list if t in market_snapshot})
         
         # 16. Monthly returns
         logger.info("Computing monthly returns heatmap...")
@@ -581,7 +596,8 @@ class ExamplePortfolioService:
             portfolio_returns=portfolio_returns,
             weights=weights_dict,
             factor_exposure={'exposure': factor_exposure.__dict__ if factor_exposure else {}},
-            period=period
+            period=period,
+            benchmark_snapshot=market_snapshot,
         )
         
         # Fix charts to include missing data that index.html expects

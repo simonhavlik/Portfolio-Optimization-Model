@@ -372,6 +372,47 @@ class AppCache(db.Model):
     computed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
+class FundFiling(db.Model):
+    """One as-filed disclosure, preserving the original and every amendment."""
+
+    __tablename__ = 'fund_filings'
+    __table_args__ = (db.Index('ix_fund_filings_fund_period', 'fund', 'period', 'filed'),)
+
+    accession = db.Column(db.String(20), primary_key=True)
+    fund = db.Column(db.String(48), nullable=False)
+    period = db.Column(db.Date, nullable=False)
+    filed = db.Column(db.Date, nullable=False)
+    document = db.Column(JSONB().with_variant(db.JSON, 'sqlite'), nullable=False)
+
+
+class FundQuarterHistory(db.Model):
+    """A published quarter and its changes from the preceding available filing."""
+
+    __tablename__ = 'fund_quarter_histories'
+    fund = db.Column(db.String(64), primary_key=True)
+    period = db.Column(db.Date, primary_key=True)
+    revision = db.Column(db.String(64), nullable=False)
+    content = db.Column(db.LargeBinary, nullable=False)
+
+
+class FundPriceHistory(db.Model):
+    """Compressed adjusted daily log returns used by the fund reconstruction."""
+
+    __tablename__ = 'fund_price_histories'
+    ticker = db.Column(db.String(32), primary_key=True)
+    end_date = db.Column(db.Date, nullable=False)
+    observations = db.Column(db.Integer, nullable=False)
+    returns = db.Column(db.LargeBinary, nullable=False)
+
+
+class FundResearchAsset(db.Model):
+    """Immutable, prefabricated chart assets addressable by snapshot revision."""
+
+    __tablename__ = 'fund_research_assets'
+    path = db.Column(db.String(150), primary_key=True)
+    content = db.Column(db.LargeBinary, nullable=False)
+
+
 class ApiCredential(db.Model):
     """Active provider credential, switchable without a redeploy."""
 

@@ -46,16 +46,17 @@
             </p>
         </section>
 
+        {% if points %}
         <section class="vs-scatter-wrap" aria-label="Risk against return">
             <div class="vs-map-head">
                 <p class="vs-kicker"><span class="mono">Risk against return</span></p>
                 <p class="vs-map-lede">
-                    Ten books, five years to {{ board.as_of }}. Bubble size is the composite score; hover
+                    {{ points | length }} comparable books, five years to {{ board.as_of }}. Bubble size is the composite score; hover
                     a name for its worst drawdown.
                 </p>
             </div>
 
-            <svg class="vs-scatter" viewBox="0 0 780 350" role="img" aria-label="Annualised volatility against annualised return for ten funds">
+            <svg class="vs-scatter" viewBox="0 0 780 350" role="img" aria-label="Annualised volatility against annualised return for comparable funds">
                 <g class="vs-grid">
                     {% for i in range(5) %}
                     <line x1="40" y1="{{ 30 + i * 72.5 }}" x2="740" y2="{{ 30 + i * 72.5 }}" />
@@ -106,6 +107,7 @@
             </div>
         </section>
 
+        {% endif %}
         <section class="vs-flow" aria-label="Your book, same frame">
             <div class="vs-flow-head">
                 <p class="vs-kicker"><span class="mono">Your book, same frame</span></p>

@@ -45,7 +45,8 @@ class DashboardChartService:
     def get_performance_chart_data(self, 
                                    returns: pd.Series,
                                    tickers: List[str],
-                                   period: str = '2y') -> Dict[str, Any]:
+                                   period: str = '2y',
+                                   benchmark_snapshot: Optional[Dict[str, pd.Series]] = None) -> Dict[str, Any]:
         """
         Generate portfolio performance vs benchmarks chart data.
         
@@ -59,9 +60,15 @@ class DashboardChartService:
         
         for i, (name, ticker) in enumerate(list(BENCHMARK_TICKERS.items())[:5]):
             try:
-                data = market_data_service.fetch_historical_data(ticker, period=period)
-                if data and len(data.returns) > 0:
-                    bench_cum = (1 + data.returns).cumprod()
+                if benchmark_snapshot is None:
+                    data = market_data_service.fetch_historical_data(ticker, period=period)
+                    series = data.returns if data else None
+                else:
+                    series = benchmark_snapshot.get(ticker)
+                    if series is not None:
+                        series = np.expm1(series.reindex(returns.index))
+                if series is not None and len(series) > 0:
+                    bench_cum = (1 + series).cumprod()
                     # Normalize timezones and align dates
                     if portfolio_cum.index.tz is not None:
                         portfolio_cum.index = portfolio_cum.index.tz_localize(None)
@@ -581,7 +588,8 @@ class DashboardChartService:
                       weights: Dict[str, float],
                       factor_exposure: Optional[Dict] = None,
                       stress_results: Optional[Dict] = None,
-                      period: str = '2y') -> Dict[str, Any]:
+                      period: str = '2y',
+                      benchmark_snapshot: Optional[Dict[str, pd.Series]] = None) -> Dict[str, Any]:
         """
         Generate all dashboard charts at once.
         """
@@ -590,7 +598,7 @@ class DashboardChartService:
         return {
             'performance': self.get_performance_chart_data(portfolio_returns, 
                                                           returns_df.columns.tolist(), 
-                                                          period),
+                                                          period, benchmark_snapshot),
             'rolling_metrics': self.get_rolling_metrics_charts(portfolio_returns),
             'rolling_stats_63d': self.get_rolling_statistics_chart(portfolio_returns, window=63),
             'allocation': self.get_allocation_charts(weights, returns_df.columns.tolist()),

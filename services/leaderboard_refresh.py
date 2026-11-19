@@ -1,163 +1,111 @@
-"""Gradual, resumable price refresh for the leaderboard.
-
-Nothing here runs on its own. A deploy, a page view or a rebuild never calls
-Yahoo: the board is served from the price cache or the committed seed, and
-prices only move when this module is invoked explicitly (API, admin button or
-the opt-in scheduler).
-
-Each invocation fetches a small slice of stale tickers, one at a time with a
-pause in between, persisting after every ticker so a crash or a timeout loses
-nothing. When the slice is exhausted it rebuilds the board from the cache.
-"""
+"""Explicit, rate-limited leaderboard update with a cross-worker lock."""
 
 from __future__ import annotations
 
+import fcntl
 import json
 import pickle
 import time
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
-CACHE_DIR = Path('data/leaderboard_cache')
+from services.filing_history import atomic_write
+from services.leaderboard import CACHE_DIR, PRICE_PERIOD, _read_prices
+from services.leaderboard_funds import BENCHMARK, FUNDS
+
 STATE_FILE = CACHE_DIR / 'refresh_state.json'
-PRICES_FILE = CACHE_DIR / 'prices_10y.pkl'
+PRICES_FILE = CACHE_DIR / f'prices_{PRICE_PERIOD}.pkl'
 META_FILE = CACHE_DIR / 'prices_meta.json'
-UNIVERSE_FILE = CACHE_DIR / 'universe.json'
-
+LOCK_FILE = CACHE_DIR / 'refresh.lock'
 PRICE_TTL = timedelta(days=7)
+RETRY_TTL = timedelta(days=1)
 
 
-def _read_json(path: Path, default):
+def _read_json(path, default):
     try:
-        return json.loads(path.read_text())
+        return json.loads(path.read_bytes())
     except (OSError, ValueError):
         return default
 
 
-def _write_json(path: Path, payload) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload))
-
-
-def _read_prices() -> dict:
-    try:
-        return pickle.loads(PRICES_FILE.read_bytes())
-    except (OSError, ValueError, pickle.UnpicklingError):
-        return {}
-
-
-def _write_prices(prices: dict) -> None:
-    PRICES_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PRICES_FILE.write_bytes(pickle.dumps(prices))
+def _write_json(path, payload):
+    atomic_write(path, json.dumps(payload).encode())
 
 
 def state() -> dict:
-    return _read_json(STATE_FILE, {
-        'running': False,
-        'fetched_total': 0,
-        'remaining': None,
-        'last_run': None,
-        'last_error': None,
-        'last_build': None,
-    })
+    return _read_json(STATE_FILE, {'running': False, 'fetched_total': 0, 'remaining': None,
+                                   'last_run': None, 'last_error': None, 'last_build': None})
 
 
 def _save_state(**changes) -> dict:
-    current = state()
-    current.update(changes)
-    _write_json(STATE_FILE, current)
-    return current
+    payload = {**state(), **changes}
+    _write_json(STATE_FILE, payload)
+    return payload
 
 
-def universe() -> list[str]:
-    tickers = _read_json(UNIVERSE_FILE, [])
-    if tickers:
-        return tickers
-    try:
-        from services.leaderboard import collect_universe
-        tickers = collect_universe()
-        _write_json(UNIVERSE_FILE, tickers)
-    except Exception:
-        tickers = []
-    return tickers
-
-
-def stale_tickers() -> list[str]:
-    """Tickers in the universe with no price or a price older than the TTL."""
-    prices = _read_prices()
-    meta = _read_json(META_FILE, {})
-    cutoff = (datetime.utcnow() - PRICE_TTL).isoformat()
-    stale = []
-    for ticker in universe():
-        if ticker not in prices:
-            stale.append(ticker)
-        elif meta.get(ticker, '') < cutoff:
-            stale.append(ticker)
-    return stale
-
-
-def run_batch(batch_size: int = 20, pause_seconds: float = 1.2, time_budget: float = 240.0) -> dict:
-    """Fetch at most ``batch_size`` stale tickers, pausing between requests."""
+def refresh_all(batch_size: int = 20, pause_seconds: float = 1.2, max_rounds: int = 4) -> dict:
+    """Refresh SEC changes, then progress through a bounded queue of price updates."""
+    from services.filing_history import download_history
+    from services.fund_archive import import_archive, publish_quarters
+    from services.leaderboard import BOARD_FILE, build_board, collect_universe
+    from services.leaderboard_research import MANIFEST, rebuild
+    from services.leaderboard_storage import publish
+    from services.leaderboard_market import refresh_mapping
     from services.market_data import market_data_service
 
-    started = time.time()
-    prices = _read_prices()
-    meta = _read_json(META_FILE, {})
-    pending = stale_tickers()
-    if not pending:
-        _save_state(running=False, remaining=0, last_run=datetime.utcnow().isoformat())
-        return state()
-
-    fetched = 0
-    failures = 0
-    for ticker in pending[:batch_size]:
-        if time.time() - started > time_budget:
-            break
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    with LOCK_FILE.open('ab') as lock:
         try:
-            data = market_data_service.fetch_historical_data(ticker, period='10y')
-            if data is not None and getattr(data, 'returns', None) is not None and len(data.returns):
-                returns = data.returns
-                if getattr(returns.index, 'tz', None) is not None:
-                    returns = returns.copy()
-                    returns.index = returns.index.tz_localize(None)
-                prices[ticker] = returns
-                meta[ticker] = datetime.utcnow().isoformat()
-                fetched += 1
-            else:
-                failures += 1
-        except Exception:
-            failures += 1
-        # persist after every ticker so a timeout loses nothing
-        _write_prices(prices)
-        _write_json(META_FILE, meta)
-        time.sleep(pause_seconds)
-
-    remaining = len(stale_tickers())
-    _save_state(
-        running=remaining > 0,
-        fetched_total=state().get('fetched_total', 0) + fetched,
-        remaining=remaining,
-        last_run=datetime.utcnow().isoformat(),
-        last_error=f'{failures} tickers failed' if failures else None,
-    )
-
-    if remaining == 0:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return state()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        _save_state(running=True, started_at=now.isoformat(), last_error=None)
         try:
-            from services.leaderboard import build_board
-            build_board(force=True, allow_fetch=False)
-            _save_state(last_build=datetime.utcnow().isoformat())
+            download_history(FUNDS)
+            import_archive()
+            publish_quarters()
+            refresh_mapping()
+            prices = _read_prices()
+            meta = _read_json(META_FILE, {})
+            attempted = meta.pop('_failed', {})
+            tickers = collect_universe()
+            cutoff = (now - PRICE_TTL).isoformat()
+            retry = (now - RETRY_TTL).isoformat()
+            work = [t for t in tickers if t != BENCHMARK
+                    and (t not in prices or meta.get(t, '') < cutoff)
+                    and attempted.get(t, '') < retry]
+            fetched = 0
+            errors = 0
+            step = work[:batch_size * max_rounds]
+            for ticker in step:
+                data = market_data_service.fetch_historical_data(ticker, period=PRICE_PERIOD, use_cache=False)
+                if data is not None and len(data.returns):
+                    series = data.returns.copy()
+                    series.index = series.index.tz_localize(None)
+                    prices[ticker] = series
+                    meta[ticker] = now.isoformat()
+                    attempted.pop(ticker, None)
+                    atomic_write(PRICES_FILE, pickle.dumps(prices))
+                    fetched += 1
+                else:
+                    attempted[ticker] = now.isoformat()
+                    errors += 1
+                _write_json(META_FILE, {**meta, '_failed': attempted})
+                time.sleep(pause_seconds)
+
+            remaining = len(work) - len(step)
+            # Advance the common end date after the constituent refresh queue drains.
+            if BENCHMARK not in prices or not remaining:
+                data = market_data_service.fetch_historical_data(BENCHMARK, period=PRICE_PERIOD, use_cache=False)
+                if data is not None and len(data.returns):
+                    prices[BENCHMARK] = data.returns
+                    atomic_write(PRICES_FILE, pickle.dumps(prices))
+            build_board(force=True)
+            rebuild()
+            publish(board_path=CACHE_DIR / BOARD_FILE, studies_path=MANIFEST, prices=prices)
+            return _save_state(running=False, last_run=now.isoformat(), last_build=now.isoformat(),
+                               fetched_total=state().get('fetched_total', 0) + fetched, remaining=remaining,
+                               last_error=f'{errors} price series unavailable' if errors else None)
         except Exception as exc:
-            _save_state(last_error=f'build failed: {exc}')
-
-    return state()
-
-
-def refresh_all(batch_size: int = 20, pause_seconds: float = 1.2, max_rounds: int = 40) -> dict:
-    """Run batches until the universe is fresh (used by the background thread)."""
-    _save_state(running=True, started_at=datetime.utcnow().isoformat())
-    for _ in range(max_rounds):
-        result = run_batch(batch_size=batch_size, pause_seconds=pause_seconds)
-        if not result.get('remaining'):
-            break
-    _save_state(running=False, finished_at=datetime.utcnow().isoformat())
-    return state()
+            _save_state(running=False, last_error=str(exc))
+            raise

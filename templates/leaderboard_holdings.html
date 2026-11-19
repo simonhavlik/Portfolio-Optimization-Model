@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% block analytics_assets %}{% endblock %}
+{% block body_class %}research-page{% endblock %}
+{% block title %}{{ fund.name }} filing history | Portfolio Optimizer{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='leaderboard/leaderboard.css') }}">{% endblock %}
+{% block content %}
+<section class="research">
+  <div class="research-inner">
+    <header class="research-masthead">
+      <div>
+        <p class="research-eyebrow"><a class="research-link" href="{{ url_for('leaderboard_view') }}">Fund leaderboard</a> / SEC filing history</p>
+        <h1>{{ fund.name }}</h1>
+        <p class="research-deck">{{ fund.manager }} · {{ fund.blurb }}</p>
+      </div>
+      {% if book %}
+      <nav class="research-actions" aria-label="Holdings actions">
+        <a class="research-button" href="{{ url_for('leaderboard_holdings', slug=fund.slug, quarter=selected, download='csv') }}">Download holdings CSV</a>
+        <a class="research-button research-accent" href="{{ url_for('fund_analysis', slug=fund.slug, quarter=selected) }}">Analyse this book</a>
+      </nav>
+      {% endif %}
+    </header>
+    {% if dates %}
+      <form class="research-quarter" method="get">
+        <div><label for="quarter">Reporting quarter</label><select id="quarter" name="quarter">
+          {% for date in dates %}<option value="{{ date }}" {% if date == selected %}selected{% endif %}>{{ date }}</option>{% endfor %}
+        </select></div>
+        <button class="research-button" type="submit">View quarter</button>
+      </form>
+      <div class="research-section">
+        <h2>Holdings at {{ selected }}</h2>
+        {% if prior %}<p>Compared with {{ prior }}, the previous available report. Share changes can reflect corporate actions.</p>{% endif %}
+        {% if book %}
+          <p>Reported {{ book.filed }} · U.S. dollars · {{ filings | length }} source filing{{ 's' if filings | length != 1 }}</p>
+          <details class="research-method"><summary>SEC filings and amendments</summary>
+            <ul>{% for filing in filings %}<li><a class="research-link" href="{{ filing.url }}">{{ filing.filed }} · {{ filing.form }}</a> · {{ filing.mode }} · {{ filing.format }}{% if filing.adjusted_units %} · values filed in thousands, shown in USD{% endif %}</li>{% endfor %}</ul>
+          </details>
+          <div class="research-table-wrap" tabindex="0" aria-label="Scrollable disclosed holdings">
+            <table class="research-table research-holdings">
+              <thead><tr><th scope="col">Security</th><th scope="col">CUSIP</th><th scope="col" class="research-number">Value</th>
+              <th scope="col" class="research-number">Weight</th><th scope="col" class="research-number">Reported quantity</th>
+              {% if prior %}<th scope="col">Position change</th><th scope="col" class="research-number">Weight change</th>{% endif %}</tr></thead>
+              <tbody>
+              {% for row in rows %}<tr>
+                <th scope="row">{{ row.issuer }}<span class="research-meta">{{ row.class }} {{ row.option }}</span></th>
+                <td>{{ row.cusip }}</td>
+                <td class="research-number">{{ '$' ~ '{:,}'.format(row.value) if row.action != 'Exited' else '—' }}</td>
+                <td class="research-number">{{ '%.2f%%' | format(row.weight * 100) if row.action != 'Exited' else '—' }}</td>
+                <td class="research-number">{{ '{:,.0f}'.format(row.shares) if row.action != 'Exited' else '—' }} <small>{{ row.quantity_type }}</small></td>
+                {% if prior %}<td>{{ row.action }}</td><td class="research-number">{{ '%+.2f pp' | format(row.weight_change * 100) }}</td>{% endif %}
+              </tr>{% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% if pages > 1 %}
+          <nav class="research-actions" aria-label="Holdings pages">
+            {% if page > 1 %}<a class="research-link" href="{{ url_for('leaderboard_holdings', slug=fund.slug, quarter=selected, page=page-1) }}">Previous</a>{% endif %}
+            <span class="research-meta">Page {{ page }} of {{ pages }} · {{ '{:,}'.format(total) }} positions and changes</span>
+            {% if page < pages %}<a class="research-link" href="{{ url_for('leaderboard_holdings', slug=fund.slug, quarter=selected, page=page+1) }}">Next</a>{% endif %}
+          </nav>
+          {% endif %}
+        {% else %}
+          <p>A partial amendment is on file for this quarter.</p>
+          <ul>{% for filing in filings %}<li><a class="research-link" href="{{ filing.url }}">{{ filing.filed }} · {{ filing.form }}</a></li>{% endfor %}</ul>
+        {% endif %}
+      </div>
+    {% else %}<p class="research-section">No filings have been imported for this manager yet.</p>{% endif %}
+  </div>
+</section>
+{% endblock %}

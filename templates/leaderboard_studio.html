@@ -1,0 +1,45 @@
+{% extends 'base.html' %}
+{% block analytics_assets %}{% endblock %}
+{% block body_class %}research-page{% endblock %}
+{% block title %}LinkedIn studio | Portfolio Optimizer{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{{ url_for('static', filename='leaderboard/leaderboard.css') }}">{% endblock %}
+{% block content %}
+<section class="research">
+  <div class="research-inner">
+    <header class="research-masthead">
+      <div>
+        <p class="research-eyebrow"><a class="research-link" href="{{ url_for('leaderboard_view') }}">Fund leaderboard</a> / Private</p>
+        <h1>LinkedIn studio</h1>
+        <p class="research-deck">Weekly drafts and ready-to-upload graphics.</p>
+      </div>
+    </header>
+    <form class="research-quarter research-picker" method="get">
+      <div><label for="draft-manager">Fund or manager</label><select id="draft-manager" name="manager">
+        <option value="">All managers</option>
+        {% for fund in funds | sort(attribute='name') %}<option value="{{ fund.slug }}" {% if fund.slug == manager %}selected{% endif %}>{{ fund.name }} · {{ fund.manager }}</option>{% endfor %}
+      </select></div><button class="research-button" type="submit">Filter drafts</button>
+    </form>
+    <div class="research-section">
+    {% for week, draft in drafts %}
+      {% set study = studies.get(draft.study) %}
+      <article class="research-draft">
+        <p class="research-eyebrow">Week {{ week }}</p>
+        <h2>{{ draft.title }}</h2>
+        <div class="research-copy" id="copy-{{ draft.study }}">{{ draft.text }}</div>
+        <p class="research-post-link"><span>Link for the post</span> <code>{{ draft.link }}</code></p>
+        <button type="button" class="research-button research-copy-button" data-copy="copy-{{ draft.study }}" hidden>Copy draft</button>
+        {% if study %}
+        <div class="research-actions">
+          <a class="research-button" href="{{ url_for('leaderboard_research_asset', study=draft.study, panel='chart', ext='png', v=draft.get('revision', study.revision), download='1') }}">Download research chart</a>
+          <a class="research-button" href="{{ url_for('leaderboard_research_asset', study=draft.study, panel='report', ext='png', v=draft.get('revision', study.revision), download='1') }}">Download one-page report</a>
+          <a class="research-link" href="{{ url_for('leaderboard_view', study=draft.study, period=study.cohort) }}#research-packs">Preview research pack</a>
+        </div>
+        {% endif %}
+      </article>
+    {% else %}<p>No drafts match this manager.</p>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}<script src="{{ url_for('static', filename='leaderboard/leaderboard.js') }}" defer></script>{% endblock %}

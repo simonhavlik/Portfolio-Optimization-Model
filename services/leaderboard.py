@@ -1,442 +1,314 @@
-"""Cross-sectional fund leaderboard.
-
-Builds one comparable return series per fund, scores it on the metrics an
-allocator would actually look at, and ranks the field.
-
-Funds come in two shapes (see :mod:`services.leaderboard_funds`):
-
-* listed vehicles — the traded share price, i.e. what an investor can own;
-* 13F filers — their disclosed long US equity book, held at the reported
-  weights (a buy-and-hold reconstruction, not the manager's actual trades).
-
-The board is expensive to compute (a decade of daily prices for roughly a
-hundred tickers), so it is written to disk and reused for a week.
-"""
+"""Read saved rankings and rebuild them from the SEC disclosure archive."""
 
 from __future__ import annotations
 
 import json
 import math
-from datetime import datetime, timedelta
+import pickle
+from collections import defaultdict
+from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
-from services import edgar_13f
-from services import leaderboard_valuation as valuation
-from services.leaderboard_funds import (
-    BENCHMARK,
-    CRISIS_WINDOWS,
-    FUNDS,
-    ISSUER_ALIASES,
-    RANK_METRICS,
-)
+from services import fund_archive, leaderboard_valuation as valuation
+from services.filing_history import atomic_write
+from services.leaderboard_funds import BENCHMARK, CRISIS_WINDOWS, FUNDS, ISSUER_ALIASES, RANK_METRICS
 from services.risk_analytics import RiskAnalytics
 
 CACHE_DIR = Path('data/leaderboard_cache')
-BOARD_FILE = 'board.json'
-CACHE_TTL = timedelta(days=7)
-
+BOARD_FILE = 'board_13f.json'
 WINDOW_YEARS = 5
 RISK_FREE = 0.045
 PRICE_PERIOD = '10y'
+MIN_COVERAGE = .75
+MAX_FILING_AGE = pd.Timedelta(days=155)
+ARCHIVED_END = '2025-11-03'
+BOARDS = {'current': ('Latest five years', WINDOW_YEARS, None),
+          'scion': ('Scion comparison · 2023–25', 2, ARCHIVED_END)}
 
 risk = RiskAnalytics()
 
 
-# --------------------------------------------------------------------------- #
-# data assembly
-# --------------------------------------------------------------------------- #
+def _mapping() -> dict:
+    from services.leaderboard_storage import CUSIP_KEY, published_snapshot
+    saved = published_snapshot(CUSIP_KEY)
+    if saved is not None:
+        return saved.get('data', {})
+    path = CACHE_DIR / 'cusip_map.json'
+    try:
+        return json.loads(path.read_bytes())['data']
+    except (OSError, KeyError, ValueError):
+        from services.leaderboard_storage import hydrate_snapshot
+        return (hydrate_snapshot(path, CUSIP_KEY) or {}).get('data', {})
 
-def _fund_book(fund: dict) -> dict | None:
-    if fund['kind'] != '13f':
-        return None
-    book = edgar_13f.fund_13f(fund['cik'])
-    return edgar_13f.apply_aliases(book, fund.get('aliases'), ISSUER_ALIASES)
+
+def _book_positions(fund: dict, book: dict | None, mapping: dict) -> list[dict]:
+    positions = fund_archive.aggregate(book, equity_only=True)
+    aliases = {**ISSUER_ALIASES, **fund.get('aliases', {})}
+    for row in positions:
+        ticker = mapping.get(row['cusip'])
+        issuer = row['issuer'].upper()
+        if not ticker:
+            ticker = next((ticker for name, ticker in aliases.items() if issuer.startswith(name)), None)
+        row['ticker'] = ticker
+    return positions
+
+
+def _fund_book(fund: dict, period: str | None = None) -> dict | None:
+    if not period:
+        dates = fund_archive.periods(fund['slug'])
+        if not dates:
+            return None
+        period = dates[0]
+    documents = fund_archive.documents(fund['slug'], period)
+    return fund_archive.quarter_book(documents, period)
+
+
+def _weight_map(positions: list[dict]) -> dict[str, float]:
+    weights = defaultdict(float)
+    for row in positions:
+        if row['ticker'] and row['weight'] > 0:
+            weights[row['ticker']] += row['weight']
+    return dict(weights)
 
 
 def _weights(fund: dict, book: dict | None) -> dict[str, float]:
-    if fund['kind'] == 'listed':
-        return {fund['ticker']: 1.0}
-    return edgar_13f.weights_from_book(book)
+    return _weight_map(_book_positions(fund, book, _mapping())) if book else {}
 
 
-def _basket_returns(weights: dict[str, float], series: dict[str, pd.Series]) -> pd.Series:
-    frame = {}
-    for ticker, weight in weights.items():
-        rets = series.get(ticker)
-        if rets is None or rets.dropna().empty:
-            continue
-        frame[ticker] = rets * weight
-    if not frame:
-        return pd.Series(dtype=float)
-    df = pd.DataFrame(frame)
-    # only days where every constituent traded
-    df = df.dropna(how='any')
-    return df.sum(axis=1)
-
-
-def _naive(series: pd.Series) -> pd.Series:
-    if isinstance(series.index, pd.DatetimeIndex) and series.index.tz is not None:
-        series = series.copy()
-        series.index = series.index.tz_localize(None)
-    return series
-
-
-def _13f_series(books: list[tuple[dict, dict]], prices: dict) -> pd.Series:
-    """Chain quarterly books: each filing's weights apply from its filing date
-    until the next filing, which removes the look-ahead of a single snapshot."""
-    parts = []
-    for index, (filing, book) in enumerate(books):
-        weights = edgar_13f.weights_from_book(book)
-        series = {t: prices[t].returns for t in weights if t in prices}
-        segment = _basket_returns(weights, series)
-        if segment.empty:
-            continue
-        start = pd.Timestamp(filing['filed'])
-        segment = segment[segment.index >= start]
-        if index + 1 < len(books):
-            end = pd.Timestamp(books[index + 1][0]['filed'])
-            segment = segment[segment.index < end]
-        if not segment.empty:
-            parts.append(segment)
-    if not parts:
-        return pd.Series(dtype=float)
-    return pd.concat(parts).sort_index()
-
-
-def _fund_series(fund: dict, prices: dict, books: list[tuple[dict, dict]]) -> pd.Series:
-    if fund['kind'] != 'listed':
-        return _13f_series(books, prices)
-
-    data = prices.get(fund['ticker'])
-    if data is None:
-        return pd.Series(dtype=float)
-    local = data.returns.dropna()
-
-    # non-USD listings must be compared with a USD benchmark on a common currency
-    fx_ticker = fund.get('fx')
-    if fx_ticker and fx_ticker in prices:
-        fx = prices[fx_ticker].returns.dropna()
-        joined = pd.concat([local, fx], axis=1, join='inner').dropna()
-        if not joined.empty:
-            local = (1 + joined.iloc[:, 0]) * (1 + joined.iloc[:, 1]) - 1
-    return local
-
-
-# --------------------------------------------------------------------------- #
-# metrics
-# --------------------------------------------------------------------------- #
-
-def _window(series: pd.Series, years: int) -> pd.Series:
-    if series.empty:
-        return series
-    end = series.index.max()
-    start = end - pd.DateOffset(years=years)
-    return series[series.index >= start]
-
-
-def _crisis_return(series: pd.Series, start: str, end: str) -> float | None:
-    if series is None or series.empty or not isinstance(series.index, pd.DatetimeIndex):
-        return None
-    window = series[(series.index >= start) & (series.index <= end)]
-    if len(window) < 5:
-        return None
-    return float((1 + window).prod() - 1)
-
-
-def _metrics(returns: pd.Series, benchmark: pd.Series) -> dict:
-    aligned = pd.concat([returns, benchmark], axis=1, join='inner').dropna()
-    if len(aligned) < 60:
-        return {}
-    port = aligned.iloc[:, 0]
-    bench = aligned.iloc[:, 1]
-    m = risk.calculate_comprehensive_metrics(port, bench, risk_free_rate=RISK_FREE)
-    return {
-        'annualized_return': float(m.annualized_return),
-        'total_return': float(m.total_return),
-        'volatility': float(m.volatility),
-        'sharpe_ratio': float(m.sharpe_ratio),
-        'sortino_ratio': float(m.sortino_ratio),
-        'calmar_ratio': float(m.calmar_ratio),
-        'max_drawdown': float(m.max_drawdown),
-        'cvar_95': float(m.cvar_95),
-        'beta': float(m.beta),
-        'alpha': float(m.alpha),
-        'information_ratio': float(m.information_ratio),
-        'downside_volatility': float(m.downside_volatility),
-    }
-
-
-def _percentile_scores(rows: list[dict]) -> None:
-    """Attach a 0-100 composite: mean percentile across the rankable metrics."""
-    for key, _label, direction, _desc in RANK_METRICS:
-        values = [(row, row['metrics'].get(key)) for row in rows]
-        usable = [(row, v) for row, v in values if v is not None and not (isinstance(v, float) and math.isnan(v))]
-        if len(usable) < 2:
-            for row, _ in values:
-                row.setdefault('ranks', {})[key] = None
-            continue
-        ordered = sorted(usable, key=lambda pair: pair[1], reverse=(direction > 0))
-        count = len(ordered)
-        for position, (row, _value) in enumerate(ordered, start=1):
-            row.setdefault('ranks', {})[key] = position
-            row.setdefault('percentiles', {})[key] = round(100 * (count - position) / max(1, count - 1), 1)
-
-    for row in rows:
-        parts = [v for v in row.get('percentiles', {}).values() if v is not None]
-        row['score'] = round(sum(parts) / len(parts), 1) if parts else None
-    rows.sort(key=lambda r: (r['score'] is None, -(r['score'] or 0)))
-
-
-# --------------------------------------------------------------------------- #
-# board
-# --------------------------------------------------------------------------- #
-
-def collect() -> tuple[set[str], dict, dict]:
-    """Every ticker the board needs, plus the books behind the 13F funds."""
-    histories: dict[str, list] = {}
-    latest: dict[str, dict | None] = {}
-    tickers: set[str] = {BENCHMARK}
-    for fund in FUNDS:
-        if fund['kind'] == 'listed':
-            tickers.add(fund['ticker'])
-            if fund.get('fx'):
-                tickers.add(fund['fx'])
-            continue
-        filings = edgar_13f.fund_filings(fund['cik'], limit=20)
-        books = []
-        for filing in filings:
-            book = edgar_13f.book_for_filing(fund['cik'], filing)
-            book = edgar_13f.apply_aliases(book, fund.get('aliases'), ISSUER_ALIASES)
-            books.append((filing, book))
-            tickers.update(edgar_13f.weights_from_book(book).keys())
-        histories[fund['slug']] = books
-        latest[fund['slug']] = books[-1][1] if books else None
-        print(f"[leaderboard] {fund['slug']}: {len(books)} filings", flush=True)
-    return tickers, histories, latest
+def _read_prices(tickers: set[str] | None = None) -> dict[str, pd.Series]:
+    from services.leaderboard_storage import load_prices, serving_postgres
+    if serving_postgres():
+        return load_prices(tickers)
+    try:
+        cached = pickle.loads((CACHE_DIR / f'prices_{PRICE_PERIOD}.pkl').read_bytes())
+        return cached if tickers is None else {t: cached[t] for t in tickers if t in cached}
+    except (OSError, ValueError, pickle.UnpicklingError):
+        return load_prices(tickers)
 
 
 def collect_universe() -> list[str]:
-    tickers, _histories, _latest = collect()
-    return sorted(tickers)
+    """Prioritize large recent equity positions for the gradual price refresh."""
+    mapping = _mapping()
+    priorities = defaultdict(float)
+    for fund in FUNDS:
+        docs = fund_archive.documents(fund['slug'])
+        for book in fund_archive.timeline(docs)[-24:]:
+            for ticker, weight in _weights_for(fund, book, mapping).items():
+                priorities[ticker] = max(priorities[ticker], weight)
+    return [BENCHMARK, *sorted((t for t in priorities if t != BENCHMARK),
+                               key=lambda t: (-priorities[t], t))]
 
 
-def _top_weights(book: dict | None, limit: int = 15) -> dict[str, float]:
-    if not book:
+def _weights_for(fund, book, mapping):
+    return _weight_map(_book_positions(fund, book, mapping))
+
+
+def _series(fund: dict, books: list[dict], prices: dict, calendar: pd.DatetimeIndex,
+            mapping: dict) -> tuple[pd.Series, pd.Series]:
+    """Buy at the next close after publication, then hold until the next rebalance."""
+    returns = pd.Series(np.nan, index=calendar)
+    coverage = pd.Series(np.nan, index=calendar)
+    for index, book in enumerate(books):
+        filed = pd.Timestamp(book['filed'])
+        rebalance = calendar.searchsorted(filed, side='right')
+        if rebalance >= len(calendar) - 1:
+            break
+        cutoff = filed + MAX_FILING_AGE
+        stop = calendar.searchsorted(cutoff, side='right')
+        if index + 1 < len(books):
+            next_rebalance = calendar.searchsorted(pd.Timestamp(books[index + 1]['filed']), side='right')
+            stop = min(stop, next_rebalance + 1)
+        if stop <= rebalance + 1:
+            continue
+
+        days = calendar[rebalance:stop]
+        weights = _weights_for(fund, book, mapping)
+        usable = {t: w for t, w in weights.items()
+                  if t in prices and pd.notna(prices[t].get(days[0]))}
+        initial_coverage = sum(usable.values())
+        coverage.loc[days[1:]] = initial_coverage
+        if initial_coverage < MIN_COVERAGE:
+            continue
+
+        logs = pd.DataFrame({t: prices[t].reindex(days) for t in usable}, index=days)
+        # A missing price ends that capital sleeve for the remainder of this book.
+        # The segment ends if too much capital loses pricing.
+        alive = logs.notna().cummin()
+        invested = alive.mul(pd.Series(usable)).sum(axis=1)
+        coverage.loc[days[1:]] = invested.iloc[1:]
+        valid = invested.ge(MIN_COVERAGE).cummin()
+        values = np.exp(logs.where(alive, 0).cumsum().sub(logs.iloc[0])).mul(pd.Series(usable))
+        strategy = values.sum(axis=1).pct_change(fill_method=None)
+        returns.loc[days[1:]] = strategy.where(valid).iloc[1:]
+    return returns, coverage
+
+
+def _metrics(series: pd.Series, benchmark: pd.Series) -> dict:
+    m = risk.calculate_comprehensive_metrics(series, benchmark, risk_free_rate=RISK_FREE)
+    keys = ('annualized_return', 'total_return', 'volatility', 'sharpe_ratio', 'sortino_ratio',
+            'calmar_ratio', 'max_drawdown', 'cvar_95', 'beta', 'alpha', 'information_ratio',
+            'downside_volatility')
+    return {key: float(getattr(m, key)) for key in keys if math.isfinite(getattr(m, key))}
+
+
+def _simulation(returns: pd.Series) -> dict:
+    """Bootstrap contiguous blocks of daily model returns into 252-day paths."""
+    daily = np.log1p(returns.to_numpy())
+    size = 21
+    months = 12
+    paths = 3000
+    monthly = np.lib.stride_tricks.sliding_window_view(daily, size).sum(axis=1)
+    rng = np.random.default_rng(801)
+    sampled = rng.choice(monthly, size=(paths, months))
+    end_values = np.exp(sampled.sum(axis=1)) * 100
+    low, median, high = np.percentile(end_values, [10, 50, 90])
+    return {'low': round(float(low), 2), 'median': round(float(median), 2),
+            'high': round(float(high), 2), 'loss': round(float((end_values < 100).mean()), 4)}
+
+
+def _score(rows: list[dict]) -> None:
+    eligible = [row for row in rows if row['metrics']]
+    for key, _, direction, _ in RANK_METRICS:
+        scores = pd.Series({row['slug']: row['metrics'][key] * direction for row in eligible
+                            if key in row['metrics']}, dtype=float)
+        if len(scores) < 2:
+            continue
+        ranked = (scores.rank(method='average') - 1) * 100 / (len(scores) - 1)
+        for row in eligible:
+            if row['slug'] in ranked:
+                row.setdefault('percentiles', {})[key] = round(float(ranked[row['slug']]), 1)
+    for row in rows:
+        values = list(row.get('percentiles', {}).values())
+        row['score'] = round(sum(values) / len(values), 1) if values else None
+    rows.sort(key=lambda r: (r['score'] is None, -(r['score'] or 0), r['name']))
+
+
+def _format_pe(positions: list[dict], pe_cache: dict, as_of: str | None) -> dict:
+    if not as_of:
         return {}
-    weights = edgar_13f.weights_from_book(book)
-    return dict(sorted(weights.items(), key=lambda kv: kv[1], reverse=True)[:limit])
+    # Current trailing multiples are displayed as a dated snapshot only.
+    cutoff = pd.Timestamp(as_of) - pd.Timedelta(days=30)
+    dated = {key: row for key, row in pe_cache.items() if row.get('at')
+             and cutoff <= pd.Timestamp(row['at']).normalize() <= pd.Timestamp(as_of) + pd.Timedelta(days=2)}
+    weights = _weight_map(positions)
+    result = valuation.weights_pe(weights, dated)
+    result['at'] = max((dated[t]['at'][:10] for t in weights if t in dated), default=None)
+    return result
 
 
-def _commentary(rows: list[dict], pe_median: float | None) -> dict:
-    """Plain-language read of the board, built only from computed numbers."""
-    ranked = [r for r in rows if r.get('score') is not None]
-    ranked.sort(key=lambda r: r['score'], reverse=True)
-    if not ranked:
-        return {'lead': '', 'body': '', 'notable': ''}
-
-    lead = ranked[0]
-    runner = ranked[1] if len(ranked) > 1 else None
-    last = ranked[-1]
-    m = lead.get('metrics') or {}
-    lead_text = (
-        f"{lead['name']} leads on {lead['score']:.0f} of 100, with a Sharpe of "
-        f"{m.get('sharpe_ratio', 0):.2f} and alpha of {m.get('alpha', 0) * 100:+.1f}% a year. "
-        f"Its worst drawdown was {m.get('max_drawdown', 0) * 100:.1f}%."
-    )
-    spread = ranked[0]['score'] - last['score']
-    body = (
-        f"The spread between first and last is {spread:.0f} points. "
-        f"{last['name']} sits at the bottom on {last['score']:.0f}, with a Sharpe of "
-        f"{(last.get('metrics') or {}).get('sharpe_ratio', 0):.2f}."
-    )
-    if pe_median:
-        body += f" The median trailing P/E across the priced books is {pe_median:.1f}x."
-    notable = ''
-    if runner:
-        rm = runner.get('metrics') or {}
-        notable = (
-            f"{runner['name']} is second at {runner['score']:.0f}, on "
-            f"{rm.get('annualized_return', 0) * 100:+.1f}% a year with "
-            f"{rm.get('volatility', 0) * 100:.1f}% volatility."
-        )
-    return {'lead': lead_text, 'body': body, 'notable': notable}
-
-
-def build_board(force: bool = False, window_years: int = WINDOW_YEARS, allow_fetch: bool = False) -> dict:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    path = CACHE_DIR / BOARD_FILE
-    seed = Path('services/leaderboard_seed.json')
-    if not force and not path.exists() and seed.exists():
-        try:
-            return json.loads(seed.read_text())
-        except (OSError, ValueError):
-            pass
-    if not force and path.exists():
-        try:
-            payload = json.loads(path.read_text())
-            stamped = datetime.fromisoformat(payload['computed_at'])
-            if datetime.utcnow() - stamped < CACHE_TTL:
-                return payload
-        except (OSError, ValueError, KeyError):
-            pass
-
-    tickers, histories, latest = collect()
-
-    from services.market_data import market_data_service
-    import pickle
-
-    price_cache = CACHE_DIR / f'prices_{PRICE_PERIOD}.pkl'
-    cached_prices = {}
-    if price_cache.exists():
-        try:
-            if datetime.utcnow() - datetime.fromtimestamp(price_cache.stat().st_mtime) < timedelta(days=3):
-                cached_prices = pickle.loads(price_cache.read_bytes())
-        except Exception:
-            cached_prices = {}
-    (CACHE_DIR / 'universe.json').write_text(json.dumps(sorted(tickers)))
-
-    missing_tickers = [t for t in sorted(tickers) if t not in cached_prices]
-    if missing_tickers and not allow_fetch:
-        # never hit the network implicitly: a deploy, a page view or a rebuild
-        # must not turn into an unplanned Yahoo fetch
-        print(f'[leaderboard] {len(missing_tickers)} tickers missing from cache; '
-              f'run the refresh API to fetch them', flush=True)
-        batch = {}
-    else:
-        batch = market_data_service.fetch_batch_data(missing_tickers, period=PRICE_PERIOD) if missing_tickers else {}
-    missing = [t for t in tickers if batch.get(t) is None]
-    for ticker in missing:  # transient batch failures: retry one by one
-        try:
-            data = market_data_service.fetch_historical_data(ticker, period=PRICE_PERIOD)
-            if data is not None:
-                batch[ticker] = data
-        except Exception:
-            pass
-    fetched = {t: _naive(d.returns) for t, d in batch.items() if d is not None and getattr(d, 'returns', None) is not None}
-    cached_prices.update(fetched)
-    try:
-        price_cache.write_bytes(pickle.dumps(cached_prices))
-    except Exception:
-        pass
-    prices = {t: type('P', (), {'returns': r})() for t, r in cached_prices.items() if t in tickers}
-    benchmark_prices = prices.get(BENCHMARK)
-    print(f'[leaderboard] prices {len(prices)}/{len(tickers)} tickers', flush=True)
-    if not prices:
-        raise RuntimeError('no price data returned; refusing to publish an empty board')
-
-    bench_data = prices.get(BENCHMARK)
-    benchmark = _window(bench_data.returns.dropna(), window_years) if bench_data is not None else pd.Series(dtype=float)
-
+def _compile(cohort, archive, prices, mapping, pe_cache, stats):
+    title, years, end = BOARDS[cohort]
+    bench_log = prices.get(BENCHMARK, pd.Series(dtype=float)).dropna()
+    if end:
+        bench_log = bench_log.loc[:end]
+    benchmark = np.expm1(bench_log)
+    calendar = benchmark.index
+    window = benchmark.loc[calendar[-1] - pd.DateOffset(years=years):] if len(calendar) else benchmark
+    as_of = calendar[-1].date().isoformat() if len(calendar) else None
+    # Keep the actual last session label in holidays and partial weeks.
+    weekly_dates = window.groupby(window.index.to_period('W-FRI')).tail(1).index if len(window) else window.index
     rows = []
     for fund in FUNDS:
+        slug = fund['slug']
+        books = archive[slug]
+        latest = next((book for book in reversed(books) if not as_of or book['filed'] <= as_of), None)
+        positions = _book_positions(fund, latest, mapping)
+        full, coverage = _series(fund, books, prices, calendar, mapping)
+        series = full.reindex(window.index)
+        comparable = len(series) >= 252 and series.notna().all()
+        metrics = _metrics(series, window) if comparable else {}
+        if comparable:
+            metrics['concentration'] = max((p['weight'] for p in positions), default=0)
+        weekly = (1 + series).cumprod().mul(100).reindex(weekly_dates) if comparable else None
+        crisis = {}
+        for key, _, start, stop in CRISIS_WINDOWS:
+            event = full.loc[start:stop] if not full.empty else full
+            complete = len(event) >= 5 and event.notna().all() and calendar[0] <= pd.Timestamp(start) and calendar[-1] >= pd.Timestamp(stop)
+            crisis[key] = float((1 + event).prod() - 1) if complete else None
+        measured = coverage.reindex(window.index).dropna()
+        archive_stats = stats.get(slug, {})
+        recent_values = {}
+        if as_of:
+            first_year = str(int(as_of[:4]) - 10)
+            for book in books:
+                if book['period'] >= first_year and book['filed'] <= as_of:
+                    recent_values[book['period']] = sum(p['value'] for p in book['positions']
+                                                       if not p['option'] and p['quantity_type'] == 'SH')
+        rows.append({**fund, 'metrics': metrics, 'crisis': crisis,
+                     'filing': latest['filed'] if latest else None, 'period': latest['period'] if latest else None,
+                     'holdings': len(positions), 'coverage': round(float(measured.min()), 4) if len(measured) else None,
+                     'observations': int(series.count()), 'archive': archive_stats,
+                     'simulation': _simulation(series) if comparable else None,
+                     'size': sum(p['value'] for p in positions),
+                     'disclosed_values': sorted(recent_values.items()),
+                     'pe': _format_pe(positions, pe_cache, as_of) if cohort == 'current' else {},
+                     'curve': weekly.round(2).tolist() if weekly is not None else [],
+                     'curve_dates': [d.date().isoformat() for d in weekly.index] if weekly is not None else [],
+                     'latest_tops': {p['cusip']: p['weight'] for p in positions if p['weight'] >= .005},
+                     'reason': None if comparable else ('No parsed filing' if not latest else 'Insufficient continuous coverage'),
+                     })
+    _score(rows)
+    comparator = (1 + window).cumprod().mul(100)
+    if len(comparator):
+        comparator = comparator.reindex(weekly_dates)
+    return {'rows': rows, 'cohort': cohort, 'title': title, 'as_of': as_of,
+            'start': window.index[0].date().isoformat() if len(window) else None, 'window_years': years,
+            'risk_free': RISK_FREE, 'benchmark': BENCHMARK, 'observations': len(window),
+            'benchmark_curve': list(zip([d.date().isoformat() for d in comparator.index],
+                                        comparator.round(2).tolist())) if len(comparator) else [],
+            'pe_median': None, 'commentary': {},
+            'metrics': [{'key': key, 'label': label, 'direction': direction, 'description': desc}
+                        for key, label, direction, desc in RANK_METRICS],
+            'crisis': [{'key': k, 'label': label, 'start': s, 'end': e} for k, label, s, e in CRISIS_WINDOWS],
+            }
+
+
+@lru_cache(maxsize=4)
+def _saved_board(path: Path, revision: int) -> dict:
+    return json.loads(path.read_bytes())
+
+
+def build_board(force: bool = False, cohort: str = 'current') -> dict:
+    """Normal visitor traffic only reads a snapshot. Refresh builds both cohorts."""
+    path = CACHE_DIR / BOARD_FILE
+    if not force:
+        from services.leaderboard_storage import BOARD_KEY, hydrate_snapshot, published_snapshot
+        saved = published_snapshot(BOARD_KEY)
+        if saved and cohort in saved:
+            return saved[cohort]
         try:
-            series = _fund_series(fund, prices, histories.get(fund['slug'], []))
-            full = series
-            series = _window(series, window_years)
-            metrics = _metrics(series, benchmark) if not series.empty else {}
-        except Exception as exc:  # one bad fund must not sink the board
-            series = pd.Series(dtype=float)
-            metrics = {}
-            print(f"[leaderboard] {fund['slug']} failed: {exc}", flush=True)
-        book = latest.get(fund['slug'])
-        row = {
-            'slug': fund['slug'],
-            'name': fund['name'],
-            'manager': fund['manager'],
-            'kind': fund['kind'],
-            'style': fund['style'],
-            'seat': fund['seat'],
-            'since': fund['since'],
-            'blurb': fund['blurb'],
-            'ticker': fund.get('ticker'),
-            'metrics': metrics,
-            'holdings': 1,
-            'coverage': round(book['coverage'], 4) if book else None,
-            'filing': (book or {}).get('filed'),
-            'crisis': {},
-        }
-        for key, _label, start, end in CRISIS_WINDOWS:
-            # crises fall outside the five-year ranking window, so they are
-            # measured on the full series rather than the windowed one
-            row['crisis'][key] = _crisis_return(full, start, end)
-        if fund['kind'] == '13f' and book:
-            current = edgar_13f.weights_from_book(book)
-            top = max(current.values()) if current else None
-            row['holdings'] = len(current)
-            row['metrics']['concentration'] = float(top) if top is not None else None
-        else:
-            row['metrics']['concentration'] = None
-        row['observations'] = int(len(series))
-        row['start'] = series.index.min().date().isoformat() if not series.empty else None
-        if not series.empty:
-            curve = (1 + series).cumprod() * 100
-            weekly = curve.resample('W').last().dropna()
-            row['curve'] = [round(float(v), 2) for v in weekly.tolist()]
-            row['curve_dates'] = [d.date().isoformat() for d in weekly.index]
-        rows.append(row)
-
-    _percentile_scores(rows)
-
-    # valuation: multiples come from a small, cached, rate-limited lookup; a
-    # missing multiple is left missing rather than invented
-    try:
-        pe_universe = {t for r in rows if r['kind'] == '13f'
-                       for t in list(_top_weights(latest.get(r['slug'])))[:15]}
-        pe_universe.update(f['ticker'] for f in FUNDS if f['kind'] == 'listed')
-        pe_cache = valuation.ensure(sorted(pe_universe), pause=0.9, limit=160) \
-            if allow_fetch else valuation._load()
-    except Exception:
-        pe_cache = {}
-
-    for row in rows:
-        if row['kind'] == '13f':
-            weights_book = _top_weights(latest.get(row['slug']))
-            if weights_book:
-                row['pe'] = valuation.weights_pe(weights_book, pe_cache)
-        else:
-            ticker = row.get('ticker')
-            if ticker:
-                row['pe'] = valuation.weights_pe({ticker: 1.0}, pe_cache)
-
-    priced = [r['pe']['weighted'] for r in rows if (r.get('pe') or {}).get('weighted')]
-    pe_median = sorted(priced)[len(priced) // 2] if priced else None
-
-    payload = {
-        'pe_median': pe_median,
-        'commentary': _commentary(rows, pe_median),
-        'computed_at': datetime.utcnow().isoformat(),
-        'window_years': window_years,
-        'risk_free': RISK_FREE,
-        'benchmark': BENCHMARK,
-        'as_of': benchmark.index.max().date().isoformat() if not benchmark.empty else None,
-        'rows': rows,
-        'metrics': [
-            {'key': key, 'label': label, 'direction': direction, 'description': desc}
-            for key, label, direction, desc in RANK_METRICS
-        ],
-        'crisis': [{'key': k, 'label': l, 'start': s, 'end': e} for k, l, s, e in CRISIS_WINDOWS],
-    }
-    path.write_text(json.dumps(payload, default=str))
-
-    try:  # pre-render the chart board alongside the ranking
-        from services.leaderboard_charts import warm
-        warm(payload, CACHE_DIR, payload.get('as_of'))
-    except Exception as exc:
-        print(f'[leaderboard] chart warm failed: {exc}', flush=True)
-
-    return payload
-
-
-if __name__ == '__main__':
-    board = build_board(force=True)
-    print(f"as of {board['as_of']} · window {board['window_years']}y · rf {board['risk_free']:.1%}")
-    print(f"{'#':>2} {'fund':26s} {'score':>5} {'sharpe':>6} {'sort':>5} {'alpha':>6} {'maxdd':>6} {'vol':>5} {'beta':>5}")
-    for i, row in enumerate(board['rows'], 1):
-        m = row['metrics']
-        print(f"{i:>2} {row['name'][:26]:26s} {row['score'] or 0:5.1f} "
-              f"{m.get('sharpe_ratio', 0):6.2f} {m.get('sortino_ratio', 0):5.2f} "
-              f"{m.get('alpha', 0)*100:6.1f} {m.get('max_drawdown', 0)*100:6.1f} "
-              f"{m.get('volatility', 0)*100:5.1f} {m.get('beta', 0):5.2f}")
+            return _saved_board(path, path.stat().st_mtime_ns)[cohort]
+        except (OSError, ValueError, KeyError):
+            saved = hydrate_snapshot(path, BOARD_KEY)
+            if saved and cohort in saved:
+                return saved[cohort]
+            return _compile(cohort, {f['slug']: [] for f in FUNDS}, {}, {}, {}, {})
+    prices = _read_prices()
+    if BENCHMARK not in prices:
+        raise RuntimeError('Benchmark prices are missing')
+    for ticker, series in prices.items():
+        series = series.copy()
+        series.index = pd.DatetimeIndex(series.index).tz_localize(None).normalize()
+        prices[ticker] = series[~series.index.duplicated(keep='last')].sort_index()
+    archive = {f['slug']: fund_archive.timeline(fund_archive.documents(f['slug'])) for f in FUNDS}
+    stats = fund_archive.stats()
+    mapping = _mapping()
+    pe_cache = valuation._load()
+    stamp = datetime.now(timezone.utc).isoformat()
+    revision = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')
+    payload = {}
+    for key in BOARDS:
+        board = _compile(key, archive, prices, mapping, pe_cache, stats)
+        board.update(computed_at=stamp, revision=revision)
+        priced = [row['pe']['weighted'] for row in board['rows'] if row['pe'].get('weighted')]
+        board['pe_median'] = float(np.median(priced)) if priced else None
+        payload[key] = board
+    from services.leaderboard_graphics import warm
+    for board in payload.values():
+        warm(board)
+    atomic_write(path, json.dumps(payload, allow_nan=False, separators=(',', ':')).encode())
+    return payload[cohort]
