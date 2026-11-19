@@ -172,7 +172,7 @@ def parse_filing(raw: bytes, filing: dict) -> dict:
     return normalize_filing(doc) if doc.get('accession') else doc
 
 
-def download_history(funds: list[dict], retry_failures: bool = False) -> None:
+def download_history(funds: list[dict], retry_failures: bool = False, since=None, limit=None) -> None:
     """Cache each SEC filing independently so interrupted imports can resume."""
     for fund in funds:
         cik = fund['cik']
@@ -180,7 +180,9 @@ def download_history(funds: list[dict], retry_failures: bool = False) -> None:
         payload = json.loads(edgar_13f._sec_get(url))
         filings = edgar_13f._submission_arrays(payload, strict=True)
         counts = defaultdict(int)
-        for filing in sorted(filings, key=lambda f: f['filed'], reverse=True):
+        ordered = sorted((f for f in filings if not since or f['filed'] >= since),
+                         key=lambda f: f['filed'], reverse=True)
+        for filing in ordered[:limit]:
             accession = filing['accession']
             target = ARCHIVE / fund['slug'] / f'{accession}.json'
             failed = target.with_suffix('.error')
@@ -213,5 +215,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Download individual SEC 13F filings')
     parser.add_argument('--fund', action='append', choices=[fund['slug'] for fund in FUNDS])
     parser.add_argument('--retry-failures', action='store_true')
+    parser.add_argument('--since', help='Earliest filing date, YYYY-MM-DD')
+    parser.add_argument('--limit', type=int, help='Maximum recent filings per manager')
     args = parser.parse_args()
-    download_history([f for f in FUNDS if not args.fund or f['slug'] in args.fund], args.retry_failures)
+    download_history([f for f in FUNDS if not args.fund or f['slug'] in args.fund], args.retry_failures, args.since, args.limit)

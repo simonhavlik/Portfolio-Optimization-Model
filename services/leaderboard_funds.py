@@ -258,6 +258,24 @@ FUNDS = [
     },
 ]
 
+FUNDS.extend([
+    {'slug': 'de-shaw', 'cik': '0001009207', 'name': 'D. E. Shaw & Co.', 'manager': 'David E. Shaw', 'kind': '13f', 'style': 'Systematic multi-strategy'},
+    {'slug': 'aqr', 'cik': '0001167557', 'name': 'AQR Capital Management', 'manager': 'Cliff Asness', 'kind': '13f', 'style': 'Systematic factor investing'},
+    {'slug': 'millennium', 'cik': '0001273087', 'name': 'Millennium Management', 'manager': 'Izzy Englander', 'kind': '13f', 'style': 'Multi-manager platform'},
+    {'slug': 'two-sigma', 'cik': '0001179392', 'name': 'Two Sigma Investments', 'manager': 'Two Sigma Investments', 'kind': '13f', 'style': 'Systematic investing'},
+    {'slug': 'wellington', 'cik': '0000902219', 'name': 'Wellington Management', 'manager': 'Wellington Management', 'kind': '13f', 'style': 'Institutional active equity'},
+    {'slug': 'fisher', 'cik': '0000850529', 'name': 'Fisher Investments', 'manager': 'Ken Fisher', 'kind': '13f', 'style': 'Global equity'},
+    {'slug': 'akre', 'cik': '0001112520', 'name': 'Akre Capital Management', 'manager': 'Akre Capital Management', 'kind': '13f', 'style': 'Quality compounders'},
+    {'slug': 'southeastern', 'cik': '0000807985', 'name': 'Southeastern Asset Management', 'manager': 'Mason Hawkins', 'kind': '13f', 'style': 'Concentrated value'},
+    {'slug': 'dodge-cox', 'cik': '0000200217', 'name': 'Dodge & Cox', 'manager': 'Dodge & Cox', 'kind': '13f', 'style': 'Fundamental value'},
+    {'slug': 'davis', 'cik': '0001036325', 'name': 'Davis Selected Advisers', 'manager': 'Chris Davis', 'kind': '13f', 'style': 'Fundamental value'},
+    {'slug': 'gates-trust', 'cik': '0001166559', 'name': 'Gates Foundation Trust', 'manager': 'Cascade Investment', 'kind': '13f', 'style': 'Foundation equity holdings'},
+    {'slug': 'smith', 'cik': '0001569205', 'name': 'Fundsmith', 'manager': 'Terry Smith', 'kind': '13f', 'style': 'Quality growth'},
+    {'slug': 'icahn', 'cik': '0000921669', 'name': 'Carl Icahn', 'manager': 'Carl Icahn', 'kind': '13f', 'style': 'Activist and concentrated value'},
+    {'slug': 'trian', 'cik': '0001345471', 'name': 'Trian Fund Management', 'manager': 'Nelson Peltz', 'kind': '13f', 'style': 'Activist equity'},
+    {'slug': 'horizon-kinetics', 'cik': '0001056823', 'name': 'Horizon Kinetics', 'manager': 'Murray Stahl', 'kind': '13f', 'style': 'Long-horizon value'},
+])
+
 BENCHMARK = 'SPY'
 
 # CUSIPs for non-US issuers (Irish/Channel Islands/Dutch registrations) often

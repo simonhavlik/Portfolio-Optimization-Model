@@ -31,13 +31,16 @@
   <figure class="research-chart">
     <a href="{{ url_for('leaderboard_research_asset', study=key, panel=panel, ext='png', v=study.revision) }}" target="_blank" rel="noopener">
       <img src="{{ url_for('leaderboard_research_asset', study=key, panel=panel, ext='webp', v=study.revision) }}"
-           width="{{ study.chart_size[0] if panel == 'chart' and study.chart_size else 2140 }}" height="{{ study.chart_size[1] if panel == 'chart' and study.chart_size else 2660 }}" loading="lazy" decoding="async" alt="{{ study.title }} · {{ title }}">
+           width="{{ study.chart_size[0] if panel == 'chart' and study.chart_size else study.get('report_size', [2140, 2660])[0] }}" height="{{ study.chart_size[1] if panel == 'chart' and study.chart_size else study.get('report_size', [2140, 2660])[1] }}" loading="lazy" decoding="async" alt="{{ study.title }} · {{ title }}">
     </a>
     <figcaption><span>{{ title }}</span><a class="research-link" download
       href="{{ url_for('leaderboard_research_asset', study=key, panel=panel, ext='png', v=study.revision, download='1') }}">PNG</a></figcaption>
   </figure>
   {% endfor %}
 </div>
+{% if study.events %}<div class="research-section"><h3>Berkshire corporate timeline</h3>
+  <ul>{% for event in study.events %}<li><time>{{ event.date }}</time> · <a class="research-link" href="{{ event.url }}">{{ event.title }}</a></li>{% endfor %}</ul>
+</div>{% endif %}
 {% if study.notes %}
 <details class="research-method">
   <summary>{{ study.notes | length }} annotated position changes and source filings</summary>
@@ -101,14 +104,14 @@
       <div class="research-section-head">
         <div>
           <h2 id="ranking-heading">Manager rankings</h2>
-          <p>Select a fund to inspect its holdings and filing history.</p>
+          <p>{{ board.rows | length }} tracked managers. {{ ranked | length }} meet the selected return window’s coverage rule.</p>
         </div>
         <label class="research-search" hidden for="manager-filter">Find a manager
           <input id="manager-filter" type="search" placeholder="Name or firm" autocomplete="off">
         </label>
       </div>
 
-      {% if ranked %}
+      {% if board.rows %}
       <div class="research-table-wrap" tabindex="0" aria-label="Scrollable manager rankings">
         <table class="research-table" id="manager-ranking">
           <thead>
@@ -125,7 +128,7 @@
             </tr>
           </thead>
           <tbody>
-            {% for row in ranked %}
+            {% for row in board.rows %}
               {% set m = row.metrics %}
               <tr data-manager="{{ row.name }} {{ row.manager }}" {% if not m %}class="research-unranked"{% endif %}>
                 <td class="research-rank">{{ loop.index if row.score is not none else '—' }}</td>
@@ -151,6 +154,8 @@
       <p id="manager-empty" role="status" hidden>No managers match that search.</p>
       {% else %}<p>Comparable performance is pending a complete price window.</p>{% endif %}
     </section>
+
+    {% include 'leaderboard_explorer.html' %}
 
     <section id="manager-focus" class="research-section" aria-labelledby="focus-heading">
       <div class="research-section-head">
@@ -307,4 +312,5 @@
 </section>
 {% endblock %}
 
-{% block extra_js %}<script src="{{ url_for('static', filename='leaderboard/leaderboard.js') }}" defer></script>{% endblock %}
+{% block extra_js %}
+<script defer src="{{ url_for('static', filename='leaderboard/explorer.js') }}"></script><script src="{{ url_for('static', filename='leaderboard/leaderboard.js') }}" defer></script>{% endblock %}

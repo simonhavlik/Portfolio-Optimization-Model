@@ -261,6 +261,8 @@ def reset_password():
     try:
         user = reset_token.user
         user.set_password(new_password)
+        user.email_verified = True
+        user.email_verified_at = datetime.utcnow()
         reset_token.mark_used()
         db.session.commit()
         

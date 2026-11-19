@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Activate LinkedIn Studio | Portfolio Optimizer{% endblock %}
+{% block content %}
+<section class="section" style="max-width:36rem;margin:4rem auto;padding:0 1rem">
+  <h1>Activate LinkedIn Studio</h1>
+  <p>Enter the one-time activation code supplied for the signed-in owner account.</p>
+  {% if error %}<p role="alert">{{ error }}</p>{% endif %}
+  <form method="post">
+    <label for="code">Activation code</label>
+    <input id="code" name="code" required maxlength="128" autocomplete="one-time-code" autocapitalize="none" spellcheck="false">
+    <button class="btn btn-primary" type="submit">Activate Studio</button>
+  </form>
+</section>
+{% endblock %}

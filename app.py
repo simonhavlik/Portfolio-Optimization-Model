@@ -495,12 +495,13 @@ def custom_report(token):
 LEADERBOARD_ADMIN_EMAIL = 'havlik.simon@post.cz'
 
 
+def _leaderboard_owner_session() -> bool:
+    return bool(current_user.is_authenticated and current_user.is_active and
+                (current_user.email or '').strip().lower() == LEADERBOARD_ADMIN_EMAIL)
+
+
 def _leaderboard_admin_ok() -> bool:
-    try:
-        return bool(current_user.is_authenticated and current_user.is_active and
-                    current_user.email_verified and (current_user.email or '').strip().lower() == LEADERBOARD_ADMIN_EMAIL)
-    except Exception:
-        return False
+    return _leaderboard_owner_session() and bool(current_user.email_verified)
 
 
 @app.route('/vision')
@@ -600,11 +601,36 @@ def leaderboard_view():
     plot = comparison_plot(board, focus, peer)
     response = app.make_response(render_template(
         'leaderboard.html', board=board, cohorts=BOARDS, gallery=CHARTS, focus=focus,
-        featured=FEATURED, can_read_studio=_leaderboard_admin_ok(),
+        featured=FEATURED, can_read_studio=_leaderboard_owner_session(),
         studies=studies, study=study, requested_study=requested_study, plot=plot, peer=peer,
     ))
     response.cache_control.private = True
     response.cache_control.no_store = True
+    return response
+
+
+@app.route('/api/leaderboard/explorer')
+def leaderboard_explorer_data():
+    from services.holdings_style import load
+    from services.leaderboard import build_board
+    from services.leaderboard_funds import by_slug
+
+    data = load()
+    if not data:
+        abort(503)
+    rows = {r['slug']: r for r in build_board(cohort='long')['rows']}
+    managers = {}
+    for slug in data.get('tracked', data['universe']):
+        value_history = dict(rows.get(slug, {}).get('disclosed_values', []))
+        history = {quarter: {**reading, 'value': value_history.get(quarter, reading.get('value'))}
+                   for quarter, reading in data['history'][slug].items()}
+        managers[slug] = {'name': by_slug(slug)['name'], 'history': history,
+                          'returns': data.get('annual_returns', {}).get(slug, {}),
+                          'risk': data.get('annual_risk', {}).get(slug, {})}
+    response = jsonify({'managers': managers, 'periods': data['periods'],
+                        'industries': data['industries']})
+    response.cache_control.public = True
+    response.cache_control.max_age = 300
     return response
 
 
@@ -653,10 +679,41 @@ def leaderboard_styles():
                            annual=annual, observed=observed)
 
 
+@app.route('/leaderboard/studio/verify', methods=['GET', 'POST'])
+def leaderboard_studio_verify():
+    import hashlib
+    import hmac
+
+    if not _leaderboard_owner_session():
+        abort(404)
+    if _leaderboard_admin_ok():
+        return redirect(url_for('leaderboard_studio'))
+    error = None
+    if request.method == 'POST':
+        code = request.form.get('code', '').strip()
+        entry = db.session.get(AppCache, 'leaderboard:owner_activation', with_for_update=True)
+        digest = hashlib.sha256(code.encode()).hexdigest()
+        if (entry and datetime.utcnow() < entry.computed_at + timedelta(days=14)
+                and hmac.compare_digest(entry.payload.get('hash', ''), digest)):
+            current_user.email_verified = True
+            current_user.email_verified_at = datetime.utcnow()
+            db.session.delete(entry)
+            db.session.commit()
+            return redirect(url_for('leaderboard_studio'))
+        db.session.rollback()
+        error = 'The activation code is invalid or has expired.'
+    response = app.make_response(render_template('leaderboard_studio_verify.html', error=error))
+    response.cache_control.private = True
+    response.cache_control.no_store = True
+    return response
+
+
 @app.route('/leaderboard/studio')
 def leaderboard_studio():
-    if not _leaderboard_admin_ok():
+    if not _leaderboard_owner_session():
         abort(404)
+    if not _leaderboard_admin_ok():
+        return redirect(url_for('leaderboard_studio_verify'))
     from services.leaderboard_research import study_index
     from services.leaderboard_storage import DRAFTS_KEY
 

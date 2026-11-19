@@ -97,10 +97,18 @@ def report(fig, study, data):
     for slug in data['universe']:
         item = data['history'][slug][latest]
         primary = max((s for s in INDUSTRIES if s != 'Unknown'), key=item['sectors'].get)
-        rows.append([_short(slug), f"{item['positions']:,}", f"{item['top10']:.0%}",
-                     f"{item['effective']:,.1f}", f"{item['sector_coverage']:.0%}", primary])
-    _table(fig, .91, .325, ['Manager','Names','Top 10','Effective','Classified','Largest¹'],
-           rows, [0,.27,.40,.52,.66,.83,1])
+        industry_label = INDUSTRIES[primary].replace('Business equipment','Equipment').replace('Other industries','Other')
+        last_return = data.get('annual_returns', {}).get(slug, {}).get('2025')
+        reshuffle = item.get('weight_shift')
+        rows.append([_short(slug), f"${item.get('value',0)/1e9:,.1f}B",
+                     f"{item['positions']:,}", f"{item['effective']:,.1f}", f"{item['top']:.0%}",
+                     f"{item['top10']:.0%}", f"{item['sector_coverage']:.0%}", industry_label,
+                     '—' if reshuffle is None else f'{reshuffle:.1%}',
+                     f"{item.get('new','—')} / {item.get('exited','—')}",
+                     '—' if last_return is None else f'{last_return:+.1%}'])
+    _table(fig, .91, .325,
+           ['Manager','13F value','Names','Effective','Largest','Top 10','Classified','Top industry','Shift','In / out','2025 return'],
+           rows, [0,.14,.23,.30,.38,.445,.504,.588,.718,.789,.886,1])
     key = study.key
     if key in {'shared-stocks', 'style-test'}:
         by_overlap = sorted(data['pairs'], key=lambda p: -p['overlap'])
@@ -149,5 +157,5 @@ def report(fig, study, data):
     fig.text(.015, .295, heading, color=PAPER, fontsize=9)
     _table(fig,.278,.067,cols,detail,sizes)
     _rule(fig,.052)
-    fig.text(.012,.028,'¹ Largest classified group. Weights from Form 13F. Missing classifications remain visible.',
+    fig.text(.012,.028,'SEC Form 13F · Shift measures disclosed weights · 2025 modeled returns require continuous 75% price coverage.',
              fontsize=7, color=SOFT, va='center')

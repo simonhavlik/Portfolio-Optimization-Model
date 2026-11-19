@@ -92,10 +92,11 @@ def build(books):
         if latest in by_period:
             rows = fund_archive.aggregate(by_period[latest], equity_only=True)
             roots[slug] = sum(r['value'] for r in rows)
-    universe = sorted(roots, key=lambda slug: (-roots[slug], slug))[:20]
+    universe = sorted(roots, key=lambda slug: (-roots[slug], slug))
+    history_universe = universe + [slug for slug, docs in manager_books.items() if docs and slug not in roots]
     series = {}
     latest_books = {}
-    for slug in universe:
+    for slug in history_universe:
         metrics = {}
         before = None
         for quarter, filing in sorted(manager_books[slug].items()):
@@ -103,6 +104,8 @@ def build(books):
             if not positions:
                 continue
             reading = _cross_section(positions)
+            reading['value'] = sum(row['value'] for row in filing['positions']
+                                   if not row['option'] and row['quantity_type'] == 'SH')
             if before:
                 reading['new'] = len(positions.keys()-before.keys())
                 reading['exited'] = len(before.keys()-positions.keys())
@@ -121,17 +124,19 @@ def build(books):
     returns = {}
     if len(calendar):
         mapping = _mapping()
-        for slug in universe:
+        for slug in history_universe:
             returns[slug] = _series(by_slug(slug), books[slug], prices, calendar, mapping)[0]
     annual_returns = {}
+    annual_risk = {}
     if returns:
         channels = {**returns, 'SPY': np.expm1(prices['SPY'])}
         for slug, daily in channels.items():
-            annual_returns[slug] = {
-                str(year): round(float((1 + window).prod() - 1), 5)
-                for year, window in daily.loc[start:latest].groupby(daily.loc[start:latest].index.year)
-                if len(window) >= 245 and window.notna().all()
-            }
+            observed = daily.loc[start:latest]
+            valid = [(str(year), window) for year, window in observed.groupby(observed.index.year)
+                     if len(window) >= 245 and window.notna().all()]
+            annual_returns[slug] = {year: round(float((1 + window).prod() - 1), 5) for year, window in valid}
+            from services.leaderboard import _metrics
+            annual_risk[slug] = {year: _metrics(window, channels['SPY']) for year, window in valid}
     pairs = []
     for left, right in combinations(universe, 2):
         a, b = latest_books[left], latest_books[right]
@@ -158,8 +163,8 @@ def build(books):
                                                   for book in latest_books.values())/len(universe)}
          for key, count in counts.items()), key=lambda r: (-r['count'], -r['average'], r['issuer']))
     record = {'start': start, 'as_of': latest, 'universe': universe, 'periods': periods,
-              'history': series, 'pairs': pairs, 'size': roots, 'crowded': crowded[:50],
-              'industries': INDUSTRIES, 'classified': len(industries), 'annual_returns': annual_returns}
+              'history': series, 'tracked': history_universe, 'pairs': pairs, 'size': roots, 'crowded': crowded[:50],
+              'industries': INDUSTRIES, 'classified': len(industries), 'annual_returns': annual_returns, 'annual_risk': annual_risk}
     atomic_write(FILE, json.dumps(record, separators=(',', ':'), allow_nan=False).encode())
     return record
 
