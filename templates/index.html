@@ -5,11 +5,12 @@
 {% block extra_css %}
 <script>document.documentElement.classList.add('has-hero');{% if report_id %}document.documentElement.classList.add('report-page');{% endif %}</script>
 <link rel="stylesheet" href="/static/hero/hero.css">
-{% if report_id %}<link rel="stylesheet" href="/static/analysis/report.css">{% endif %}
+{% if report_id %}<link rel="stylesheet" href="{{ url_for('static', filename='analysis/report.css', v='history-print-1') }}">{% endif %}
 {% endblock %}
 
 {% block content %}
 
+{% if not fund %}
 <div id="data-loader" class="data-loader no-print" role="status" aria-live="polite">
     <div class="dl-bars"><span></span><span></span><span></span><span></span></div>
     <div>
@@ -33,7 +34,9 @@
     setTimeout(() => window.hideDataLoader && window.hideDataLoader(), 7000);
 })();
 </script>
+{% endif %}
 
+{% if not report_id or example_data.metrics %}
 <div id="print-report">
   <div class="pr-page">
     <header class="pr-head">
@@ -97,6 +100,7 @@
     <div class="pr-cols">
       <section>
         <h2>Factor exposure</h2>
+        {% if example_data.factor_exposure %}
         <table class="pr-table">
           <tr><th>Market</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.market_beta) }}</td></tr>
           <tr><th>Size</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.smb_beta|default(0)) }}</td></tr>
@@ -106,6 +110,7 @@
           <tr><th>Investment</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.cma_beta) }}</td></tr>
           <tr><th>R&sup2; / adj. R&sup2;</th><td class="pr-right">{{ "%.2f"|format(example_data.factor_exposure.r_squared) }} / {{ "%.2f"|format(example_data.factor_exposure.adj_r_squared) }}</td></tr>
         </table>
+        {% else %}<p class="pr-text">The available factor series does not cover this return window.</p>{% endif %}
 
         <h2>Distribution fit</h2>
         <table class="pr-table">
@@ -120,11 +125,12 @@
         <h2>Assessment</h2>
         {% set top = example_data.holdings | sort(attribute='weight', reverse=true) %}
         {% set stress_sorted = example_data.stress_test | dictsort(by='value') %}
+        {% if top | length >= 3 %}
         <p class="pr-text">The three largest positions are {{ top[0].ticker }} at {{ "%.1f"|format(top[0].weight * 100) }}%,
         {{ top[1].ticker }} at {{ "%.1f"|format(top[1].weight * 100) }}% and {{ top[2].ticker }} at
         {{ "%.1f"|format(top[2].weight * 100) }}%, which is {{ "%.1f"|format((top[0].weight + top[1].weight + top[2].weight) * 100) }}%
-        of the book across three names. Effective diversification is {{ "%.1f"|format(example_data.metrics.effective_n) }}
-        independent bets, so position sizing rather than the number of tickers drives the risk outcome.</p>
+        of the analysed allocation. The weight-based effective number of positions is {{ "%.1f"|format(example_data.metrics.effective_n) }}.</p>
+        {% endif %}
         <p class="pr-text">Across the stress set the worst case is {{ stress_sorted[0][0] }} at
         {{ "%.1f"|format(stress_sorted[0][1] * 100) }}% and the mildest is {{ stress_sorted[-1][0] }} at
         {{ "%.1f"|format(stress_sorted[-1][1] * 100) }}%. A 95% daily CVaR of
@@ -135,7 +141,7 @@
         <p class="pr-text">{{ example_data.ai_insights.recommendation }}</p>
       </section>
     </div>
-    <footer class="pr-foot">Student research, educational purposes only. Data: Yahoo Finance.</footer>
+    <footer class="pr-foot">{% if fund %}SEC Form 13F filings and adjusted constituent prices. Return metrics use the dated reconstructed book. Asset-level charts use the priced subset of the latest disclosed book.{% else %}Student research, educational purposes only. Data: Yahoo Finance.{% endif %}</footer>
   </div>
 
 
@@ -150,7 +156,7 @@
         ('performance.png', 'Cumulative performance'),
         ('drawdown.png', 'Drawdown'),
         ('distribution.png', 'Return distribution'),
-        ('monte_carlo.png', 'Monte Carlo, 5,000 paths'),
+        ('monte_carlo.png', 'Monte Carlo'),
         ('volatility.png', 'Rolling volatility'),
         ('monthly_returns.png', 'Monthly returns'),
         ('correlation.png', 'Asset correlation'),
@@ -161,7 +167,8 @@
         ('rolling_stats.png', 'Rolling statistics, 63d')
       ] %}
       <figure>
-        <img src="/static/report/{{ image }}" alt="{{ caption }}">
+        {% if report_id %}<img data-print-chart="{{ image }}" alt="{{ caption }}"{% if fund %} decoding="sync"{% endif %}>
+        {% else %}<img src="/static/report/{{ image }}" alt="{{ caption }}">{% endif %}
         <figcaption>{{ caption }}</figcaption>
       </figure>
       {% endfor %}
@@ -240,10 +247,17 @@
     {% endif %}
   </div>
 
+    {% if timeline %}{% include "partials/report_history_print.html" %}{% endif %}
 </div>
+{% else %}
+<div id="print-report">
+    {% if timeline %}{% include "partials/report_history_print.html" %}{% endif %}
+</div>
+{% endif %}
 
 {% if report_id %}
 {% include "partials/report_hero.html" %}
+{% if timeline %}{% include "partials/report_history.html" %}{% endif %}
 {% elif not embedded %}
 {# Landing hero: instrument-panel aesthetic + scripted platform walkthrough.
    Included by index.html only. CSS: static/hero/hero.css · JS: static/hero/hero.js #}
@@ -571,7 +585,7 @@
     {% if report_id %}
     <div class="rep-section-head">
         <span class="mono">Holdings &amp; allocation</span>
-        <span class="mono">{{ example_data.meta.n_assets }} positions <span class="sep">&middot;</span> weights as analysed</span>
+        <span class="mono">{% if fund %}{{ example_data.meta.disclosed_assets or example_data.meta.n_assets }} disclosed positions · {{ example_data.meta.disclosed_quarter }}{% else %}{{ example_data.meta.n_assets }} positions · weights as analysed{% endif %}</span>
     </div>
     {% else %}
     <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
@@ -594,7 +608,7 @@
                 <i class="fas fa-plus"></i> New analysis
             </a>
             {% else %}
-            <button type="button" onclick="window.print()" class="pdf-report-btn px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium transition flex items-center gap-2">
+            <button type="button" {% if report_id %}data-report-print{% else %}onclick="window.print()"{% endif %} class="pdf-report-btn px-5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-medium transition flex items-center gap-2">
                 <i class="fas fa-file-pdf"></i> PDF report
             </button>
             <button type="button" onclick="loadExamplePortfolio(); return false;" class="px-5 py-2.5 rounded-xl bg-primary-600 text-white font-medium hover:bg-primary-700 transition flex items-center gap-2">
@@ -618,7 +632,7 @@
                     </tr>
                 </thead>
                 <tbody class="text-slate-700">
-                    {% for holding in example_data.holdings %}
+                    {% for holding in example_data.disclosed_holdings or example_data.holdings %}
                     <tr class="border-b border-slate-100 hover:bg-slate-50 transition-colors">
                         <td class="px-4 py-3 font-semibold">{{ holding.ticker }}</td>
                         <td class="px-4 py-3">{{ holding.name if holding.name and holding.name != holding.ticker else holding.ticker }}</td>
@@ -631,6 +645,7 @@
         </div>
 
         <!-- Sector Allocation -->
+        {% if example_data.charts and example_data.charts.allocation %}
         <div>
             <h3 class="text-lg font-semibold text-slate-900 mb-4">Sector Allocation</h3>
             <div id="chart-sector-allocation" class="h-64"></div>
@@ -644,10 +659,11 @@
                 {% endfor %}
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
 
-{% if example_data %}
+{% if example_data and (not report_id or example_data.metrics) %}
 <!-- Pre-computed Analysis Dashboard -->
 <div id="comprehensive-analysis" class="space-y-6 mb-8">
 
@@ -1275,7 +1291,8 @@
 
 {% if report_id %}
 <script src="/static/hero/hero.js" defer></script>
-<script src="/static/analysis/report.js" defer></script>
+<script src="{{ url_for('static', filename='analysis/report.js', v='history-print-1') }}" defer></script>
+{% if timeline and timeline.chart.dates %}<script src="{{ url_for('static', filename='report/portfolio-timeline.js', v='disclosures-2') }}" defer></script>{% endif %}
 {% elif not embedded %}
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" defer></script>
 <script src="/static/hero/hero.js" defer></script>
@@ -1409,7 +1426,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Render all charts when page loads
 document.addEventListener('DOMContentLoaded', () => {
     {% if example_data and example_data.charts %}
-    fetch('/api/example-charts{% if report_id %}?report={{ report_id }}{% endif %}', { headers: { 'Accept': 'application/json' } })
+    window.reportChartsReady = fetch('{{ url_for('example_charts', report=report_id, v=example_data.meta.computed_at) if report_id else url_for('example_charts') }}', { headers: { 'Accept': 'application/json' } })
         .then(response => response.ok ? response.json() : Promise.reject(response.status))
         .then(renderAllCharts)
         .then(() => { if (window.hideDataLoader) window.hideDataLoader(); })
@@ -1615,10 +1632,10 @@ function renderAllCharts(data) {
     if (charts.performance && charts.performance.portfolio) {
         const traces = [{
             x: charts.performance.portfolio.dates,
-            y: charts.performance.portfolio.values,
+            y: charts.performance.portfolio.values.map(value => value == null ? null : value - 1),
             type: 'scatter',
             mode: 'lines',
-            line: { color: '#2563eb', width: 2 },
+            line: { color: '#c8a15a', width: 2 },
             name: 'Portfolio'
         }];
         
@@ -1627,10 +1644,10 @@ function renderAllCharts(data) {
                 if (charts.performance.benchmarks[bm]) {
                     traces.push({
                         x: charts.performance.benchmarks[bm].dates,
-                        y: charts.performance.benchmarks[bm].values,
+                        y: charts.performance.benchmarks[bm].values.map(value => value == null ? null : value - 1),
                         type: 'scatter',
                         mode: 'lines',
-                        line: { color: ['#ef4444', '#10b981'][i] || '#f59e0b', width: 1.5 },
+                        line: { color: ['#8fa3b8', '#7fa08a', '#c07a6a', '#a99bc4'][i] || '#a9a49a', width: 1.5, dash: 'dot' },
                         name: bm
                     });
                 }
@@ -1643,8 +1660,8 @@ function renderAllCharts(data) {
             yaxis: { title: 'Cumulative Return', tickformat: '.0%' },
             paper_bgcolor: 'rgba(0,0,0,0)',
             plot_bgcolor: 'rgba(0,0,0,0)',
-            showlegend: true
-        }, {displayModeBar: false});
+            showlegend: true, hovermode: 'x unified'
+        }, {displayModeBar: false, responsive: true});
     }
     
     // Risk Contribution

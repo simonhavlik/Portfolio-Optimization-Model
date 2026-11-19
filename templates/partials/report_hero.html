@@ -19,21 +19,27 @@
             </nav>
 
             <div class="rep-tools">
-                <button type="button" class="rep-tool" onclick="window.print()">
+                <button type="button" class="rep-tool" data-report-print>
                     <i class="fas fa-file-pdf" aria-hidden="true"></i><span>PDF report</span>
                 </button>
                 <a class="rep-tool" href="/api/report/xlsx?report={{ report_id }}">
                     <i class="fas fa-table" aria-hidden="true"></i><span>Excel model</span>
                 </a>
-                <a class="rep-tool" href="/api/report/csv?report={{ report_id }}">
+                {% if m %}<a class="rep-tool" href="/api/report/csv?report={{ report_id }}">
                     <i class="fas fa-download" aria-hidden="true"></i><span>CSV series</span>
-                </a>
+                </a>{% endif %}
                 <button type="button" class="rep-tool" data-copy-link>
                     <i class="fas fa-link" aria-hidden="true"></i><span>Copy link</span>
                 </button>
+                {% if fund %}
+                <a class="rep-tool" href="{{ url_for('leaderboard_holdings', slug=fund.slug) }}">Filing archive</a>
+                <form method="post" action="{{ url_for('update_fund_analysis', slug=fund.slug) }}">
+                    <button type="submit" class="rep-tool rep-tool--accent">Update</button>
+                </form>
+                {% else %}
                 <a class="rep-tool rep-tool--accent" href="/upload">
                     <i class="fas fa-plus" aria-hidden="true"></i><span>New analysis</span>
-                </a>
+                </a>{% endif %}
             </div>
         </div>
 
@@ -42,18 +48,20 @@
                 <p class="rep-kicker">
                     <span class="dot" aria-hidden="true"></span>Saved analysis
                     <span class="sep">&middot;</span>{{ example_data.meta.computed_at[:16]|replace('T', ' ') }} UTC
-                    <span class="sep">&middot;</span>{{ example_data.meta.period }} lookback
+                    <span class="sep">&middot;</span>{{ example_data.meta.period }}
                 </p>
                 <h1 id="rep-title" class="rep-title">{{ example_data.meta.name }}</h1>
                 <p class="rep-sub">
-                    {{ example_data.meta.n_assets }} positions
-                    <span class="sep">&middot;</span>{{ example_data.meta.n_simulations|default(5000) }} paths
-                    <span class="sep">&middot;</span>{{ example_data.meta.benchmark|default('SPY') }} benchmark
+                    {{ example_data.meta.disclosed_assets or example_data.meta.n_assets }} positions
+                    {% if m %}<span class="sep">&middot;</span>{{ example_data.meta.n_simulations|default(5000) }} paths
+                    <span class="sep">&middot;</span>{{ example_data.meta.benchmark|default('SPY') }} benchmark{% endif %}
                     {% if example_data.meta.risk_free_rate is defined %}<span class="sep">&middot;</span>{{ "%.1f"|format(example_data.meta.risk_free_rate * 100) }}% risk-free{% endif %}
                     {% if example_data.meta.description %}<span class="sep">&middot;</span>{{ example_data.meta.description }}{% endif %}
                 </p>
             </div>
 
+            {% if refreshed %}<p class="rep-sub" role="status">This report uses the latest published data.</p>{% endif %}
+            {% if m %}
             <dl class="rep-stats">
                 <div><dt>Total return</dt><dd class="{{ 'up' if m.total_return >= 0 else 'down' }}">{{ "%+.1f"|format(m.total_return * 100) }}%</dd></div>
                 <div><dt>Annualised</dt><dd class="{{ 'up' if m.annualized_return >= 0 else 'down' }}">{{ "%+.1f"|format(m.annualized_return * 100) }}%</dd></div>
@@ -64,9 +72,10 @@
                 <div><dt>Beta</dt><dd>{{ "%.2f"|format(m.beta) }}</dd></div>
                 <div><dt>CVaR 95</dt><dd class="down">{{ "%.2f"|format(m.cvar_95 * 100) }}%</dd></div>
             </dl>
+            {% else %}<p class="rep-sub">The filing history and allocation are available. The reported holdings do not have enough continuous prices for return and risk statistics.</p>{% endif %}
         </header>
 
-        <div class="rep-chart">
+        {% if m %}<div class="rep-chart">
             <div class="rep-chart-head">
                 <span class="mono rep-chart-title">Cumulative return <span class="sep">/</span> daily</span>
                 <span class="mono rep-legend">
@@ -80,6 +89,7 @@
             </div>
         </div>
 
+        {% endif %}
         <div class="rep-holdings" aria-hidden="true">
             <div class="rep-track">
                 {% for rnd in range(2) %}

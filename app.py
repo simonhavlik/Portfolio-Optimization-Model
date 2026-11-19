@@ -857,11 +857,9 @@ def leaderboard_csv():
     writer = csv.writer(buf)
     writer.writerow(['rank', 'fund', 'manager', 'cohort_start', 'cohort_end', 'score'] + metrics +
                     ['covid_2020', 'bear_2022', 'holdings', 'min_price_coverage', 'filing', 'observations'])
-    rank = 0
-    for row in board['rows']:
-        if row['score'] is not None:
-            rank += 1
-        writer.writerow([rank if row['score'] is not None else '', row['name'], row['manager'],
+    ranked = (row for row in board['rows'] if row['metrics'])
+    for rank, row in enumerate(ranked, 1):
+        writer.writerow([rank, row['name'], row['manager'],
                          board['start'], board['as_of'], row['score']] +
                         [row['metrics'].get(k) for k in metrics] +
                         [row['crisis'].get('covid'), row['crisis'].get('y2022'), row['holdings'],
@@ -974,21 +972,28 @@ def leaderboard_holdings(slug):
 def fund_analysis(slug):
     """Open the precomputed point-in-time report without running market analysis."""
     from services.leaderboard_funds import by_slug
+    from services.fund_reports import FULL_REPORT_PREFIX
     from services.portfolio_timeline import FUND_REPORT_PREFIX
 
     fund = by_slug(slug)
     if not fund:
         abort(404)
+    report = db.session.get(AppCache, FULL_REPORT_PREFIX + slug)
+    if not report or not report.payload:
+        abort(503, description='This fund is awaiting its saved report publication.')
     saved = db.session.get(AppCache, FUND_REPORT_PREFIX + slug)
-    return render_template('portfolio_timeline.html', timeline=saved.payload if saved else None,
-                           computed_at=saved.computed_at if saved else None, fund=fund,
-                           highlighted=request.args.get('quarter'),
-                           refreshed=request.args.get('updated') == '1')
+    payload = report.payload
+    return render_template('index.html', example_data=payload, report_id=f'fund-history-{slug}',
+                           valuation=None, cca=None, appendix=build_appendix(payload) if payload['metrics'] else None,
+                           fund=fund, timeline=saved.payload if saved else None,
+                           highlighted=request.args.get('quarter'), refreshed=request.args.get('updated') == '1',
+                           show_analysis=bool(payload['metrics']))
 
 
 @app.route('/leaderboard/<slug>/update', methods=['POST'])
 @rate_limit('fund_timeline_update', 6, 3600)
 def update_fund_analysis(slug):
+    from services.fund_reports import FULL_REPORT_PREFIX
     from services.leaderboard import build_board
     from services.leaderboard_funds import by_slug
     from services.portfolio_timeline import FUND_REPORT_PREFIX, fund_report
@@ -1000,16 +1005,24 @@ def update_fund_analysis(slug):
     key = FUND_REPORT_PREFIX + slug
     saved = db.session.get(AppCache, key)
     revision = build_board().get('revision')
-    if saved and revision == saved.payload.get('revision'):
+    analysis = db.session.get(AppCache, FULL_REPORT_PREFIX + slug)
+    if saved and analysis and revision == analysis.payload.get('revision'):
         return redirect(url_for('fund_analysis', slug=slug, updated='1'), code=303)
     if db.engine.dialect.name == 'postgresql':
         locked = db.session.scalar(text("SELECT pg_try_advisory_xact_lock(hashtext('fund_timeline_update'))"))
         if not locked:
             return redirect(url_for('fund_analysis', slug=slug), code=303)
-    payload = fund_report(fund)
+    from services.fund_reports import _classification, _factor_snapshot, standard_report
+    from services.leaderboard import _mapping, _read_prices
+    mapping, prices = _mapping(), _read_prices()
+    payload = fund_report(fund, mapping=mapping, prices=prices)
     if not payload:
         return redirect(url_for('fund_analysis', slug=slug), code=303)
     db.session.merge(AppCache(key=key, payload={**payload, 'revision': revision}, computed_at=datetime.utcnow()))
+    analysis = standard_report(fund, payload, prices=prices, factors=_factor_snapshot(False),
+                               mapping=mapping, industries=_classification(), revision=revision)
+    if analysis:
+        db.session.merge(AppCache(key=FULL_REPORT_PREFIX + slug, payload=analysis, computed_at=datetime.utcnow()))
     db.session.commit()
     return redirect(url_for('fund_analysis', slug=slug, updated='1'), code=303)
 
@@ -1115,7 +1128,7 @@ def report_xlsx():
     valuation = portfolio_valuation(example_data.get('holdings', []),
                                     example_data.get('metrics', {}).get('beta', 1.0))
     from services.cca import cached_cca
-    stream = build_xlsx(example_data, valuation, cached_cca())
+    stream = build_xlsx(example_data, valuation, None if report and report.startswith('fund-history-') else cached_cca())
     filename = f"portfolio-analysis-{date.today().isoformat()}.xlsx"
     return send_file(stream, as_attachment=True, download_name=filename,
                      mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')

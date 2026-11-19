@@ -3,7 +3,7 @@
 {% block body_class %}research-page{% endblock %}
 {% block title %}Fund leaderboard | Portfolio Optimizer{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='leaderboard/leaderboard.css', v='report-charts-1') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='leaderboard/leaderboard.css', v='report-windows-2') }}">
 {% endblock %}
 
 {% macro percent(value, signed=false) -%}
@@ -99,14 +99,14 @@
       <div class="research-section-head">
         <div>
           <h2 id="ranking-heading">Manager rankings</h2>
-          <p>{{ board.rows | length }} tracked managers. {{ ranked | length }} meet the selected return window’s coverage rule.</p>
+          <p>{{ ranked | length }} of {{ board.rows | length }} tracked managers qualify. <a class="research-link" href="#filing-index">All filing histories</a></p>
         </div>
         <label class="research-search" hidden for="manager-filter">Find a manager
           <input id="manager-filter" type="search" placeholder="Name or firm" autocomplete="off">
         </label>
       </div>
 
-      {% if board.rows %}
+      {% if ranked %}
       <div class="research-table-wrap ranking-scroll" tabindex="0" aria-label="Scrollable manager rankings">
         <table class="research-table" id="manager-ranking">
           <thead>
@@ -123,7 +123,7 @@
             </tr>
           </thead>
           <tbody>
-            {% for row in board.rows %}
+            {% for row in ranked %}
               {% set m = row.metrics %}
               <tr data-manager="{{ row.name }} {{ row.manager }}" {% if not m %}class="research-unranked"{% endif %}>
                 <td class="research-rank" {% if row.reason %}title="{{ row.reason }}"{% endif %}>{{ loop.index if row.score is not none else '—' }}</td>
@@ -147,8 +147,8 @@
           </tbody>
         </table>
       </div>
-      <p id="manager-empty" role="status" hidden>No managers match that search.</p>
-      {% else %}<p>Comparable performance is pending a complete price window.</p>{% endif %}
+      <p id="manager-empty" role="status" hidden>No ranked managers match that search.</p>
+      {% else %}<p>No manager meets the pricing rule for this entire window. Filing histories remain available below.</p>{% endif %}
     </section>
 
     <section id="manager-focus" class="research-section" aria-labelledby="focus-heading">
@@ -208,13 +208,14 @@
       <summary>Filing archives for all {{ board.rows | length }} managers</summary>
       <div class="research-table-wrap" tabindex="0" aria-label="Scrollable filing archive index">
         <table class="research-table">
-          <thead><tr><th scope="col">Manager</th><th scope="col">First period</th><th scope="col">Most recent period</th><th scope="col" class="research-number">Quarters</th><th scope="col" class="research-number">Window days</th></tr></thead>
+          <thead><tr><th scope="col">Manager</th><th scope="col">First period</th><th scope="col">Most recent period</th><th scope="col" class="research-number">Quarters</th><th scope="col" class="research-number">Window days</th><th scope="col">Report</th></tr></thead>
           <tbody>{% for row in board.rows | sort(attribute='name') %}<tr>
             <th scope="row"><a class="research-manager" href="{{ url_for('leaderboard_holdings', slug=row.slug) }}">{{ row.name }}</a><span class="research-meta">{{ row.manager }}</span></th>
             <td>{{ row.archive.get('first', '—') }}</td>
             <td>{{ row.archive.get('last', '—') }}</td>
             <td class="research-number">{{ row.archive.get('quarters', 0) }}</td>
             <td class="research-number">{{ row.observations }} / {{ board.observations }}</td>
+            <td>{% if row.archive %}<a class="research-link" href="{{ url_for('fund_analysis', slug=row.slug) }}">View analysis</a>{% endif %}</td>
           </tr>{% endfor %}</tbody>
         </table>
       </div>
@@ -278,6 +279,6 @@
 {% block extra_js %}
 <script defer src="https://cdn.plot.ly/plotly-basic-2.27.0.min.js"></script>
 <script defer src="{{ url_for('static', filename='report/chart-theme.js') }}"></script>
-<script defer src="{{ url_for('static', filename='leaderboard/explorer.js', v='report-charts-1') }}"></script>
-<script defer src="{{ url_for('static', filename='leaderboard/leaderboard.js', v='report-charts-1') }}"></script>
+<script defer src="{{ url_for('static', filename='leaderboard/explorer.js', v='report-windows-2') }}"></script>
+<script defer src="{{ url_for('static', filename='leaderboard/leaderboard.js', v='report-windows-2') }}"></script>
 {% endblock %}

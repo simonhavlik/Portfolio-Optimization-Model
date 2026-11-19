@@ -1,0 +1,39 @@
+<div class="report-wide report-history" id="filing-history">
+    <div class="rep-section-head"><span class="mono">{{ 'Filing history' if fund else 'Portfolio history' }}</span><span class="mono">{{ timeline.changes | length }} allocations · {{ '{:,}'.format(timeline.modeled_days) }} priced sessions</span></div>
+    {% if example_data.meta.matrix_coverage is defined %}
+    <p>Return and benchmark metrics use the longest continuously priced window. Each disclosed allocation applies from the next trading close after filing. Portfolio changes below include the full filing archive.</p>
+    <p>Correlation, risk contributions and optimisation use {{ example_data.meta.n_assets }} priced positions covering {{ '%.1f%%' | format(example_data.meta.matrix_coverage * 100) }} of the {{ example_data.meta.disclosed_quarter }} disclosure, with asset returns from {{ example_data.meta.matrix_start }} to {{ example_data.meta.matrix_end }}.</p>
+    {% endif %}
+    {% if timeline.chart.dates %}
+    <details class="report-history-detail">
+        <summary>Performance across all priced intervals</summary>
+        <p>Each interval starts from its own baseline. Gaps mark dates without sufficient pricing.</p>
+        <label hidden for="timeline-metric">Measure
+            <select id="timeline-metric"><option value="values">Cumulative return</option><option value="drawdown">Drawdown</option></select>
+        </label>
+        <div id="timeline-plot" class="timeline-plot" aria-label="Portfolio and benchmark across all priced intervals"></div>
+        <script id="timeline-data" type="application/json">{{ {'chart': timeline.chart, 'benchmark': timeline.benchmark} | tojson }}</script>
+    </details>
+    {% endif %}
+    <details class="report-history-detail" {% if highlighted or not example_data.metrics %}open{% endif %}>
+        <summary>Portfolio changes by {{ 'filing date' if fund else 'effective date' }}</summary>
+        <div class="report-history-table" tabindex="0" aria-label="Dated holdings and portfolio changes">
+            <table class="w-full text-sm">
+                <thead><tr><th>{{ 'Filed' if fund else 'Effective date' }}</th>{% if fund %}<th>Quarter</th>{% endif %}<th>Holdings</th><th>Added</th><th>Exited</th><th>Weight shift</th><th>Largest changes</th></tr></thead>
+                <tbody>
+                {% for row in timeline.changes | reverse %}
+                    <tr {% if highlighted is defined and highlighted == row.period %}class="report-history-selected"{% endif %}>
+                        <th scope="row">{{ row.date }}</th>
+                        {% if fund %}<td><a href="{{ url_for('leaderboard_holdings', slug=fund.slug, quarter=row.period) }}">{{ row.period }}</a></td>{% endif %}
+                        <td>{{ row.count }}</td>
+                        <td>{{ row.added if row.added is not none else '—' }}</td>
+                        <td>{{ row.exited if row.exited is not none else '—' }}</td>
+                        <td>{{ '%.1f%%' | format(row.shift * 100) if row.shift is not none else '—' }}</td>
+                        <td>{% for move in row.top %}<span>{{ move.name }} {{ '%+.1f pp' | format(move.delta * 100) }}</span>{{ ' · ' if not loop.last }}{% else %}—{% endfor %}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </details>
+</div>

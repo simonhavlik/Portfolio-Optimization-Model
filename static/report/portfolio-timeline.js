@@ -26,5 +26,10 @@
 
     measure.closest('label').hidden = false;
     measure.addEventListener('change', draw);
-    draw();
+    const disclosure = target.closest('details');
+    if (disclosure && !disclosure.open) {
+        disclosure.addEventListener('toggle', () => { if (disclosure.open) draw(); }, {once: true});
+    } else {
+        draw();
+    }
 })();

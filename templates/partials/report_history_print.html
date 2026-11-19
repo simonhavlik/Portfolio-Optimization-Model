@@ -1,0 +1,20 @@
+<div class="pr-appendix-page">
+    <header class="pr-head"><h1>{{ example_data.meta.name }}</h1><p>Portfolio history · {{ timeline.changes | length }} dated allocations · {{ '{:,}'.format(timeline.modeled_days) }} priced sessions</p></header>
+    {% if not example_data.metrics %}
+    <h2>Latest allocation</h2>
+    <table class="pr-table">
+        <tr><th>Holding</th><th>Sector</th><th class="pr-right">Weight</th></tr>
+        {% for holding in example_data.holdings %}
+        <tr><td>{{ holding.ticker }}</td><td>{{ holding.sector }}</td><td class="pr-right">{{ '%.2f%%' | format(100 * holding.weight) }}</td></tr>
+        {% endfor %}
+    </table>
+    {% endif %}
+    <h2>Recent portfolio changes</h2>
+    <table class="pr-table">
+        <tr><th>Date</th>{% if fund %}<th>Quarter</th>{% endif %}<th>Holdings</th><th>Largest changes</th></tr>
+        {% for row in (timeline.changes | reverse | list)[:10] %}
+        <tr><td>{{ row.date }}</td>{% if fund %}<td>{{ row.period }}</td>{% endif %}<td>{{ row.count }}</td>
+        <td>{% for move in row.top %}{{ move.name }} {{ '%+.1f pp' | format(100 * move.delta) }}{{ ' · ' if not loop.last }}{% else %}—{% endfor %}</td></tr>
+        {% endfor %}
+    </table>
+</div>

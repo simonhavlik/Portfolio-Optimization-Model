@@ -334,3 +334,26 @@
 
 /* the report band already carries the headline metrics */
 .report-page .report-hide { display: none !important; }
+
+.report-history { margin-block: 1.25rem; padding: 1.1rem; background: var(--surface); border: 1px solid var(--line); }
+.report-history p { margin-block: .6rem; font-size: .82rem; color: var(--muted); }
+.report-history-detail { border-top: 1px solid var(--line); margin-top: .75rem; padding-top: .75rem; font-size: .85rem; }
+.report-history-detail summary { cursor: pointer; font-weight: 600; }
+.report-history-detail select { background: var(--surface); color: var(--text); border: 1px solid var(--line); }
+.report-history .timeline-plot { height: 320px; min-width: 0; }
+.report-history-table { margin-top: .7rem; max-height: 32rem; overflow: auto; }
+.report-history-table th, .report-history-table td { padding: .45rem .55rem; border-bottom: 1px solid var(--line); text-align: left; }
+.report-history-table thead th { position: sticky; top: 0; background: var(--surface); }
+.report-history-table td span { white-space: nowrap; }
+.report-history-selected { background: rgb(200 161 90 / .12); }
+@media print {
+    #print-report .pr-charts figure:has(img:not([src])) { display: none !important; }
+    #print-report .pr-charts-page:not(:has(img[src])) { display: none !important; }
+}
+@media print {
+    #print-report .pr-charts img[data-print-chart] {
+        background: #0f1114 !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+}

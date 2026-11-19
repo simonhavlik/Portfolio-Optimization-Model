@@ -6,6 +6,46 @@
 
     function el(id) { return document.getElementById(id); }
 
+    const printTargets = {
+        'allocation.png': 'chart-sector-allocation', 'performance.png': 'chart-performance',
+        'drawdown.png': 'chart-drawdown', 'distribution.png': 'chart-return-distribution',
+        'monte_carlo.png': 'chart-monte-carlo', 'volatility.png': 'chart-rolling-vol',
+        'monthly_returns.png': 'chart-monthly-returns', 'correlation.png': 'correlation-heatmap',
+        'mean_variance.png': 'chart-efficient-frontier', 'risk_contribution.png': 'chart-risk-contribution',
+        'pca.png': 'chart-pca-variance', 'rolling_correlation.png': 'chart-rolling-correlation',
+        'rolling_stats.png': 'chart-rolling-stats',
+    };
+    let printReady;
+    window.prepareReportPrint = function () {
+        printReady ??= (async () => {
+            await window.reportChartsReady;
+            if (!window.Plotly) return;
+            for (const target of document.querySelectorAll('[data-print-chart]')) {
+                const source = el(printTargets[target.dataset.printChart]);
+                if (!source || !source._fullLayout) continue;
+                try {
+                    target.src = await Plotly.toImage(source, {format: 'svg', width: 900, height: 380});
+                    await target.decode();
+                } catch (error) {
+                    target.removeAttribute('src');
+                    console.error('Could not prepare chart for print', error);
+                }
+            }
+        })();
+        return printReady;
+    };
+    for (const button of document.querySelectorAll('[data-report-print]')) {
+        button.addEventListener('click', async () => {
+            button.disabled = true;
+            try {
+                await window.prepareReportPrint();
+                window.print();
+            } finally {
+                button.disabled = false;
+            }
+        });
+    }
+
     /* ---------------- copy link ---------------- */
 
     var copyBtn = document.querySelector('[data-copy-link]');

@@ -377,7 +377,9 @@ class ExamplePortfolioService:
                        benchmark: str = 'SPY',
                        n_simulations: int = 5000,
                        horizon_days: int = 252,
-                       market_snapshot: Optional[Dict[str, "pd.Series"]] = None) -> Dict[str, Any]:
+                       market_snapshot: Optional[Dict[str, "pd.Series"]] = None,
+                       historical_returns: Optional["pd.Series"] = None,
+                       factor_returns: Optional["pd.DataFrame"] = None) -> Dict[str, Any]:
         """Run the exact example pipeline for arbitrary holdings."""
         normalised = []
         total = sum(float(h.get('weight') or 0) for h in holdings) or 1.0
@@ -396,7 +398,8 @@ class ExamplePortfolioService:
             'benchmark': benchmark,
             'n_simulations': n_simulations,
             'horizon_days': horizon_days,
-        }, market_snapshot=market_snapshot)
+        }, market_snapshot=market_snapshot, historical_returns=historical_returns,
+            factor_returns=factor_returns)
 
     def refresh_cache(self) -> Dict[str, Any]:
         """
@@ -439,7 +442,9 @@ class ExamplePortfolioService:
             return False
     
     def _compute_analysis(self, portfolio: Optional[Dict[str, Any]] = None,
-                          market_snapshot: Optional[Dict[str, "pd.Series"]] = None) -> Dict[str, Any]:
+                          market_snapshot: Optional[Dict[str, "pd.Series"]] = None,
+                          historical_returns: Optional["pd.Series"] = None,
+                          factor_returns: Optional["pd.DataFrame"] = None) -> Dict[str, Any]:
         """
         Compute comprehensive portfolio analysis.
         This is the HEAVY operation - takes ~10 seconds.
@@ -472,6 +477,8 @@ class ExamplePortfolioService:
         
         # Build returns DataFrame
         returns_df = pd.DataFrame({t: d.returns for t, d in valid_data.items()}).dropna()
+        if historical_returns is not None:
+            returns_df = returns_df.tail(252)
         
         if len(returns_df) < 60:
             return self._get_fallback_data(portfolio)
@@ -479,14 +486,14 @@ class ExamplePortfolioService:
         # Portfolio returns
         weights_array = np.array([weights_dict.get(t, 0) for t in returns_df.columns])
         weights_array = weights_array / weights_array.sum()  # Normalize
-        portfolio_returns = returns_df @ weights_array
+        portfolio_returns = returns_df @ weights_array if historical_returns is None else historical_returns
         
         # Market data for beta calculation
         if market_snapshot is None:
             spy_data = market_data_service.fetch_historical_data(benchmark, period=period)
             market_returns = spy_data.returns if spy_data else None
         else:
-            market_returns = np.expm1(market_snapshot[benchmark]).reindex(returns_df.index)
+            market_returns = np.expm1(market_snapshot[benchmark]).reindex(portfolio_returns.index)
 
         # 1. Risk Metrics
         logger.info("Computing risk metrics...")
@@ -497,6 +504,12 @@ class ExamplePortfolioService:
         logger.info("Computing advanced risk...")
         adv_risk = AdvancedRiskCalculator(returns_df, weights_array)
         advanced_risk_metrics = adv_risk.calculate_all()
+        if historical_returns is not None:
+            realized_risk = AdvancedRiskCalculator(portfolio_returns.to_frame('Portfolio')).calculate_all()
+            realized_risk.ivar_contributions = advanced_risk_metrics.ivar_contributions
+            realized_risk.cvar_contributions = advanced_risk_metrics.cvar_contributions
+            advanced_risk_metrics = realized_risk
+            risk_metrics.effective_n = float(1 / np.square(weights_array).sum())
         
         # 3. Distribution Fitting
         logger.info("Fitting distributions...")
@@ -563,8 +576,8 @@ class ExamplePortfolioService:
         logger.info("Fetching benchmark data...")
         bench_list = [benchmark, 'VT'] if benchmark != 'VT' else [benchmark, 'SPY']
         benchmarks = (risk_analytics.get_benchmark_data(bench_list, period=period) if market_snapshot is None
-                      else {t: np.expm1(market_snapshot[t]).reindex(returns_df.index)
-                            for t in bench_list if t in market_snapshot})
+                      else {t: matched for t in bench_list if t in market_snapshot
+                            if (matched := np.expm1(market_snapshot[t]).reindex(portfolio_returns.index)).notna().all()})
         
         # 16. Monthly returns
         logger.info("Computing monthly returns heatmap...")
@@ -577,7 +590,13 @@ class ExamplePortfolioService:
         # 18. Factor Exposure
         logger.info("Computing factor exposure...")
         ff_model = FamaFrenchModel()
-        factor_exposure = ff_model.estimate_exposure(portfolio_returns)
+        if historical_returns is None:
+            factor_exposure = ff_model.estimate_exposure(portfolio_returns)
+        elif factor_returns is not None and len(factor_returns.reindex(portfolio_returns.index).dropna()) >= 30:
+            ff_model.factor_data = factor_returns
+            factor_exposure = ff_model.estimate_exposure(portfolio_returns, model='carhart')
+        else:
+            factor_exposure = None
         
         # 19. AI Insights
         logger.info("Generating AI insights...")
@@ -598,6 +617,7 @@ class ExamplePortfolioService:
             factor_exposure={'exposure': factor_exposure.__dict__ if factor_exposure else {}},
             period=period,
             benchmark_snapshot=market_snapshot,
+            known_sectors={h['ticker']: h.get('sector') for h in holdings} if market_snapshot is not None else None,
         )
         
         # Fix charts to include missing data that index.html expects
@@ -610,6 +630,8 @@ class ExamplePortfolioService:
             'dates': portfolio_returns.index.strftime('%Y-%m-%d').tolist(),
             'returns': portfolio_returns.tolist()
         }
+        if historical_returns is not None:
+            charts['monte_carlo']['paths'] = charts['monte_carlo']['paths'][:12]
         
         # 8. Holdings with info
         holdings_with_info = []

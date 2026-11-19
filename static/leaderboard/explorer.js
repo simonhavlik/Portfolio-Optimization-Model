@@ -142,6 +142,5 @@
         if (plot.data) Plotly.relayout(plot, {'xaxis.autorange': true, 'yaxis.autorange': true});
     });
     form.hidden = false;
-    if (!performance.selected.length) measure.value = 'value';
     render();
 })();

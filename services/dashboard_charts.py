@@ -126,7 +126,8 @@ class DashboardChartService:
     
     def get_allocation_charts(self, 
                              weights: Dict[str, float],
-                             tickers: List[str]) -> Dict[str, Any]:
+                             tickers: List[str],
+                             known_sectors: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         Generate asset allocation visualization data.
         
@@ -137,6 +138,9 @@ class DashboardChartService:
         market_caps = {}
         
         for ticker in tickers:
+            if known_sectors is not None:
+                sectors[ticker] = known_sectors.get(ticker) or 'Unclassified'
+                continue
             try:
                 info = market_data_service.get_stock_info(ticker)
                 sector = info.get('sector', 'Unknown')
@@ -589,7 +593,8 @@ class DashboardChartService:
                       factor_exposure: Optional[Dict] = None,
                       stress_results: Optional[Dict] = None,
                       period: str = '2y',
-                      benchmark_snapshot: Optional[Dict[str, pd.Series]] = None) -> Dict[str, Any]:
+                      benchmark_snapshot: Optional[Dict[str, pd.Series]] = None,
+                      known_sectors: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         Generate all dashboard charts at once.
         """
@@ -601,7 +606,7 @@ class DashboardChartService:
                                                           period, benchmark_snapshot),
             'rolling_metrics': self.get_rolling_metrics_charts(portfolio_returns),
             'rolling_stats_63d': self.get_rolling_statistics_chart(portfolio_returns, window=63),
-            'allocation': self.get_allocation_charts(weights, returns_df.columns.tolist()),
+            'allocation': self.get_allocation_charts(weights, returns_df.columns.tolist(), known_sectors),
             'risk_contribution': self.get_risk_contribution_chart(returns_df, weights_array),
             'return_distribution': self.get_return_distribution_charts(portfolio_returns),
             'efficient_frontier': self.get_efficient_frontier_chart(returns_df, weights_array),

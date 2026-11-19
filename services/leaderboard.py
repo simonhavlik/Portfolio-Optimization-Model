@@ -28,8 +28,10 @@ MAX_FILING_AGE = pd.Timedelta(days=155)
 ARCHIVED_END = '2025-11-03'
 DEFAULT_COHORT = '1y'
 RETURN_WINDOWS = {'1y': ('1 year', 1, None), '3y': ('3 years', 3, None),
-                  'current': ('5 years', WINDOW_YEARS, None)}
-BOARDS = {**RETURN_WINDOWS, 'long': ('Sixteen years', 16, None),
+                  'current': ('5 years', WINDOW_YEARS, None), '7y': ('7 years', 7, None),
+                  '10y': ('10 years', 10, None),
+                  '12y': ('12 years', 12, None), 'long': ('16 years', 16, None)}
+BOARDS = {**RETURN_WINDOWS,
           'scion': ('Scion comparison · 2023–25', 2, ARCHIVED_END)}
 
 risk = RiskAnalytics()

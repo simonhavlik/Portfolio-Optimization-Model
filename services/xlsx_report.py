@@ -70,7 +70,7 @@ def build(example_data: dict, valuation: dict, cca: dict = None) -> BytesIO:
     holdings = example_data.get("holdings", [])
     advanced = example_data.get("advanced_risk", {})
     stress = example_data.get("stress_test", {})
-    factors = example_data.get("factor_exposure", {})
+    factors = example_data.get("factor_exposure") or {}
     charts = example_data.get("charts", {})
     file_title = "Portfolio Optimizer — analysis export"
 
