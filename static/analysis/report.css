@@ -349,11 +349,11 @@
 @media print {
     #print-report .pr-charts figure:has(img:not([src])) { display: none !important; }
     #print-report .pr-charts-page:not(:has(img[src])) { display: none !important; }
-}
-@media print {
-    #print-report .pr-charts img[data-print-chart] {
-        background: #0f1114 !important;
-        print-color-adjust: exact;
-        -webkit-print-color-adjust: exact;
+    html.report-page #print-report,
+    html.report-page #print-report :is(.pr-page, .pr-charts-page, .pr-appendix-page, section, table, td, th, figure) {
+        background: #fff !important;
+        color: #24303c !important;
     }
+    html.report-page #print-report .pr-head h1 { color: #16212b !important; }
+    html.report-page #print-report .pr-charts figcaption { color: #24303c !important; }
 }

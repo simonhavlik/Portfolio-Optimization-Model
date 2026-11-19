@@ -5,7 +5,7 @@
 {% block extra_css %}
 <script>document.documentElement.classList.add('has-hero');{% if report_id %}document.documentElement.classList.add('report-page');{% endif %}</script>
 <link rel="stylesheet" href="/static/hero/hero.css">
-{% if report_id %}<link rel="stylesheet" href="{{ url_for('static', filename='analysis/report.css', v='history-print-1') }}">{% endif %}
+{% if report_id %}<link rel="stylesheet" href="{{ url_for('static', filename='analysis/report.css', v='history-print-2') }}">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -1291,7 +1291,7 @@
 
 {% if report_id %}
 <script src="/static/hero/hero.js" defer></script>
-<script src="{{ url_for('static', filename='analysis/report.js', v='history-print-1') }}" defer></script>
+<script src="{{ url_for('static', filename='analysis/report.js', v='history-print-2') }}" defer></script>
 {% if timeline and timeline.chart.dates %}<script src="{{ url_for('static', filename='report/portfolio-timeline.js', v='disclosures-2') }}" defer></script>{% endif %}
 {% elif not embedded %}
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" defer></script>

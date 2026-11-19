@@ -24,7 +24,18 @@
                 const source = el(printTargets[target.dataset.printChart]);
                 if (!source || !source._fullLayout) continue;
                 try {
-                    target.src = await Plotly.toImage(source, {format: 'svg', width: 900, height: 380});
+                    const color = '#24303c';
+                    const layout = {
+                        ...source.layout, paper_bgcolor: '#fff', plot_bgcolor: '#fff',
+                        font: {...source.layout.font, color, size: 12},
+                        legend: {...source.layout.legend, font: {color, size: 11}},
+                    };
+                    for (const axis of Object.keys(layout).filter(key => /^[xy]axis\d*$/.test(key))) {
+                        layout[axis] = {...layout[axis], gridcolor: '#e4e8eb', zerolinecolor: '#bac2cc',
+                            linecolor: '#bac2cc', tickfont: {color, size: 11},
+                            title: {...layout[axis].title, font: {color, size: 12}}};
+                    }
+                    target.src = await Plotly.toImage({data: source.data, layout}, {format: 'svg', width: 640, height: 290});
                     await target.decode();
                 } catch (error) {
                     target.removeAttribute('src');
