@@ -110,7 +110,7 @@ def render_report(fig, data, style):
     if quarter not in historical:
         quarter = max((date for date in historical if date <= board['as_of']), default=None)
     profile = historical.get(quarter,{})
-    industries = style.get('industries',{})
+    sectors = style.get('sectors', style.get('industries', {}))
     leaders = sorted(profile.get('sectors',{}).items(),key=lambda item:-item[1])[:4]
     observed = [
         ['Largest reported position', _metric(row['metrics'].get('concentration'), '.1%')],
@@ -121,7 +121,7 @@ def render_report(fig, data, style):
          '—' if row['pe'].get('weighted') is None else
          f"{row['pe']['weighted']:.1f}× / {row['pe']['median']:.1f}×"],
     ]
-    observed += [[industries.get(group,group),f'{weight:.1%}'] for group,weight in leaders if weight > 0]
+    observed += [[sectors.get(group, group),f'{weight:.1%}'] for group,weight in leaders if weight > 0]
     _section_table(fig,.518,.276,.469,.201,['Exposure',quarter or 'As filed'],observed,[0,.73,1])
 
     _heading(fig, .018, .247, 'Peak drawdown vs benchmarks')

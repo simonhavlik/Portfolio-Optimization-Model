@@ -3,7 +3,6 @@
 from datetime import datetime, timezone
 from collections import defaultdict
 from io import BytesIO, StringIO
-import json
 import logging
 import re
 from zipfile import ZipFile
@@ -14,10 +13,9 @@ import requests
 from models.database import AppCache, db
 from services import fund_archive
 from services.example_portfolio import _finite_json, example_portfolio_service, serialize_for_template
-from services.holdings_style import INDUSTRIES
+from services.issuer_classification import classify, load as _classification
 from services.leaderboard import CACHE_DIR, RISK_FREE, _book_positions, _mapping, _read_prices, _series, build_board, scheduled_returns
 from services.leaderboard_funds import BENCHMARK, FUNDS, ISSUER_ALIASES
-from services.leaderboard_storage import published_snapshot
 from services.portfolio_timeline import FUND_REPORT_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -59,24 +57,13 @@ def _factor_snapshot(refresh):
         return pd.read_json(StringIO(saved.payload['table']), orient='split')
 
 
-def _classification():
-    saved = published_snapshot('leaderboard:issuer_industries')
-    if saved:
-        return saved
-    path = CACHE_DIR / 'issuer_industries.json'
-    if path.is_file():
-        return json.loads(path.read_bytes())
-    entry = db.session.get(AppCache, 'leaderboard:issuer_industries')
-    return entry.payload if entry and entry.payload else {}
-
-
 def _portfolio_positions(fund, book, mapping, industries):
     positions = _book_positions(fund, book, mapping)
     return [{
         'ticker': row['ticker'] or row['issuer'],
         'symbol': row['ticker'],
         'weight': row['weight'],
-        'sector': INDUSTRIES.get(industries.get(row['cusip'], {}).get('sector'), 'Unclassified'),
+        'sector': classify(row, industries)[0],
         'name': row['issuer'],
         'price': None,
     } for row in positions]
@@ -97,7 +84,7 @@ def quarter_allocation(fund, period):
         issuer = row['issuer']
         ticker = mapping.get(row['cusip']) or next((ticker for prefix, ticker in aliases.items()
                                                      if issuer.upper().startswith(prefix)), None)
-        sector = INDUSTRIES.get(industries.get(row['cusip'], {}).get('sector'), 'Unclassified')
+        sector, _ = classify(row, industries)
         weight = row['value'] / total if total and row['value'] > 0 else 0
         if row.get('action') == 'Exited':
             exits.append((abs(row.get('weight_change', 0)), ticker or issuer))

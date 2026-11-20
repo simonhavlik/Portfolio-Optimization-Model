@@ -72,7 +72,7 @@
       </div>
       <nav class="research-actions" aria-label="Leaderboard actions">
         {% if can_read_studio %}<a class="research-button" href="{{ url_for('leaderboard_studio') }}">LinkedIn studio</a>{% endif %}
-        <a class="nav-cta" href="{{ url_for('leaderboard_styles') }}">Sector analysis <span class="arr" aria-hidden="true">&rarr;</span></a>
+        <a class="nav-cta" href="{{ url_for('leaderboard_styles') }}">Sector &amp; industry analysis <span class="arr" aria-hidden="true">&rarr;</span></a>
         <a class="research-button" href="{{ url_for('leaderboard_csv', period=board.cohort) }}">Download CSV</a>
       </nav>
     </header>
@@ -279,6 +279,6 @@
 {% block extra_js %}
 <script defer src="https://cdn.plot.ly/plotly-basic-2.27.0.min.js"></script>
 <script defer src="{{ url_for('static', filename='report/chart-theme.js') }}"></script>
-<script defer src="{{ url_for('static', filename='leaderboard/explorer.js', v='research-layout-3') }}"></script>
+<script defer src="{{ url_for('static', filename='leaderboard/explorer.js', v='sector-industry') }}"></script>
 <script defer src="{{ url_for('static', filename='leaderboard/leaderboard.js', v='research-layout-3') }}"></script>
 {% endblock %}

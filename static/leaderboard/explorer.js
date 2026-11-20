@@ -25,7 +25,8 @@
 
     function chart(dates, entries, metric) {
         const dollars = metric === 'value';
-        const percent = metric === 'performance' || metric.startsWith('sector:') || percentageMeasures.has(metric);
+        const percent = metric === 'performance' || metric.startsWith('sector:') ||
+            metric.startsWith('industry:') || percentageMeasures.has(metric);
         const isAnnual = metric === 'return' || metric.startsWith('risk:');
         const traces = entries.map(({name, values, benchmark}) => ({
             type: 'scatter',
@@ -81,12 +82,16 @@
                 return response.json();
             }).then(data => {
                 history = data;
-                const industries = document.createElement('optgroup');
-                industries.label = 'Sector exposure';
-                for (const [key, name] of Object.entries(data.industries)) {
-                    industries.append(new Option(name, 'sector:' + key));
+                const groups = [['sector', 'Sector exposure', data.sectors ?? data.industries]];
+                if (data.sectors) groups.push(['industry', 'Industry exposure', data.industries]);
+                for (const [prefix, label, options] of groups) {
+                    const group = document.createElement('optgroup');
+                    group.label = label;
+                    for (const [key, name] of Object.entries(options)) {
+                        group.append(new Option(name, prefix + ':' + key));
+                    }
+                    measure.append(group);
                 }
-                measure.append(industries);
             }).catch(error => {
                 loading = null;
                 throw error;
@@ -105,6 +110,7 @@
                 if (annual) return row.risk?.[date.slice(0, 4)]?.[metric.slice(5)] ?? null;
                 const reading = row.history[date];
                 if (metric.startsWith('sector:')) return reading?.sectors?.[metric.slice(7)] ?? null;
+                if (metric.startsWith('industry:')) return reading ? reading.industries?.[metric.slice(9)] ?? 0 : null;
                 return reading?.[metric] ?? null;
             });
             return {name: row.name, values};

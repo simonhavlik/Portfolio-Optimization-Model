@@ -678,7 +678,7 @@ def _disclosure_chart(fig, data):
         _note(fig, "SEC 13F · Dots mark filing dates. Labels show weight changes.")
 
 
-def _table(fig, top, bottom, columns, rows, boundaries, *, left=0, right=1):
+def _table(fig, top, bottom, columns, rows, boundaries, *, left=0, right=1, text_columns=()):
     from matplotlib.font_manager import FontProperties
     from matplotlib.lines import Line2D
     from matplotlib.patches import Rectangle
@@ -695,11 +695,11 @@ def _table(fig, top, bottom, columns, rows, boundaries, *, left=0, right=1):
                                      edgecolor="none", zorder=-2))
         fig.add_artist(Line2D([left, right], [y, y], transform=fig.transFigure, color=RULE, linewidth=.45))
         for j, item in enumerate(row):
-            first = j == 0
-            font = FontProperties(family="DejaVu Sans" if first or i == 0 else "DejaVu Sans Mono",
+            text_column = j == 0 or j in text_columns
+            font = FontProperties(family="DejaVu Sans" if text_column or i == 0 else "DejaVu Sans Mono",
                                   size=size if i else min(8.5, size))
             margin = 0.013 * width
-            x = left + boundaries[j if first else j+1] * width + (margin if first else -margin)
+            x = left + boundaries[j if text_column else j+1] * width + (margin if text_column else -margin)
             available = fig.bbox.width * (width * (boundaries[j+1] - boundaries[j]) - 2*margin)
             value = str(item)
             if renderer.get_text_width_height_descent(value, font, False)[0] > available:
@@ -707,7 +707,7 @@ def _table(fig, top, bottom, columns, rows, boundaries, *, left=0, right=1):
                 while base and renderer.get_text_width_height_descent(base + "…", font, False)[0] > available:
                     base = base[:-1]
                 value = base.rstrip() + "…"
-            fig.text(x, y - height*.51, value, va="center", ha="left" if first else "right",
+            fig.text(x, y - height*.51, value, va="center", ha="left" if text_column else "right",
                      fontproperties=font, color=SOFT if i == 0 else PAPER)
     fig.add_artist(Line2D([left, right], [bottom, bottom], transform=fig.transFigure, color=RULE, linewidth=.45))
 
@@ -737,12 +737,13 @@ def rebuild(only=None):
     from services.holdings_style_figures import TOPICS, main_chart, report
     from services.fund_research_report import render_report
     from services.holdings_style import load
+    from services.issuer_classification import TECHNOLOGY, load as load_classifications
 
     styles = load()
-    classifications = CACHE_DIR / 'issuer_industries.json'
-    sector_ids = json.loads(classifications.read_bytes()) if classifications.is_file() else {}
-    for cusip, row in sector_ids.items():
-        row['key'] = f"cik:{row['cik']}" if row.get('cik') and row.get('sic') not in {'6722', '6726'} else cusip
+    sector_ids = {
+        cusip: {**entry, 'key': f"cik:{entry['cik']}" if entry.get('cik') and not entry.get('fund') else cusip}
+        for cusip, entry in load_classifications().items()
+    }
     crowd = {p['key']: p['count'] for p in styles.get('crowded', [])}
     group = tuple(styles.get('universe', []))
     style_visual_data = {**styles, 'universe': group,
@@ -775,15 +776,18 @@ def rebuild(only=None):
                         concentrated = [r for r in changes
                                         if r['weight'] >= .05 or r['weight'] - r['weight_change'] >= .05]
                         changes = concentrated or changes
-                    elif study.key in {'crowding','shared-stocks','sector-history','sector-gaps'}:
+                    elif study.key in {'crowding','shared-stocks','sectors','industries','sector-history','sector-gaps'}:
                         if study.key == 'crowding':
                             preferred = [r for r in changes if sector_ids.get(r['cusip'], {}).get('key') in preferred_keys]
                         elif study.key == 'shared-stocks':
                             preferred = [r for r in changes if 3 <= crowd.get(sector_ids.get(r['cusip'], {}).get('key'), 0)]
                         elif study.key == 'sector-history':
-                            preferred = [r for r in changes if sector_ids.get(r['cusip'], {}).get('sector') == 'BusEq']
+                            preferred = [r for r in changes if sector_ids.get(r['cusip'], {}).get('sector') == TECHNOLOGY]
+                        elif study.key in {'sectors', 'industries'}:
+                            field = 'sector' if study.key == 'sectors' else 'industry'
+                            preferred = [r for r in changes if sector_ids.get(r['cusip'], {}).get(field)]
                         else:
-                            preferred = [r for r in changes if r['cusip'] not in sector_ids]
+                            preferred = [r for r in changes if not sector_ids.get(r['cusip'], {}).get('sector')]
                         if preferred:
                             changes = preferred
                     candidates.extend(_disclosed_moves(study, slug, filing, changes, mapping))

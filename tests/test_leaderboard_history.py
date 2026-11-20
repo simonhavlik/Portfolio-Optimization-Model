@@ -231,7 +231,7 @@ def test_quarter_allocation_uses_disclosed_long_equity_and_saved_changes(monkeyp
     from services import fund_reports
 
     monkeypatch.setattr(fund_reports, '_mapping', lambda: {'AAA': 'A', 'BBB': 'B'})
-    monkeypatch.setattr(fund_reports, '_classification', lambda: {'AAA': {'sector': 'BusEq'}})
+    monkeypatch.setattr(fund_reports, '_classification', lambda: {'AAA': {'sector': 'Technology'}})
     monkeypatch.setattr(fund_reports.fund_archive, 'saved_quarter', lambda *args: {
         'previous': '2023-12-31', 'book': {'filed': '2024-05-15'},
         'rows': [
@@ -246,7 +246,7 @@ def test_quarter_allocation_uses_disclosed_long_equity_and_saved_changes(monkeyp
     allocation = fund_reports.quarter_allocation({'slug': 'test'}, '2024-03-31')
     assert allocation['rows'][0]['weight'] == 1
     assert allocation['rows'][0]['shares_change'] == 12
-    assert allocation['sectors'] == {'Business equipment': 1}
+    assert allocation['sectors'] == {'Technology': 1}
     assert allocation['exits'] == ['B']
 
 

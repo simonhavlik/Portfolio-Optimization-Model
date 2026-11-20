@@ -727,6 +727,8 @@ def leaderboard_view():
 
 @app.route('/api/leaderboard/explorer')
 def leaderboard_explorer_data():
+    import gzip
+
     from services.holdings_style import load
     from services.leaderboard import build_board
     from services.leaderboard_funds import by_slug
@@ -744,7 +746,12 @@ def leaderboard_explorer_data():
                           'returns': data.get('annual_returns', {}).get(slug, {}),
                           'risk': data.get('annual_risk', {}).get(slug, {})}
     response = jsonify({'managers': managers, 'periods': data['periods'],
+                        'sectors': data.get('sectors'),
                         'industries': data['industries']})
+    if request.accept_encodings['gzip'] > 0:
+        response.set_data(gzip.compress(response.get_data(), compresslevel=5))
+        response.headers['Content-Encoding'] = 'gzip'
+    response.vary.add('Accept-Encoding')
     response.cache_control.public = True
     response.cache_control.max_age = 300
     return response
@@ -753,6 +760,7 @@ def leaderboard_explorer_data():
 @app.route('/leaderboard/styles')
 def leaderboard_styles():
     from services.holdings_style import load, pair_detail
+    from services.issuer_classification import FUND_SECTOR, TECHNOLOGY, UNKNOWN
     from services.leaderboard_funds import by_slug
 
     data = load()
@@ -779,28 +787,43 @@ def leaderboard_styles():
         left, right = risks.get(first, {}), risks.get(second, {})
         common_risk = [(year, left[year], right[year]) for year in sorted(left.keys() & right.keys())]
     managers = {slug: by_slug(slug)['name'] for slug in tracked}
-    sector = request.args.get('industry', 'BusEq')
-    if sector not in data['industries']:
-        abort(404)
+    modern = 'sectors' in data
+    view = 'industry' if modern and request.args.get('view') == 'industry' else 'sector'
+    weights_key = 'industries' if view == 'industry' else 'sectors'
+    labels = data[weights_key] if modern else data['industries']
+    default = 'Semiconductors' if view == 'industry' else TECHNOLOGY
+    selected = request.args.get('industry', default)
+    if selected not in labels:
+        selected = default if default in labels else next(iter(labels))
     if detail and request.args.get('format') == 'csv':
         import csv
         from io import StringIO
 
         output = StringIO()
         writer = csv.writer(output)
-        writer.writerow(['issuer', 'industry', first, second, 'shared_weight'])
+        writer.writerow(['issuer', 'sector', 'industry', first, second, 'shared_weight'])
         for row in detail['positions']:
-            writer.writerow([row['issuer'], row['sector'], row['a'], row['b'], row['overlap']])
+            writer.writerow([row['issuer'], row['sector'], row['industry'], row['a'], row['b'], row['overlap']])
         response = app.response_class(output.getvalue(), mimetype='text/csv')
         response.headers['Content-Disposition'] = 'attachment; filename="shared-holdings.csv"'
         return response
     pairs = sorted(data['pairs'], key=lambda pair: -pair['overlap'])
     observed = [slug for slug in tracked if end in data['history'][slug]]
+    columns = list(labels)
+    if view == 'industry':
+        from collections import Counter
+
+        weights = Counter()
+        for slug in observed:
+            weights.update(data['history'][slug][end]['industries'])
+        leading = [name for name, _ in weights.most_common() if name not in {FUND_SECTOR, UNKNOWN}][:12]
+        columns = list(dict.fromkeys([*leading, selected, FUND_SECTOR, UNKNOWN]))
     annual = [quarter for quarter in data['periods'] if quarter.endswith('-12-31')]
     if data['as_of'] not in annual:
         annual.append(data['as_of'])
     return render_template('leaderboard_styles.html', data=data, end=end, managers=managers, pairs=pairs,
-                           detail=detail, first=first, second=second, sector=sector,
+                           detail=detail, first=first, second=second, selected=selected, modern=modern,
+                           view=view, weights_key=weights_key, labels=labels, columns=columns,
                            annual=annual, observed=observed, common_quarters=common_quarters, common_risk=common_risk)
 
 

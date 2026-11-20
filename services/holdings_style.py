@@ -9,17 +9,12 @@ import pandas as pd
 
 from services import fund_archive
 from services.filing_history import atomic_write
+from services.issuer_classification import FUND_SECTOR, SECTORS, UNKNOWN, classify, load as load_classifications
 from services.leaderboard import CACHE_DIR, _mapping, _read_prices, _series
 from services.leaderboard_funds import by_slug
 
 KEY = 'leaderboard:holdings_style'
 FILE = CACHE_DIR / 'holdings_style.json'
-INDUSTRIES = {
-    'NoDur': 'Consumer staples', 'Durbl': 'Consumer durables', 'Manuf': 'Manufacturing',
-    'Enrgy': 'Energy', 'Chems': 'Chemicals', 'BusEq': 'Business equipment', 'Telcm': 'Telecom',
-    'Utils': 'Utilities', 'Shops': 'Retail', 'Hlth': 'Healthcare', 'Money': 'Finance',
-    'Other': 'Other industries', 'Funds': 'Funds and trusts', 'Unknown': 'Unclassified'
-}
 HORIZON = 16
 
 
@@ -40,39 +35,39 @@ def _book(book, industries):
     for entry in fund_archive.aggregate(book, equity_only=True):
         if entry['weight'] <= 0:
             continue
-        issuer = entry['issuer'].upper()
         identity = industries.get(entry['cusip'], {})
-        group = identity.get('sector', 'Unknown')
-        fund = identity.get('sic') in {'6722', '6726'} or any(name in issuer for name in (
-            ' ETF', 'SPDR', 'ISHARES', 'VANGUARD INDEX', 'PROSHARES', 'ETFS'))
-        if fund:
-            group = 'Funds'
+        sector, industry = classify(entry, industries)
         # Index funds and trusts can share a sponsor CIK but are distinct assets.
-        key = f"cik:{identity['cik']}" if identity.get('cik') and not fund else entry['cusip']
-        row = result.setdefault(key, {'issuer': entry['issuer'], 'sector': group, 'weight': 0.0})
+        key = f"cik:{identity['cik']}" if identity.get('cik') and sector != FUND_SECTOR else entry['cusip']
+        row = result.setdefault(key, {'issuer': entry['issuer'], 'sector': sector,
+                                      'industry': industry, 'weight': 0.0})
         row['weight'] += entry['weight']
     return result
 
 
 def _cross_section(book):
     sectors = defaultdict(float)
+    industries = defaultdict(float)
     for row in book.values():
         sectors[row['sector']] += row['weight']
+        industries[row['industry']] += row['weight']
     weights = sorted((r['weight'] for r in book.values()), reverse=True)
     return {
-        'sectors': {s: round(sectors.get(s, 0), 5) for s in INDUSTRIES},
+        'sectors': {s: round(sectors.get(s, 0), 5) for s in SECTORS},
+        'industries': {label: round(weight, 5) for label, weight in industries.items()},
         'positions': len(weights),
         'top': round(weights[0], 4),
         'top10': round(sum(weights[:10]), 4),
         'effective': round(1 / sum(w*w for w in weights), 1),
-        'sector_coverage': round(1-sectors['Unknown'], 4),
+        'sector_coverage': round(1-sectors[UNKNOWN], 4),
+        'industry_coverage': round(1-industries[UNKNOWN], 4),
     }
 
 
 def compare(a, b):
     shared = a.keys() & b.keys()
     matched = sorted(
-        ({'issuer': a[key]['issuer'], 'sector': a[key]['sector'], 'a': a[key]['weight'],
+        ({'issuer': a[key]['issuer'], 'sector': a[key]['sector'], 'industry': a[key]['industry'], 'a': a[key]['weight'],
           'b': b[key]['weight'], 'overlap': min(a[key]['weight'], b[key]['weight'])}
          for key in shared), key=lambda r: (-r['overlap'], r['issuer']))
     return {'overlap': round(sum(r['overlap'] for r in matched), 5),
@@ -80,8 +75,7 @@ def compare(a, b):
 
 
 def build(books, reported=None):
-    industry_path = CACHE_DIR / 'issuer_industries.json'
-    industries = json.loads(industry_path.read_bytes()) if industry_path.exists() else {}
+    industries = load_classifications()
     reported = reported if reported is not None else {
         slug: {b['period']: b for b in timeline} for slug, timeline in books.items()}
     latest = max(period for quarters in reported.values() for period in quarters)
@@ -147,7 +141,7 @@ def build(books, reported=None):
         a, b = latest_books[left], latest_books[right]
         overlap = compare(a, b)
         left_sectors, right_sectors = series[left][latest]['sectors'], series[right][latest]['sectors']
-        match = sum(min(left_sectors[k], right_sectors[k]) for k in INDUSTRIES if k != 'Unknown')
+        match = sum(min(left_sectors[k], right_sectors[k]) for k in SECTORS if k not in {UNKNOWN, FUND_SECTOR})
         corr, days = None, 0
         first_priced, last_priced = None, None
         if returns:
@@ -193,23 +187,21 @@ def build(books, reported=None):
             'reported_empty': sorted(empty),
             'no_original': sorted(set(periods)-expected-observed) if slug in sec_sources else [],
         }
+    industry_labels = sorted({label for classification in industries.values() if (label := classification.get('industry'))})
+    industry_labels += [FUND_SECTOR, UNKNOWN]
     record = {'outliers': outliers, 'coverage': coverage, 'start': start, 'as_of': latest, 'universe': universe, 'periods': periods,
               'history': series, 'tracked': history_universe, 'pairs': pairs, 'size': roots, 'crowded': crowded[:50],
-              'industries': INDUSTRIES, 'classified': len(industries), 'annual_returns': annual_returns, 'annual_risk': annual_risk}
+              'sectors': dict(zip(SECTORS, SECTORS)),
+              'industries': dict(zip(industry_labels, industry_labels)),
+              'classification_as_of': max((r.get('as_of', '') for r in industries.values()), default=''),
+              'classified': sum(bool(item.get('sector')) for item in industries.values()),
+              'annual_returns': annual_returns, 'annual_risk': annual_risk}
     atomic_write(FILE, json.dumps(record, separators=(',', ':'), allow_nan=False).encode())
     return record
 
 
 def pair_detail(quarter, first, second):
-    industries = CACHE_DIR / 'issuer_industries.json'
-    from services.leaderboard_storage import hydrate_snapshot, published_snapshot
-
-    classifications = published_snapshot('leaderboard:issuer_industries')
-    if classifications is None:
-        try:
-            classifications = json.loads(industries.read_bytes())
-        except (OSError, ValueError):
-            classifications = hydrate_snapshot(industries, 'leaderboard:issuer_industries') or {}
+    classifications = load_classifications()
     left, right = [fund_archive.quarter_book(fund_archive.documents(slug, quarter), quarter)
                    for slug in (first, second)]
     if not left or not right:
