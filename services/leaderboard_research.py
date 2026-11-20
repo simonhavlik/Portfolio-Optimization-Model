@@ -586,7 +586,8 @@ def _disclosure_chart(fig, data):
 
     slug = data["study"].funds[0]
     board, trail = data["board"], data["events"][slug]
-    ax = _axis(fig, (0.095, 0.32, 0.89, 0.439))
+    bottom = 0.15 if slug == 'berkshire' else 0.115
+    ax = _axis(fig, (0.07, bottom, 0.915, 0.759 - bottom))
     nav = (1 + data["series"][slug]).cumprod() * 100
     handles = []
     for name, line, color, style in [
@@ -608,6 +609,13 @@ def _disclosure_chart(fig, data):
             )[0]
         )
     _legend(fig, handles)
+    if trail:
+        latest = max(trail, key=lambda event: event['date'])
+        value = latest['value']
+        amount = f'${value / 1e9:,.1f}B' if value >= 1e9 else f'${value / 1e6:,.1f}M'
+        quarter = pd.Timestamp(latest['period']).strftime('%b %Y')
+        fig.text(.984, .863, f'Disclosed equity {amount} · {quarter}', ha='right', va='top',
+                 color=SOFT, fontsize=8.8)
     fig.text(0.016, 0.778, "Growth of $100", color=SOFT, fontsize=9)
     _date_axis(ax, board["start"], board["as_of"])
     _dated_markers(ax, data)
@@ -661,27 +669,6 @@ def _disclosure_chart(fig, data):
                      f'E{index} · {day}\n{title}', color='#edba76', fontsize=7.1, va='top')
         data['corporate_events'] = [{'date': day, 'title': title, 'url': url} for day,title,url in events]
 
-    # The value strip shares the price chart's date axis, as volume does on
-    # a price chart. Its scale is the value actually reported in the filings.
-    ax.tick_params(axis="x", labelbottom=False)
-    strip = _axis(fig, (0.095, 0.15, 0.89, 0.117))
-    strip.grid(False)
-    if trail:
-        in_billions = max(event["value"] for event in trail) >= 1e9
-        scale, unit = (1e9, "B") if in_billions else (1e6, "M")
-        series = pd.Series({event["date"]: event["value"] / scale for event in trail}).sort_index()
-        strip.fill_between(series.index, series, step="post", color="#59838a", alpha=0.48)
-        strip.step(series.index, series, where="post", color="#92c4c4", lw=0.9)
-        strip.set_ylim(0, series.max() * 1.12)
-        strip.set_yticks([0, series.max()], ["0", f"{series.max():.0f}"])
-        fig.text(
-            0.016,
-            0.277,
-            f"Last reported long equity value, USD {unit}   ·   {series.iloc[-1]:,.1f}{unit} at last filing",
-            color=SOFT,
-            fontsize=8.8,
-        )
-    _date_axis(strip, board["start"], board["as_of"])
     if slug != 'berkshire':
         _note(fig, "SEC 13F · Dots mark filing dates. Labels show weight changes.")
 
