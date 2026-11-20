@@ -27,7 +27,10 @@ def main_chart(fig, study, data):
     fig.text(.012, .983, title, va='top', color=PAPER, fontsize=17, fontweight='bold')
     fig.text(.012, .92, f'{len(universe)} managers  /  {metric}', va='top', color=SOFT, fontsize=11)
     fig.text(.987, .92, latest, va='top', ha='right', color=SOFT, fontsize=10)
-    ax = fig.add_axes((.15, .18, .8, .645), facecolor=PAGE)
+    categorical = mode in {'sectors', 'shared-stocks', 'crowding'}
+    bottom = .168 if categorical else .084
+    left, right = (.084, .937) if mode == 'style-test' else (.112, .969)
+    ax = fig.add_axes((left, bottom, right - left, .825 - bottom), facecolor=PAGE)
     ax.tick_params(length=0, colors=SOFT, labelsize=8)
     for spine in ax.spines.values():
         spine.set_visible(False)
@@ -64,7 +67,7 @@ def main_chart(fig, study, data):
                                     [p['sectors']*100 for p in observed],
                                     c=[p['correlation'] for p in observed], vmin=-1, vmax=1, s=24,
                                     cmap='coolwarm', label=f'{len(observed)} pairs with priced correlation')
-                bar = fig.colorbar(points, ax=ax, aspect=30)
+                bar = fig.colorbar(points, ax=ax, aspect=30, fraction=.025, pad=.015)
                 bar.set_label('Return correlation', color=PAPER)
                 bar.ax.tick_params(colors=SOFT)
             ax.set(xlabel='Shared holdings weight, %', ylabel='Classified industry match, %')
@@ -81,10 +84,11 @@ def main_chart(fig, study, data):
     image = ax.imshow(np.ma.masked_invalid(matrix), aspect='auto', vmin=0,
                       vmax=float(np.nanmax(matrix)) if np.any(np.isfinite(matrix)) else 1,
                       cmap='viridis', interpolation='nearest')
-    bar = fig.colorbar(image, ax=ax, aspect=35, format=lambda n,_:f'{n:.0%}')
+    bar = fig.colorbar(image, ax=ax, aspect=35, fraction=.025, pad=.015, format=lambda n,_:f'{n:.0%}')
     bar.ax.tick_params(colors=SOFT, labelsize=8)
     ax.set_yticks(range(len(names)), names)
-    ax.set_xticks(range(len(labels)), labels, rotation=37 if len(labels) <= 22 else 0, ha='right')
+    ax.tick_params(axis='y', labelsize=7.0)
+    ax.set_xticks(range(len(labels)), labels, rotation=90 if categorical else 0, ha='center')
 
 
 def report(fig, study, data):

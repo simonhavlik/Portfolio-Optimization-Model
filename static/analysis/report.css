@@ -357,3 +357,38 @@
     html.report-page #print-report .pr-head h1 { color: #16212b !important; }
     html.report-page #print-report .pr-charts figcaption { color: #24303c !important; }
 }
+
+.rep-timeline .rep-chart-head { flex-wrap: wrap; gap: .45rem; }
+.rep-timeline .timeline-plot { height: clamp(260px, 26vw, 375px); width: 100%; }
+.rep-timeline-controls, .rep-timeline-controls label { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
+.rep-timeline-controls[hidden] { display: none; }
+.rep-timeline-controls select, .report-quarter-control button { color: var(--text); background: var(--surface); border: 1px solid var(--line); padding: .3rem .45rem; }
+.rep-timeline-caption { padding: .45rem .7rem; color: var(--muted); font-size: .72rem; }
+
+.report-quarter-control { display: grid; grid-template-columns: minmax(10rem, auto) minmax(12rem, 1fr) auto; gap: .5rem .9rem; align-items: center; margin: .85rem 0 .2rem; }
+.report-quarter-control[hidden] { display: none; }
+.report-quarter-control label, .report-quarter-status, .report-quarter-note { color: var(--muted); font-size: .78rem; }
+.report-quarter-control output { color: var(--text); margin-left: .3rem; font-variant-numeric: tabular-nums; }
+.report-quarter-range, .report-quarter-range-dates, .report-quarter-status { display: flex; align-items: center; gap: .5rem; }
+.report-quarter-range input { flex: 1; min-width: 0; accent-color: var(--brass); }
+.report-quarter-control button:disabled { opacity: .4; }
+.report-quarter-range-dates { gap: .65rem; color: var(--muted); font-size: .7rem; }
+.report-quarter-status { justify-content: space-between; padding: .3rem 0; }
+.report-quarter-status a { color: var(--brass-deep); white-space: nowrap; }
+.report-quarter-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: .85rem; }
+.report-quarter-grid .report-history-table { margin-top: 0; max-height: 27rem; border: 1px solid var(--line); }
+.report-quarter-grid tbody td:nth-child(3) { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.report-quarter-chart { height: 190px; }
+.report-quarter-sectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .3rem .7rem; font-size: .73rem; }
+.report-quarter-sectors div { display: flex; justify-content: space-between; gap: .35rem; }
+.report-quarter-sectors dd { white-space: nowrap; }
+.report-quarter-note { margin-top: .4rem; }
+.report-quarter-note:empty { display: none; }
+@media (max-width: 690px) {
+    .report-quarter-control { grid-template-columns: minmax(0, 1fr); }
+    .report-quarter-range-dates { justify-content: space-between; }
+    .report-quarter-grid { grid-template-columns: minmax(0, 1fr); }
+}
+.rep--fund .rep-inner { max-width: 1400px; }
+.rep-timeline .rep-chart-title { font-size: .82rem; letter-spacing: 0; text-transform: none; color: var(--text); font-weight: 650; }
+.rep-timeline-controls { font-size: .76rem; }

@@ -1,10 +1,10 @@
 <div class="report-wide report-history" id="filing-history">
     <div class="rep-section-head"><span class="mono">{{ 'Filing history' if fund else 'Portfolio history' }}</span><span class="mono">{{ timeline.changes | length }} allocations · {{ '{:,}'.format(timeline.modeled_days) }} priced sessions</span></div>
     {% if example_data.meta.matrix_coverage is defined %}
-    <p>Return and benchmark metrics use the longest continuously priced window. Each disclosed allocation applies from the next trading close after filing. Portfolio changes below include the full filing archive.</p>
+    <p>The performance chart shows every priced interval. Summary risk statistics use the longest continuous interval. Each disclosed allocation takes effect at the close of the first trading day after filing.</p>
     <p>Correlation, risk contributions and optimisation use {{ example_data.meta.n_assets }} priced positions covering {{ '%.1f%%' | format(example_data.meta.matrix_coverage * 100) }} of the {{ example_data.meta.disclosed_quarter }} disclosure, with asset returns from {{ example_data.meta.matrix_start }} to {{ example_data.meta.matrix_end }}.</p>
     {% endif %}
-    {% if timeline.chart.dates %}
+    {% if timeline.chart.dates and not fund %}
     <details class="report-history-detail">
         <summary>Performance across all priced intervals</summary>
         <p>Each interval starts from its own baseline. Gaps mark dates without sufficient pricing.</p>

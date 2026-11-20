@@ -5,7 +5,7 @@
 {% block extra_css %}
 <script>document.documentElement.classList.add('has-hero');{% if report_id %}document.documentElement.classList.add('report-page');{% endif %}</script>
 <link rel="stylesheet" href="/static/hero/hero.css">
-{% if report_id %}<link rel="stylesheet" href="{{ url_for('static', filename='analysis/report.css', v='history-print-2') }}">{% endif %}
+{% if report_id %}<link rel="stylesheet" href="{{ url_for('static', filename='analysis/report.css', v='priced-intervals-1') }}">{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -169,7 +169,7 @@
       <figure>
         {% if report_id %}<img data-print-chart="{{ image }}" alt="{{ caption }}"{% if fund %} decoding="sync"{% endif %}>
         {% else %}<img src="/static/report/{{ image }}" alt="{{ caption }}">{% endif %}
-        <figcaption>{{ caption }}</figcaption>
+        <figcaption>{{ 'Performance across all priced intervals' if fund and image == 'performance.png' else caption }}</figcaption>
       </figure>
       {% endfor %}
     </div>
@@ -585,7 +585,7 @@
     {% if report_id %}
     <div class="rep-section-head">
         <span class="mono">Holdings &amp; allocation</span>
-        <span class="mono">{% if fund %}{{ example_data.meta.disclosed_assets or example_data.meta.n_assets }} disclosed positions · {{ example_data.meta.disclosed_quarter }}{% else %}{{ example_data.meta.n_assets }} positions · weights as analysed{% endif %}</span>
+        <span class="mono">{% if fund %}Reported long equities{% else %}{{ example_data.meta.n_assets }} positions · weights as analysed{% endif %}</span>
     </div>
     {% else %}
     <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 mb-6">
@@ -619,6 +619,9 @@
     </div>
     
     {% endif %}
+    {% if fund %}
+    {% include "partials/report_quarter_holdings.html" %}
+    {% else %}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <!-- Holdings Table -->
         <div class="overflow-x-auto">
@@ -661,6 +664,7 @@
         </div>
         {% endif %}
     </div>
+    {% endif %}
 </div>
 
 {% if example_data and (not report_id or example_data.metrics) %}
@@ -1291,8 +1295,9 @@
 
 {% if report_id %}
 <script src="/static/hero/hero.js" defer></script>
-<script src="{{ url_for('static', filename='analysis/report.js', v='history-print-2') }}" defer></script>
-{% if timeline and timeline.chart.dates %}<script src="{{ url_for('static', filename='report/portfolio-timeline.js', v='disclosures-2') }}" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='analysis/report.js', v='priced-intervals-1') }}" defer></script>
+{% if timeline and timeline.chart.dates %}<script src="{{ url_for('static', filename='report/portfolio-timeline.js', v='priced-intervals-1') }}" defer></script>{% endif %}
+{% if fund %}<script src="{{ url_for('static', filename='report/quarter-holdings.js') }}" defer></script>{% endif %}
 {% elif not embedded %}
 <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" defer></script>
 <script src="/static/hero/hero.js" defer></script>
@@ -1426,7 +1431,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Render all charts when page loads
 document.addEventListener('DOMContentLoaded', () => {
     {% if example_data and example_data.charts %}
-    window.reportChartsReady = fetch('{{ url_for('example_charts', report=report_id, v=example_data.meta.computed_at) if report_id else url_for('example_charts') }}', { headers: { 'Accept': 'application/json' } })
+    window.reportChartsReady = fetch({{ (url_for('example_charts', report=report_id, v=example_data.meta.computed_at) if report_id else url_for('example_charts')) | tojson }}, { headers: { 'Accept': 'application/json' } })
         .then(response => response.ok ? response.json() : Promise.reject(response.status))
         .then(renderAllCharts)
         .then(() => { if (window.hideDataLoader) window.hideDataLoader(); })
@@ -1441,17 +1446,21 @@ function renderAllCharts(data) {
     
     // Sector Allocation Pie
     if (charts.allocation && charts.allocation.pie) {
-        Plotly.newPlot('chart-sector-allocation', [{
+        const allocation = {data: [{
             values: charts.allocation.pie.values,
             labels: charts.allocation.pie.labels,
             type: 'pie',
             hole: 0.4,
+            textinfo: 'none',
+            hovertemplate: '%{label} · %{percent}<extra></extra>',
             marker: { colors: paletteFor(charts.allocation.pie.values) }
-        }], {
+        }], layout: {
             margin: { t: 10, r: 10, b: 10, l: 10 },
             showlegend: true,
             legend: { orientation: 'h', y: -0.1 }
-        }, {displayModeBar: false});
+        }};
+        if (document.querySelector('[data-allocation-feed]')) window.reportAllocationForPrint = allocation;
+        else Plotly.newPlot('chart-sector-allocation', allocation.data, allocation.layout, {displayModeBar: false});
     }
     
     // Return Distribution
@@ -1919,10 +1928,12 @@ function renderAllCharts(data) {
         };
         
         Plotly.newPlot('correlation-heatmap', [trace], {
-            margin: { t: 20, r: 20, b: 60, l: 80 }
-        }, {displayModeBar: false});
+            margin: { t: 14, r: 10, b: 55, l: 58 },
+            xaxis: { tickangle: -90, automargin: true },
+            yaxis: { automargin: true }
+        }, {displayModeBar: false, responsive: true});
     }
-    
+
     // Stress Test Grid
     if (data.stress_test) {
         const grid = document.getElementById('stress-test-grid');

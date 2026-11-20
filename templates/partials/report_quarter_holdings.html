@@ -1,0 +1,49 @@
+{% set current = allocation.period if allocation else (quarters[-1] if quarters else '') %}
+<div class="report-quarter" data-allocation-feed="{{ url_for('fund_allocation_data', slug=fund.slug) }}"
+     data-archive-url="{{ url_for('leaderboard_holdings', slug=fund.slug) }}">
+    {% if quarters %}
+    <div class="report-quarter-control" hidden>
+        <label for="report-quarter-slider">Reporting quarter <output id="report-quarter-date" for="report-quarter-slider">{{ current }}</output></label>
+        <div class="report-quarter-range">
+            <button type="button" id="report-quarter-prev" aria-label="Previous filing quarter">&larr;</button>
+            <input id="report-quarter-slider" type="range" min="0" max="{{ quarters | length - 1 }}" value="{{ quarters.index(current) }}"
+                   aria-valuetext="{{ current }}">
+            <button type="button" id="report-quarter-next" aria-label="Next filing quarter">&rarr;</button>
+        </div>
+        <div class="report-quarter-range-dates"><time>{{ quarters[0] }}</time><time>{{ quarters[-1] }}</time></div>
+    </div>
+    {% endif %}
+    <div class="report-quarter-status">
+        <p id="report-quarter-filing" role="status">
+        {% if allocation and allocation.filed %}Filed {{ allocation.filed }} · {{ allocation.count }} long-equity positions{% if allocation.previous %} · Compared with {{ allocation.previous }}{% endif %}
+        {% elif current %}A complete allocation is unavailable for {{ current }}.{% else %}No disclosed allocation is available.{% endif %}
+        </p>
+        {% if current %}<a id="report-quarter-archive" href="{{ url_for('leaderboard_holdings', slug=fund.slug, quarter=current) }}">Full quarter &rarr;</a>{% endif %}
+    </div>
+    <div class="report-quarter-grid">
+        <div class="report-history-table" tabindex="0" aria-label="Holdings in the selected quarter">
+            <table class="w-full text-sm">
+                <thead><tr><th scope="col">Ticker</th><th scope="col">Holding</th><th scope="col">Weight</th><th scope="col">Position change</th></tr></thead>
+                <tbody id="report-quarter-rows">
+                    {% for row in allocation.rows if allocation %}
+                    <tr><td>{{ row.ticker or '—' }}</td><td>{{ row.name }}</td><td>{{ '%.2f%%' | format(row.weight * 100) }}</td><td>{{ row.action or '—' }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div>
+            <h3>Sector allocation</h3>
+            <div class="report-quarter-chart" id="chart-sector-allocation"></div>
+            <dl class="report-quarter-sectors" id="report-quarter-sectors">
+                {% if allocation %}{% for name, weight in allocation.sectors.items() %}
+                <div><dt>{{ name }}</dt><dd>{{ '%.1f%%' | format(weight * 100) }}</dd></div>
+                {% endfor %}{% endif %}
+            </dl>
+        </div>
+    </div>
+    <p id="report-quarter-exits" class="report-quarter-note">
+        {% if allocation and allocation.exit_count %}{{ allocation.exit_count }} exits · {{ allocation.exits | join(' · ') }}{% endif %}
+    </p>
+    <p class="report-quarter-note">Weights are for the selected disclosure. The performance and risk calculations use the dated portfolio history.</p>
+    <script id="report-quarter-data" type="application/json">{{ {'quarters': quarters, 'initial': allocation} | tojson }}</script>
+</div>

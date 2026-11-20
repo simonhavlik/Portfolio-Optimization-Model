@@ -16,7 +16,8 @@ from services import fund_archive
 from services.example_portfolio import _finite_json, example_portfolio_service, serialize_for_template
 from services.holdings_style import INDUSTRIES
 from services.leaderboard import CACHE_DIR, RISK_FREE, _book_positions, _mapping, _read_prices, _series, build_board
-from services.leaderboard_funds import BENCHMARK, FUNDS
+from services.leaderboard_funds import BENCHMARK, FUNDS, ISSUER_ALIASES
+from services.leaderboard_storage import published_snapshot
 from services.portfolio_timeline import FUND_REPORT_PREFIX
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,9 @@ def _factor_snapshot(refresh):
 
 
 def _classification():
+    saved = published_snapshot('leaderboard:issuer_industries')
+    if saved:
+        return saved
     path = CACHE_DIR / 'issuer_industries.json'
     if path.is_file():
         return json.loads(path.read_bytes())
@@ -76,6 +80,37 @@ def _portfolio_positions(fund, book, mapping, industries):
         'name': row['issuer'],
         'price': None,
     } for row in positions]
+
+
+def quarter_allocation(fund, period):
+    """Read the saved quarter and its changes for the report's holdings control."""
+    snapshot = fund_archive.saved_quarter(fund['slug'], period)
+    if not snapshot:
+        return None
+    mapping, industries = _mapping(), _classification()
+    aliases = {**ISSUER_ALIASES, **fund.get('aliases', {})}
+    live, exits = [], []
+    sectors = defaultdict(float)
+    equities = [row for row in snapshot['rows'] if not row['option'] and row['quantity_type'] == 'SH']
+    total = sum(row['value'] for row in equities if row['value'] > 0)
+    for row in equities:
+        issuer = row['issuer']
+        ticker = mapping.get(row['cusip']) or next((ticker for prefix, ticker in aliases.items()
+                                                     if issuer.upper().startswith(prefix)), None)
+        sector = INDUSTRIES.get(industries.get(row['cusip'], {}).get('sector'), 'Unclassified')
+        weight = row['value'] / total if total and row['value'] > 0 else 0
+        if row.get('action') == 'Exited':
+            exits.append((abs(row.get('weight_change', 0)), ticker or issuer))
+        elif weight:
+            sectors[sector] += weight
+            live.append({'ticker': ticker, 'name': issuer, 'sector': sector, 'weight': weight,
+                         'action': row.get('action'), 'shares_change': row.get('shares_change')})
+    live.sort(key=lambda row: -row['weight'])
+    exits.sort(reverse=True)
+    return {'period': period, 'previous': snapshot['previous'], 'count': len(live),
+            'filed': snapshot['book']['filed'] if snapshot['book'] else None,
+            'rows': live[:25], 'exit_count': len(exits), 'exits': [label for _, label in exits[:5]],
+            'sectors': dict(sorted(sectors.items(), key=lambda item: -item[1]))}
 
 
 def compact_report(analysis):

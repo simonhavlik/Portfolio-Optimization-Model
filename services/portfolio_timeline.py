@@ -58,11 +58,9 @@ def report(name, schedule, changes, prices, *, benchmark=BENCHMARK, public=False
     segments = [section for _, section in daily[observed].groupby(groups[observed])]
     longest = max(segments, key=len, default=pd.Series(dtype=float))
     metrics = _metrics(longest, benchmark_returns.reindex(longest.index), risk_free) if len(longest) >= 60 else {}
-    dates, values, market, drawdown = [], [], [], []
+    dates, values, market, drawdown, intervals = [], [], [], [], []
     for segment in segments:
         wealth = (1 + segment).cumprod()
-        # Keep the true daily extrema when computing weekly drawdown.
-        sample = segment.groupby(segment.index.to_period('W-FRI')).tail(1).index
         comparator = (1 + benchmark_returns.reindex(segment.index)).cumprod()
         peaks = wealth.cummax().clip(lower=1)
         if dates:
@@ -72,22 +70,28 @@ def report(name, schedule, changes, prices, *, benchmark=BENCHMARK, public=False
             for line in (values, market, drawdown):
                 line.append(None)
         baseline_index = calendar.searchsorted(segment.index[0]) - 1
-        if baseline_index >= 0 and not dates:
-            dates.append(calendar[baseline_index].date().isoformat())
+        floor = segment.index[0].date().isoformat()
+        if baseline_index >= 0:
+            floor = calendar[baseline_index].date().isoformat()
+            dates.append(floor)
             values.append(0)
             market.append(0)
             drawdown.append(0)
-        dates.extend(_dates(sample))
-        values.extend(wealth.reindex(sample).sub(1).round(6).tolist())
-        market.extend(comparator.reindex(sample).sub(1).round(6).tolist())
-        drawdown.extend(wealth.div(peaks).sub(1).reindex(sample).round(6).tolist())
+        dates.extend(_dates(segment.index))
+        values.extend(wealth.sub(1).round(6).tolist())
+        market.extend(comparator.sub(1).round(6).tolist())
+        drawdown.extend(wealth.div(peaks).sub(1).round(6).tolist())
+        intervals.append({'baseline': floor, 'start': segment.index[0].date().isoformat(), 'end': dates[-1],
+                          'sessions': len(segment), 'portfolio': float(wealth.iloc[-1] - 1),
+                          'benchmark': float(comparator.iloc[-1] - 1)})
     return _finite_json({
         'name': name, 'changes': changes, 'benchmark': benchmark, 'metrics': metrics,
         'benchmark_return': float((1 + benchmark_returns.reindex(longest.index)).prod() - 1) if len(longest) else None,
         'modeled_days': int(observed.sum()), 'market_days': max(len(calendar) - 1, 0),
         'segment_count': len(segments), 'metric_start': _dates(longest.index[:1])[0] if len(longest) else None,
         'metric_end': _dates(longest.index[-1:])[0] if len(longest) else None,
-        'chart': {'dates': dates, 'values': values, 'benchmark': market, 'drawdown': drawdown},
+        'chart': {'dates': dates, 'values': values, 'benchmark': market, 'drawdown': drawdown,
+                  'intervals': intervals},
         'simulation': _projection(segments, n_simulations, horizon_days),
         'risk_free': risk_free, 'min_coverage': MIN_COVERAGE,
     })

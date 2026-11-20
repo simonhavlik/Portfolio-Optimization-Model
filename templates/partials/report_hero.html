@@ -5,7 +5,7 @@
 {% set bench_series = bench_map.get(chosen_bench) or bench_map.get('SPY') or bench_map.get('VT') or [] %}
 {% set bench_name = chosen_bench if bench_map.get(chosen_bench) else ('SPY' if bench_map.get('SPY') else ('VT' if bench_map.get('VT') else '')) %}
 
-<section class="rep" aria-labelledby="rep-title">
+<section class="rep{{ ' rep--fund' if fund else '' }}" aria-labelledby="rep-title">
     <div class="rep-inner">
         <div class="rep-top">
             <nav class="rep-crumb" aria-label="Breadcrumb">
@@ -48,7 +48,7 @@
                 <p class="rep-kicker">
                     <span class="dot" aria-hidden="true"></span>Saved analysis
                     <span class="sep">&middot;</span>{{ example_data.meta.computed_at[:16]|replace('T', ' ') }} UTC
-                    <span class="sep">&middot;</span>{{ example_data.meta.period }}
+                    <span class="sep">&middot;</span>{{ 'Analytics window · ' if fund and m else '' }}{{ example_data.meta.period }}
                 </p>
                 <h1 id="rep-title" class="rep-title">{{ example_data.meta.name }}</h1>
                 <p class="rep-sub">
@@ -75,7 +75,30 @@
             {% else %}<p class="rep-sub">The filing history and allocation are available. The reported holdings do not have enough continuous prices for return and risk statistics.</p>{% endif %}
         </header>
 
-        {% if m %}<div class="rep-chart">
+        {% if fund and timeline and timeline.chart.dates %}
+        <div class="rep-chart rep-timeline">
+            <div class="rep-chart-head">
+                <h2 class="rep-chart-title mono">Performance across all priced intervals</h2>
+                <div class="rep-timeline-controls" id="timeline-controls" hidden>
+                    {% if timeline.chart.intervals is defined and timeline.chart.intervals | length > 1 %}
+                    <label for="timeline-interval">Interval
+                        <select id="timeline-interval"><option value="">All priced intervals</option>
+                            {% for interval in timeline.chart.intervals %}
+                            <option value="{{ loop.index0 }}">{{ interval.start }} to {{ interval.end }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    {% endif %}
+                    <label for="timeline-metric">Measure
+                        <select id="timeline-metric"><option value="values">Cumulative return</option><option value="drawdown">Drawdown</option></select>
+                    </label>
+                </div>
+            </div>
+            <div id="timeline-plot" class="timeline-plot" role="region" aria-label="Portfolio and benchmark across all priced intervals"></div>
+            <p id="timeline-caption" class="rep-timeline-caption" role="status">Each filing updates the modeled portfolio. Each priced interval starts at 0%. Gaps indicate unavailable pricing.</p>
+            <script id="timeline-data" type="application/json">{{ {'chart': timeline.chart, 'benchmark': timeline.benchmark} | tojson }}</script>
+        </div>
+        {% elif m %}<div class="rep-chart">
             <div class="rep-chart-head">
                 <span class="mono rep-chart-title">Cumulative return <span class="sep">/</span> daily</span>
                 <span class="mono rep-legend">

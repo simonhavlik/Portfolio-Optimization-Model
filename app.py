@@ -971,8 +971,9 @@ def leaderboard_holdings(slug):
 @app.route('/leaderboard/<slug>')
 def fund_analysis(slug):
     """Open the precomputed point-in-time report without running market analysis."""
+    from services import fund_archive
     from services.leaderboard_funds import by_slug
-    from services.fund_reports import FULL_REPORT_PREFIX
+    from services.fund_reports import FULL_REPORT_PREFIX, quarter_allocation
     from services.portfolio_timeline import FUND_REPORT_PREFIX
 
     fund = by_slug(slug)
@@ -983,11 +984,37 @@ def fund_analysis(slug):
         abort(503, description='This fund is awaiting its saved report publication.')
     saved = db.session.get(AppCache, FUND_REPORT_PREFIX + slug)
     payload = report.payload
+    quarters = list(reversed(fund_archive.periods(slug)))
+    selected = request.args.get('quarter')
+    if selected and selected not in quarters:
+        abort(404)
+    selected = selected or (quarters[-1] if quarters else None)
+    allocation = quarter_allocation(fund, selected) if selected else None
     return render_template('index.html', example_data=payload, report_id=f'fund-history-{slug}',
                            valuation=None, cca=None, appendix=build_appendix(payload) if payload['metrics'] else None,
                            fund=fund, timeline=saved.payload if saved else None,
+                           quarters=quarters, allocation=allocation,
                            highlighted=request.args.get('quarter'), refreshed=request.args.get('updated') == '1',
                            show_analysis=bool(payload['metrics']))
+
+
+@app.route('/api/leaderboard/<slug>/allocation')
+def fund_allocation_data(slug):
+    from services.fund_reports import quarter_allocation
+    from services.leaderboard_funds import by_slug
+
+    fund = by_slug(slug)
+    try:
+        quarter = date.fromisoformat(request.args.get('quarter', '')).isoformat()
+    except ValueError:
+        abort(404)
+    allocation = quarter_allocation(fund, quarter) if fund else None
+    if not allocation:
+        abort(404)
+    response = jsonify(allocation)
+    response.cache_control.public = True
+    response.cache_control.max_age = 300
+    return response
 
 
 @app.route('/leaderboard/<slug>/update', methods=['POST'])

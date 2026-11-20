@@ -419,7 +419,7 @@ def _plot_notes(fig, data):
     selected.sort(key=lambda n: n["filed"])
     ax = fig.axes[0]
     box = ax.get_position()
-    reserve = 0.145
+    reserve = 0.172
     ax.set_position([box.x0, box.y0, box.width, box.height - reserve])
     for companion in fig.axes:
         if companion.get_label() == '<colorbar>':
@@ -440,20 +440,26 @@ def _plot_notes(fig, data):
     band.set_xlim(0, 1)
     band.set_ylim(0, 1)
     band.axis("off")
-    band.plot([0, 1], [0.035, 0.035], color=RULE, lw=0.55)
+    spine = 0.20
+    band.plot([0, 1], [spine, spine], color=SOFT, lw=0.7, alpha=0.70)
+    for i, day in enumerate(pd.date_range(first, last, periods=5)):
+        x = float((day - first) / (last - first))
+        band.plot([x, x], [spine, 0.105], color=SOFT, lw=0.65, alpha=0.76)
+        band.text(x, 0.075, day.strftime('%b %Y'), color=SOFT, fontsize=8.4,
+                  ha='left' if i == 0 else 'right' if i == 4 else 'center', va='top')
     for i, note in enumerate(selected):
         col, row = divmod(i, 3)
         x = (pd.Timestamp(note["filed"]) - first) / (last - first)
         x = float(np.clip(x, 0.002, 0.998))
         label_x = (col + 0.5) / cols
-        label_y = 0.87 - row * 0.26
+        label_y = 0.92 - row * 0.245
         color = ACCENTS[1] if note["quantity"] > 0 else ACCENTS[2]
         ticker = note["ticker"] or note["issuer"].split()[0]
         action = {"New": "new", "Exited": "exit", "Increased": "+", "Reduced": "−"}[note["action"]]
         manager = f"{_short(note['fund'])[:12]} · " if len(data['study'].funds) > 1 else ''
         label = f"{refs[note['filed']]}  {manager}{action} {ticker[:9]}"
-        band.plot([x, label_x], [0.035, label_y - 0.06], color=color, lw=0.45, alpha=0.50, zorder=1)
-        band.scatter([x], [0.035], s=4, marker="s", color=color, clip_on=False)
+        band.plot([x, label_x], [spine, label_y - 0.06], color=color, lw=0.45, alpha=0.50, zorder=1)
+        band.scatter([x], [spine], s=5, marker="s", color=color, clip_on=False)
         band.text(
             label_x,
             label_y,
@@ -651,8 +657,8 @@ def _disclosure_chart(fig, data):
                         xycoords=ax.get_xaxis_transform(), color='#edba76', fontsize=7.8,
                         ha='center', bbox={'facecolor': PAGE, 'edgecolor': 'none', 'pad': .6})
             col, row = divmod(index-1, 2)
-            fig.text(.016 + col*.248, .075 - row*.032,
-                     f'E{index} {day[2:]}  {title}', color='#edba76', fontsize=7.3)
+            fig.text(.016 + col*.248, .098 - row*.046,
+                     f'E{index} · {day}\n{title}', color='#edba76', fontsize=7.1, va='top')
         data['corporate_events'] = [{'date': day, 'title': title, 'url': url} for day,title,url in events]
 
     # The value strip shares the price chart's date axis, as volume does on

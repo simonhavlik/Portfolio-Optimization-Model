@@ -21,8 +21,11 @@
             await window.reportChartsReady;
             if (!window.Plotly) return;
             for (const target of document.querySelectorAll('[data-print-chart]')) {
-                const source = el(printTargets[target.dataset.printChart]);
-                if (!source || !source._fullLayout) continue;
+                const live = el(printTargets[target.dataset.printChart]);
+                const saved = target.dataset.printChart === 'performance.png' ? window.reportTimelineForPrint
+                    : target.dataset.printChart === 'allocation.png' ? window.reportAllocationForPrint : null;
+                const source = saved || (live?._fullLayout ? live : null);
+                if (!source) continue;
                 try {
                     const color = '#24303c';
                     const layout = {
@@ -31,9 +34,11 @@
                         legend: {...source.layout.legend, font: {color, size: 11}},
                     };
                     for (const axis of Object.keys(layout).filter(key => /^[xy]axis\d*$/.test(key))) {
+                        const title = typeof layout[axis].title === 'string'
+                            ? {text: layout[axis].title} : layout[axis].title;
                         layout[axis] = {...layout[axis], gridcolor: '#e4e8eb', zerolinecolor: '#bac2cc',
                             linecolor: '#bac2cc', tickfont: {color, size: 11},
-                            title: {...layout[axis].title, font: {color, size: 12}}};
+                            title: {...title, font: {color, size: 12}}};
                     }
                     target.src = await Plotly.toImage({data: source.data, layout}, {format: 'svg', width: 640, height: 290});
                     await target.decode();

@@ -204,3 +204,47 @@ def test_parent_filing_includes_only_the_sec_attributed_manager_rows():
     assert doc['attributed_sequence'] == '1'
     assert [p['cusip'] for p in doc['positions']] == ['025816109']
     assert parse_filing(cover + table, meta, manager_cik='0002026053') is None
+
+
+def test_report_uses_dated_rebalances_and_distinct_benchmark_intervals():
+    from math import log1p
+
+    from services.portfolio_timeline import report
+
+    calendar = pd.bdate_range('2024-01-02', periods=8)
+    prices = {
+        'A': pd.Series([log1p(.01)] * 3, index=calendar[:3]),
+        'B': pd.Series([log1p(.03)] * 4, index=calendar[4:]),
+        'SPY': pd.Series(log1p(.005), index=calendar),
+    }
+    schedule = [(calendar[0], {'A': 1.0}), (calendar[4], {'B': 1.0})]
+    analysis = report('Dated book', schedule, [], prices)
+    chart = analysis['chart']
+    assert analysis['modeled_days'] == 5
+    assert len(chart['intervals']) == 2
+    assert chart['values'] == [0, .01, .0201, None, 0, .03, .0609, .092727]
+    assert chart['intervals'][0]['portfolio'] == pytest.approx(1.01**2 - 1)
+    assert chart['intervals'][1]['benchmark'] == pytest.approx(1.005**3 - 1)
+
+
+def test_quarter_allocation_uses_disclosed_long_equity_and_saved_changes(monkeypatch):
+    from services import fund_reports
+
+    monkeypatch.setattr(fund_reports, '_mapping', lambda: {'AAA': 'A', 'BBB': 'B'})
+    monkeypatch.setattr(fund_reports, '_classification', lambda: {'AAA': {'sector': 'BusEq'}})
+    monkeypatch.setattr(fund_reports.fund_archive, 'saved_quarter', lambda *args: {
+        'previous': '2023-12-31', 'book': {'filed': '2024-05-15'},
+        'rows': [
+            {'issuer': 'Alpha', 'cusip': 'AAA', 'option': '', 'quantity_type': 'SH',
+             'value': 60, 'action': 'Increased', 'shares_change': 12},
+            {'issuer': 'Beta', 'cusip': 'BBB', 'option': '', 'quantity_type': 'SH',
+             'value': 0, 'action': 'Exited', 'shares_change': -2, 'weight_change': -.1},
+            {'issuer': 'Call on Alpha', 'cusip': 'AAA', 'option': 'CALL', 'quantity_type': 'SH',
+             'value': 50, 'action': 'New'},
+        ],
+    })
+    allocation = fund_reports.quarter_allocation({'slug': 'test'}, '2024-03-31')
+    assert allocation['rows'][0]['weight'] == 1
+    assert allocation['rows'][0]['shares_change'] == 12
+    assert allocation['sectors'] == {'Business equipment': 1}
+    assert allocation['exits'] == ['B']
