@@ -82,16 +82,14 @@
                 return response.json();
             }).then(data => {
                 history = data;
-                const groups = [['sector', 'Sector exposure', data.sectors ?? data.industries]];
-                if (data.sectors) groups.push(['industry', 'Industry exposure', data.industries]);
-                for (const [prefix, label, options] of groups) {
-                    const group = document.createElement('optgroup');
-                    group.label = label;
-                    for (const [key, name] of Object.entries(options)) {
-                        group.append(new Option(name, prefix + ':' + key));
-                    }
-                    measure.append(group);
+                const current = measure.value;
+                const groups = [['sector', data.sectors ?? data.industries], ['industry', data.sectors && data.industries]];
+                for (const [prefix, options] of groups) {
+                    const group = measure.querySelector(`[data-exposure="${prefix}"]`);
+                    const entries = Object.entries(options ?? {}).sort(([, a], [, b]) => a.localeCompare(b));
+                    group.replaceChildren(...entries.map(([key, name]) => new Option(name, prefix + ':' + key)));
                 }
+                measure.value = current;
             }).catch(error => {
                 loading = null;
                 throw error;
