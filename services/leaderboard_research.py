@@ -587,7 +587,7 @@ def _disclosure_chart(fig, data):
     slug = data["study"].funds[0]
     board, trail = data["board"], data["events"][slug]
     bottom = 0.15 if slug == 'berkshire' else 0.115
-    ax = _axis(fig, (0.07, bottom, 0.915, 0.759 - bottom))
+    ax = _axis(fig, (0.016, bottom, 0.969, 0.759 - bottom))
     nav = (1 + data["series"][slug]).cumprod() * 100
     handles = []
     for name, line, color, style in [
@@ -620,6 +620,11 @@ def _disclosure_chart(fig, data):
     _date_axis(ax, board["start"], board["as_of"])
     _dated_markers(ax, data)
     ax.yaxis.set_major_locator(MaxNLocator(6))
+    ax.tick_params(axis='y', pad=-5)
+    for label in ax.get_yticklabels():
+        label.set_horizontalalignment('left')
+        label.set_verticalalignment('bottom')
+        label.set_bbox(dict(facecolor=PAGE, edgecolor='none', pad=0.3))
     lookup = nav.reindex(pd.DatetimeIndex([event["date"] for event in trail]), method="ffill")
     ax.scatter(
         lookup.index, lookup, marker="o", s=11, edgecolors=PAGE, linewidth=0.45, color=ACCENTS[0], zorder=4
