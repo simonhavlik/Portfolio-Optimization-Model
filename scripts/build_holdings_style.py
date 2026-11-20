@@ -27,6 +27,8 @@ ARCHIVED_GROUPS = {
     # Historical operating businesses absent from current company profiles.
     'G81477104': ('Communication Services', 'Internet Content & Information',
                   'https://www.sec.gov/Archives/edgar/data/1094005/000110465920052758/sina-20191231x20f.htm'),
+    '984332106': ('Communication Services', 'Internet Content & Information',
+                  'https://www.sec.gov/Archives/edgar/data/1011006/000119312513085111/d442073d10k.htm'),
     'Y75638109': ('Industrials', 'Marine Shipping',
                   'https://www.sec.gov/Archives/edgar/data/1794846/000162828023008528/sc-6k2022x12x31.htm'),
     'Y0436Q109': ('Industrials', 'Marine Shipping',
