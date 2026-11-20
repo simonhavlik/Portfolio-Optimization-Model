@@ -947,7 +947,8 @@ def leaderboard_research_asset(study, panel, ext):
     info = study_index().get(study)
     if not info or panel not in {'chart', 'report'} or ext not in {'png', 'webp'}:
         abort(404)
-    revision = request.args.get('v', info['revision'])
+    default_revision = info.get('report_revision', info['revision']) if panel == 'report' else info['revision']
+    revision = request.args.get('v', default_revision)
     if not re.fullmatch(r'[0-9]{20}', revision):
         abort(404)
     path = asset_path(revision, study, panel, ext).resolve()

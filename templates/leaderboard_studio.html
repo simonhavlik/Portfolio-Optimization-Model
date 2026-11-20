@@ -31,7 +31,7 @@
         {% if study %}
         <div class="research-actions">
           <a class="research-button" href="{{ url_for('leaderboard_research_asset', study=draft.study, panel='chart', ext='png', v=draft.get('revision', study.revision), download='1') }}">Download research chart</a>
-          <a class="research-button" href="{{ url_for('leaderboard_research_asset', study=draft.study, panel='report', ext='png', v=draft.get('revision', study.revision), download='1') }}">Download one-page report</a>
+          <a class="research-button" href="{{ url_for('leaderboard_research_asset', study=draft.study, panel='report', ext='png', v=study.get('report_revision', draft.get('revision', study.revision)), download='1') }}">Download research data sheet</a>
           <a class="research-link" href="{{ url_for('leaderboard_view', study=draft.study, period=study.cohort) }}#research-packs">Preview research pack</a>
         </div>
         {% endif %}

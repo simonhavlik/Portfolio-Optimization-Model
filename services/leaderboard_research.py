@@ -685,15 +685,15 @@ def _table(fig, top, bottom, columns, rows, boundaries, *, left=0, right=1, text
 
     height = (top - bottom) / (len(rows) + 1)
     width = right - left
-    size = min(9.3, height * fig.get_figheight() * 72 * 0.80)
+    size = min(9.3, height * fig.bbox.height / fig.dpi * 72 * 0.80)
     renderer = fig.canvas.get_renderer()
     for i, row in enumerate([columns, *rows]):
         y = top - i * height
         if i == 0 or i % 2:
             fig.add_artist(Rectangle((left, y - height), width, height,
-                                     transform=fig.transFigure, facecolor="#1b272e" if i == 0 else "#131e24",
+                                     transform=fig.transSubfigure, facecolor="#1b272e" if i == 0 else "#131e24",
                                      edgecolor="none", zorder=-2))
-        fig.add_artist(Line2D([left, right], [y, y], transform=fig.transFigure, color=RULE, linewidth=.45))
+        fig.add_artist(Line2D([left, right], [y, y], transform=fig.transSubfigure, color=RULE, linewidth=.45))
         for j, item in enumerate(row):
             text_column = j == 0 or j in text_columns
             font = FontProperties(family="DejaVu Sans" if text_column or i == 0 else "DejaVu Sans Mono",
@@ -709,7 +709,7 @@ def _table(fig, top, bottom, columns, rows, boundaries, *, left=0, right=1, text
                 value = base.rstrip() + "…"
             fig.text(x, y - height*.51, value, va="center", ha="left" if text_column else "right",
                      fontproperties=font, color=SOFT if i == 0 else PAPER)
-    fig.add_artist(Line2D([left, right], [bottom, bottom], transform=fig.transFigure, color=RULE, linewidth=.45))
+    fig.add_artist(Line2D([left, right], [bottom, bottom], transform=fig.transSubfigure, color=RULE, linewidth=.45))
 
 
 def _export(fig, revision, key, panel):
@@ -727,15 +727,33 @@ def _export(fig, revision, key, panel):
     atomic_write(asset_path(revision, key, panel, "webp"), preview.getvalue())
 
 
-def rebuild(only=None):
+def _research_report(study, data, styles, revision):
+    from services.fund_research_report import render_report
+    from services.holdings_style_figures import report
+    from services.research_comparisons import cohort_comparisons, fund_comparisons
+
+    fig = plt.figure(figsize=(9.6, 12.8), dpi=400, facecolor=PAGE)
+    top, comparisons = fig.subfigures(2, 1, height_ratios=(8, 4.8), hspace=0)
+    for panel in (top, comparisons):
+        panel.set_facecolor(PAGE)
+    if study.chart == 'universe':
+        report(top, study, styles)
+        cohort_comparisons(comparisons, study, styles)
+    else:
+        render_report(_page(data, report=True, canvas=top), data, styles)
+        fund_comparisons(comparisons, data)
+    _export(fig, revision, study.key, "report")
+    return [3840, 5120]
+
+
+def rebuild(only=None, *, reports_only=False):
     """Prepare all share images offline from saved prices and original filings."""
     books = _source_books()
     market = _read_prices()
     mapping = _mapping()
     for ticker, series in market.items():
         market[ticker] = series.tz_localize(None) if series.index.tz is not None else series
-    from services.holdings_style_figures import TOPICS, main_chart, report
-    from services.fund_research_report import render_report
+    from services.holdings_style_figures import TOPICS, main_chart
     from services.holdings_style import load
     from services.issuer_classification import TECHNOLOGY, load as load_classifications
 
@@ -753,13 +771,21 @@ def rebuild(only=None):
                           for key, (title, _) in TOPICS.items() if group))
     keys = {study.cohort for study in studies}
     boards = {key: build_board(cohort=key) for key in keys}
-    index = study_index() if only else {}
+    index = study_index() if only or reports_only else {}
     revision = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
     for study in studies:
         if only and study.key not in only:
             continue
         board = boards[study.cohort]
         if not board.get("revision"):
+            continue
+        if reports_only:
+            if study.key in index:
+                data = None if study.chart == 'universe' else _study_data(study, board, books, market, mapping)
+                metadata = index[study.key]
+                metadata['report_size'] = _research_report(study, data, style_visual_data
+                                                           if study.chart == 'universe' else styles, revision)
+                metadata['report_revision'] = revision
             continue
         if study.chart == 'universe':
             candidates = []
@@ -812,14 +838,8 @@ def rebuild(only=None):
         label_count = _plot_notes(main, data)
         _ledger(ledger, data, columns)
         _export(sheet, revision, study.key, "chart")
-        if study.chart == 'universe':
-            fig = plt.figure(figsize=(9.6, 8.0), dpi=400, facecolor=PAGE)
-            report(fig, study, style_visual_data)
-        else:
-            fig = plt.figure(figsize=(9.6, 8.0), dpi=400, facecolor=PAGE)
-            title = _page(data, report=True, canvas=fig)
-            render_report(title, data, styles)
-        _export(fig, revision, study.key, "report")
+        report_size = _research_report(study, data, style_visual_data if study.chart == 'universe' else styles,
+                                       revision)
         index[study.key] = {
             "title": study.title,
             "revision": revision,
@@ -829,10 +849,10 @@ def rebuild(only=None):
             "events": data.get("corporate_events", []),
             "plot_labels": label_count,
             "chart_size": [3840, int((chart_height + ledger_height) * 300)],
-            "report_size": [3840, 3200],
+            "report_size": report_size,
         }
     atomic_write(MANIFEST, json.dumps(index).encode())
-    print(f"Built {len(index) * 2} chart and report graphics", flush=True)
+    print(f"Published research index for {len(index)} studies", flush=True)
 
 
 if __name__ == "__main__":

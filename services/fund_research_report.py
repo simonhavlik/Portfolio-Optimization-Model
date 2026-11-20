@@ -22,10 +22,10 @@ def _section_table(fig, left, bottom, width, height, cols, rows, cuts):
     for i, items in enumerate([cols, *rows]):
         top = bottom + height - step * i
         fill = '#202d36' if i == 0 else ('#181f28' if i % 2 else PAGE)
-        fig.add_artist(Rectangle((left, top-step), width, step, transform=fig.transFigure,
+        fig.add_artist(Rectangle((left, top-step), width, step, transform=fig.transSubfigure,
                                  facecolor=fill, edgecolor='none', zorder=-1))
         fig.add_artist(Line2D([left,left+width],[top,top],color='#34434b',linewidth=.4,
-                              transform=fig.transFigure))
+                              transform=fig.transSubfigure))
         for j, item in enumerate(items):
             x = left + width * (cuts[j]+.015 if j == 0 else cuts[j+1]-.012)
             fig.text(x, top-step*.5, item, color=SOFT if i==0 else PAPER, fontsize=8.3,

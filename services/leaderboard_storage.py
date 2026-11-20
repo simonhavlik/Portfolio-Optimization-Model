@@ -119,7 +119,8 @@ def publish(*, board_path, studies_path, prices, drafts=None):
             assets.extend(chart_store / f"{board.get('charts_revision', board['revision'])}-{board['cohort']}-{key}.{ext}" for ext in ('png', 'webp'))
     for key, study in studies.items():
         for panel in ('chart', 'report'):
-            assets.extend(studies_path.parent / f"{study['revision']}-{key}-{panel}.{ext}" for ext in ('png', 'webp'))
+            revision = study.get('report_revision', study['revision']) if panel == 'report' else study['revision']
+            assets.extend(studies_path.parent / f"{revision}-{key}-{panel}.{ext}" for ext in ('png', 'webp'))
     for asset in assets:
         key = f'{asset.parent.name}/{asset.name}'
         if db.session.get(FundResearchAsset, key) is None:

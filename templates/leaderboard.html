@@ -35,14 +35,15 @@
 
 {% macro research_pack(key, study) %}
 <div class="research-publication">
-  {% for panel, title in [('chart', 'Research chart'), ('report', 'One-page report')] %}
+  {% for panel, title in [('chart', 'Research chart'), ('report', 'Research data sheet')] %}
+  {% set revision = study.get('report_revision', study.revision) if panel == 'report' else study.revision %}
   <figure class="research-chart">
-    <a href="{{ url_for('leaderboard_research_asset', study=key, panel=panel, ext='png', v=study.revision) }}" target="_blank" rel="noopener">
-      <img src="{{ url_for('leaderboard_research_asset', study=key, panel=panel, ext='webp', v=study.revision) }}"
+    <a href="{{ url_for('leaderboard_research_asset', study=key, panel=panel, ext='png', v=revision) }}" target="_blank" rel="noopener">
+      <img src="{{ url_for('leaderboard_research_asset', study=key, panel=panel, ext='webp', v=revision) }}"
            width="{{ study.chart_size[0] if panel == 'chart' and study.chart_size else study.get('report_size', [2140, 2660])[0] }}" height="{{ study.chart_size[1] if panel == 'chart' and study.chart_size else study.get('report_size', [2140, 2660])[1] }}" loading="lazy" decoding="async" alt="{{ study.title }} · {{ title }}">
     </a>
     <figcaption><span>{{ title }}</span><a class="research-link" download
-      href="{{ url_for('leaderboard_research_asset', study=key, panel=panel, ext='png', v=study.revision, download='1') }}">PNG</a></figcaption>
+      href="{{ url_for('leaderboard_research_asset', study=key, panel=panel, ext='png', v=revision, download='1') }}">PNG</a></figcaption>
   </figure>
   {% endfor %}
 </div>
