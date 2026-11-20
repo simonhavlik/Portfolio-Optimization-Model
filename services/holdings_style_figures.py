@@ -101,11 +101,11 @@ def report(fig, study, data):
     latest = data['as_of']
     key = study.key
     headers = {
-        'sectors': ('Top industry', 'Classified'), 'sector-history': ('Tech weight', 'Change'),
-        'shared-stocks': ('Max overlap', 'Shared names'), 'style-test': ('Max overlap', 'Industry match'),
-        'crowding': ('Of top 22', 'Total weight'), 'concentration': ('Top 10', 'Effective'),
+        'sectors': ('Top industry', 'Classified'), 'sector-history': ('Tech %', 'Change'),
+        'shared-stocks': ('Max overlap', 'Shared'), 'style-test': ('Max overlap', 'Sector %'),
+        'crowding': ('Of top 22', 'Weight'), 'concentration': ('Top 10', 'Effective'),
         'turnover': ('Weight shift', 'Top 10'), 'entry-exit': ('Added', 'Exited'),
-        'sector-gaps': ('Classified', 'Unclassified'),
+        'sector-gaps': ('Classified', 'Unknown'),
     }
     best = {}
     for pair in data['pairs']:
