@@ -12,10 +12,10 @@ import matplotlib
 matplotlib.use('Agg')
 
 import matplotlib.pyplot as plt
-from matplotlib.ticker import FuncFormatter
+from matplotlib.ticker import FuncFormatter, MaxNLocator
 
 INK = '#06070a'
-PANEL = '#0b0e12'
+PANEL = '#10161b'
 TEXT = '#f1ede5'
 MUTED = '#8f8a80'
 BRASS = '#c8a15a'
@@ -45,7 +45,7 @@ CHARTS = {
     'volatility': {'title': 'Annualised volatility', 'sub': 'Standard deviation of daily returns × √252'},
     'beta': {'title': 'Beta to benchmark', 'sub': 'Sensitivity to the S&P 500'},
     'crisis': {'title': 'Crisis behaviour', 'sub': 'Total return through COVID 2020 and the 2022 bear market'},
-    'growth': {'title': 'Growth of 100', 'sub': 'Cumulative return of each fund over the window'},
+    'growth': {'title': 'Growth of $100', 'sub': 'Cumulative return of each fund over the window'},
     'riskreturn': {'title': 'Risk versus return', 'sub': 'Volatility against annualised return; bubble = composite score'},
     'pe': {'title': 'Weighted P/E of the book', 'sub': 'Value-weighted trailing multiple of disclosed holdings; dashed line = median across funds'},
 }
@@ -60,10 +60,24 @@ def _decorate(ax, board: dict, title: str, sub: str) -> None:
     ax.grid(axis='x', color=GRID, linewidth=0.6, alpha=0.9)
     ax.set_axisbelow(True)
     ax.tick_params(colors=MUTED, labelsize=8, length=0)
-    ax.set_title(title, color=TEXT, fontsize=13, fontweight='bold', loc='left', pad=16)
-    ax.text(0, 1.035, sub, transform=ax.transAxes, color=MUTED, fontsize=8)
-    ax.text(0, -0.16, f"as of {board.get('as_of', '')} · {board.get('window_years', 5)}y window · optimizer.simonhavlik.com/leaderboard",
-            transform=ax.transAxes, color='#6b675f', fontsize=6.5)
+    fig = ax.figure
+    fig.text(.02, .973, title, color=TEXT, fontsize=17, fontweight='bold', va='top')
+    fig.text(.02, .907, sub, color=MUTED, fontsize=9.5, va='top')
+    fig.text(.02, .026, f"{board.get('start', '')} – {board.get('as_of', '')} · SEC Form 13F",
+             color=MUTED, fontsize=8)
+    if not isinstance(ax.xaxis.get_major_locator(), mdates.DateLocator):
+        ax.xaxis.set_major_locator(MaxNLocator(8))
+
+
+def _save(fig, *, bottom=.085, right=.985):
+    out = io.BytesIO()
+    try:
+        fig.tight_layout(rect=(.012, bottom, right, .864), pad=.35)
+        fig.savefig(out, format='png', facecolor=INK)
+        out.seek(0)
+        return out
+    finally:
+        plt.close(fig)
 
 
 def _hbar(board: dict, key: str, *, metric: str | None = None, pct: bool = False,
@@ -81,7 +95,7 @@ def _hbar(board: dict, key: str, *, metric: str | None = None, pct: bool = False
     names = [r['name'] for r in rows][::-1]
     values = [measure(r) for r in rows][::-1]
 
-    fig, ax = plt.subplots(figsize=(8.4, max(4.6, 1.75 + .28 * len(names))), dpi=150)
+    fig, ax = plt.subplots(figsize=(8.4, max(4.6, 1.44 + .245 * len(names))), dpi=250)
     fig.patch.set_facecolor(INK)
     colours = [BRASS if v >= 0 else DOWN for v in values]
     bars = ax.barh(names, values, color=colours, height=0.62)
@@ -102,12 +116,7 @@ def _hbar(board: dict, key: str, *, metric: str | None = None, pct: bool = False
     if pct:
         ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v * 100:.0f}%'))
     _decorate(ax, board, CHARTS[key]['title'], CHARTS[key]['sub'])
-    fig.tight_layout()
-    out = io.BytesIO()
-    fig.savefig(out, format='png', facecolor=INK, bbox_inches='tight')
-    plt.close(fig)
-    out.seek(0)
-    return out
+    return _save(fig)
 
 
 def _crisis(board: dict) -> io.BytesIO:
@@ -127,7 +136,7 @@ def _crisis(board: dict) -> io.BytesIO:
     covid = [present(r, 'covid') for r in rows]
     bear = [present(r, 'y2022') for r in rows]
 
-    fig, ax = plt.subplots(figsize=(9.6, 4.4), dpi=150)
+    fig, ax = plt.subplots(figsize=(9.6, max(4.4, 1.45 + .26 * len(names))), dpi=250)
     fig.patch.set_facecolor(INK)
     import numpy as np
     y = np.arange(len(names))
@@ -140,16 +149,11 @@ def _crisis(board: dict) -> io.BytesIO:
     ax.legend(facecolor=PANEL, edgecolor=GRID, labelcolor=TEXT, fontsize=8, loc='upper right')
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:.0f}%'))
     _decorate(ax, board, CHARTS['crisis']['title'], CHARTS['crisis']['sub'])
-    fig.tight_layout()
-    out = io.BytesIO()
-    fig.savefig(out, format='png', facecolor=INK, bbox_inches='tight')
-    plt.close(fig)
-    out.seek(0)
-    return out
+    return _save(fig)
 
 
 def _growth(board: dict) -> io.BytesIO:
-    fig, ax = plt.subplots(figsize=(9.6, 4.6), dpi=150)
+    fig, ax = plt.subplots(figsize=(9.6, 4.6), dpi=250)
     fig.patch.set_facecolor(INK)
     palette = ['#e8cd97', '#8fa3b8', '#c07a6a', '#7fa08a', '#a99bc4',
                '#d9c9a8', '#7f8a94', '#b98f62', '#9aa7b8', '#8c8272']
@@ -165,34 +169,37 @@ def _growth(board: dict) -> io.BytesIO:
         ax.plot(dates, curve, linewidth=1.4 if index < 4 else 1,
                 color=palette[index % len(palette)], alpha=0.95 if index < 5 else 0.55,
                 label=row['name'] if index < 6 else None)
-    ax.xaxis.set_major_locator(mdates.YearLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+    locator = mdates.AutoDateLocator(minticks=4, maxticks=9)
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+    if board.get('start') and board.get('as_of'):
+        ax.set_xlim(date.fromisoformat(board['start']), date.fromisoformat(board['as_of']))
     ax.axhline(100, color='#3a3f47', linewidth=0.7, linestyle='--')
     ax.legend(facecolor=PANEL, edgecolor=GRID, labelcolor=TEXT, fontsize=7.5, loc='upper left', framealpha=0.9)
     ax.set_ylabel('Index (start = 100)')
     _decorate(ax, board, CHARTS['growth']['title'], CHARTS['growth']['sub'])
     ax.grid(axis='x', visible=False)
     ax.grid(axis='y', color=GRID, linewidth=0.6, alpha=0.8)
-    fig.tight_layout()
-    out = io.BytesIO()
-    fig.savefig(out, format='png', facecolor=INK, bbox_inches='tight')
-    plt.close(fig)
-    out.seek(0)
-    return out
+    return _save(fig)
 
 
 def _riskreturn(board: dict) -> io.BytesIO:
-    fig, ax = plt.subplots(figsize=(8.4, 5.0), dpi=150)
-    fig.patch.set_facecolor(INK)
-    for row in board['rows']:
-        m = row.get('metrics') or {}
-        if m.get('volatility') is None or m.get('annualized_return') is None:
-            continue
-        size = 40 + (row.get('score') or 0) * 3.2
-        ax.scatter(m['volatility'] * 100, m['annualized_return'] * 100, s=size,
-                   color=BRASS, alpha=0.75, edgecolors=BRASS_LIGHT, linewidths=0.7)
-        ax.annotate(row['name'].split(' ')[0], (m['volatility'] * 100, m['annualized_return'] * 100),
-                    textcoords='offset points', xytext=(7, 4), fontsize=7, color=MUTED)
+    rows = [row for row in board['rows'] if row['metrics'].get('volatility') is not None
+            and row['metrics'].get('annualized_return') is not None]
+    legend_rows = (len(rows) + 2) // 3
+    height = 4.3 + .14 * legend_rows
+    fig, ax = plt.subplots(figsize=(8.4, max(4.6, height)), dpi=250)
+    legend_top = (0.43 + .14 * legend_rows) / fig.get_figheight()
+    for i, row in enumerate(rows, 1):
+        m = row['metrics']
+        x, y = m['volatility'] * 100, m['annualized_return'] * 100
+        size = 45 + (row.get('score') or 0) * 2.4
+        ax.scatter(x, y, s=size, color=BRASS, alpha=.85, edgecolors=BRASS_LIGHT, linewidths=.6)
+        ax.text(x, y, str(i), ha='center', va='center', fontsize=6.5, color=INK, fontweight='bold')
+        line, column = divmod(i - 1, 3)
+        fig.text(.020 + column * .329, legend_top - line * .14 / fig.get_figheight(), f"{i:02d}  {row['name']}",
+                 color=TEXT, fontsize=7.8, va='top')
+    ax.margins(.08)
     ax.set_xlabel('Volatility (%)')
     ax.set_ylabel('Annualised return (%)')
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:.0f}%'))
@@ -200,12 +207,7 @@ def _riskreturn(board: dict) -> io.BytesIO:
     _decorate(ax, board, CHARTS['riskreturn']['title'], CHARTS['riskreturn']['sub'])
     ax.grid(axis='x', visible=True)
     ax.grid(axis='y', color=GRID, linewidth=0.6, alpha=0.8)
-    fig.tight_layout()
-    out = io.BytesIO()
-    fig.savefig(out, format='png', facecolor=INK, bbox_inches='tight')
-    plt.close(fig)
-    out.seek(0)
-    return out
+    return _save(fig, bottom=legend_top + .055)
 
 
 def _pe(board: dict) -> io.BytesIO:
@@ -215,7 +217,7 @@ def _pe(board: dict) -> io.BytesIO:
     values = [r['pe']['weighted'] for r in rows]
     median = board.get('pe_median')
 
-    fig, ax = plt.subplots(figsize=(8.4, max(4.6, 1.75 + .28 * len(names))), dpi=150)
+    fig, ax = plt.subplots(figsize=(8.4, max(4.6, 1.44 + .245 * len(names))), dpi=250)
     fig.patch.set_facecolor(INK)
     bars = ax.barh(names, values, color=BRASS, height=0.62)
     if median:
@@ -226,12 +228,7 @@ def _pe(board: dict) -> io.BytesIO:
                 transform=ax.get_yaxis_transform(), va='center', ha='left', color=TEXT, fontsize=8)
     ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f'{v:.0f}x'))
     _decorate(ax, board, CHARTS['pe']['title'], CHARTS['pe']['sub'])
-    fig.tight_layout()
-    out = io.BytesIO()
-    fig.savefig(out, format='png', facecolor=INK, bbox_inches='tight')
-    plt.close(fig)
-    out.seek(0)
-    return out
+    return _save(fig)
 
 
 def render(board: dict, key: str) -> io.BytesIO:

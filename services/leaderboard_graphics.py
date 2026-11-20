@@ -26,15 +26,11 @@ def _ranked(board):
 
 
 def _figure(board, title, sub):
-    fig = plt.figure(figsize=(9, 11.25), dpi=150, facecolor=BG)
-    fig.text(.065, .952, 'PORTFOLIO OPTIMIZER   /   SEC 13F RESEARCH', color=GOLD,
-             fontsize=11, fontweight='bold', fontfamily='monospace')
-    fig.text(.065, .904, title, color=TEXT, fontsize=28, fontweight='bold')
-    fig.text(.065, .868, sub, color=MUTED, fontsize=12)
-    fig.text(.065, .047, f"{board['start']} – {board['as_of']}  |  USD  ·  Adjusted equity prices  ·  SEC EDGAR",
-             color=MUTED, fontsize=9)
-    fig.text(.065, .032, 'Reconstructed long holdings  ·  optimizer.simonhavlik.com/leaderboard',
-             color=GOLD, fontsize=9)
+    fig = plt.figure(figsize=(12.8, 7.2), dpi=300, facecolor=BG)
+    fig.text(.017, .979, title, color=TEXT, fontsize=20, fontweight='bold', va='top')
+    fig.text(.017, .918, sub, color=MUTED, fontsize=10, va='top')
+    fig.text(.017, .029, f"{board['start']} – {board['as_of']}  ·  Adjusted equity prices  ·  SEC EDGAR",
+             color=MUTED, fontsize=8)
     return fig
 
 
@@ -67,14 +63,16 @@ def _series_axis(ax, board, rows):
         picked = row['slug'] in ('berkshire', 'scion')
         ax.plot(xs, row['curve'], color=_tone(row['slug']), alpha=1 if picked else .42,
                 linewidth=2 if picked else .95, label=_name(row) if picked else None)
-    ax.xaxis.set_major_locator(dates.YearLocator())
-    ax.xaxis.set_major_formatter(dates.DateFormatter('%Y'))
+    tick = dates.AutoDateLocator(minticks=4, maxticks=8)
+    ax.xaxis.set_major_locator(tick)
+    ax.xaxis.set_major_formatter(dates.ConciseDateFormatter(tick))
+    ax.set_xlim(date.fromisoformat(board['start']), date.fromisoformat(board['as_of']))
     ax.legend(loc='upper left', fontsize=8, frameon=False, labelcolor=TEXT, ncol=3)
 
 
 def _matrix(ax, data, labels, headers, scale, annotations):
     ax.imshow(data, aspect='auto', cmap='YlGnBu_r', vmin=scale[0], vmax=scale[1])
-    ax.set_xticks(range(len(headers)), labels=headers, color=TEXT, fontsize=9)
+    ax.set_xticks(range(len(headers)), labels=headers, color=TEXT, fontsize=8, rotation=48, rotation_mode='anchor', ha='left')
     ax.set_yticks(range(len(labels)), labels=labels, color=TEXT, fontsize=9)
     ax.tick_params(axis='both', length=0, pad=8)
     ax.xaxis.tick_top()
@@ -89,11 +87,11 @@ def _matrix(ax, data, labels, headers, scale, annotations):
 def _atlas(board):
     rows = _ranked(board)
     fig = _figure(board, 'Anatomy of the long book', f"{len(rows)} comparable managers  /  Benchmark SPY  /  {board['window_years']}-year risk and return")
-    g = fig.add_gridspec(4, 2, left=.17, right=.935, bottom=.11, top=.81, hspace=.82, wspace=.70)
+    g = fig.add_gridspec(3, 4, left=.063, right=.985, bottom=.105, top=.831, hspace=.73, wspace=.48)
     growth = fig.add_subplot(g[0, :])
     _series_axis(growth, board, rows)
 
-    scatter = fig.add_subplot(g[1, 0])
+    scatter = fig.add_subplot(g[1, :2])
     _panel(scatter, 'Risk versus return', 'Annualized return (%)')
     scatter.set_xlabel('Annualized volatility (%)', color=MUTED, fontsize=9)
     for row in rows:
@@ -110,7 +108,13 @@ def _atlas(board):
         levels = range(len(rows))
         ax.hlines(levels, 0, values, color=GRID, linewidth=1.3)
         ax.scatter(values, levels, s=27, color=[_tone(row['slug']) for row in rows], zorder=3)
-        ax.set_yticks(levels, [_name(row) for row in rows], color=MUTED, fontsize=7)
+        ax.set_yticks(levels)
+        ax.tick_params(axis='y', labelleft=False)
+        for y, row in zip(levels, rows):
+            ax.text(.018, y - .12, _name(row)[:23], transform=ax.get_yaxis_transform(),
+                    color=TEXT, fontsize=7.2, va='bottom',
+                    bbox={'facecolor': PANEL, 'edgecolor': 'none', 'pad': .25})
+        ax.margins(y=.21)
         ax.invert_yaxis()
         ax.set_xlim(left=0, right=max(values, default=1) * 1.23)
         ax.xaxis.set_major_formatter(formatter)
@@ -118,7 +122,7 @@ def _atlas(board):
 
     from matplotlib.ticker import FuncFormatter
     percent = FuncFormatter(lambda value, _: f'{value:.0f}%')
-    risk = fig.add_subplot(g[1, 1])
+    risk = fig.add_subplot(g[1, 2:])
     bottom = sorted(rows, key=lambda row: row['metrics']['max_drawdown'])[:4]
     dot_ranking(risk, 'Worst drawdown', bottom, [abs(r['metrics']['max_drawdown']) * 100 for r in bottom], percent)
 
@@ -140,7 +144,7 @@ def _atlas(board):
                 [100 * r['metrics']['concentration'] for r in biggest], percent)
     import matplotlib.dates as dates
     from datetime import date
-    history = fig.add_subplot(g[3, :])
+    history = fig.add_subplot(g[2, 2:])
     _panel(history, 'Disclosed equity value over time', 'USD billions · log scale')
     tracked = sorted((row for row in board['rows'] if row['size']), key=lambda row: -row['size'])[:4]
     palette = (GOLD, CYAN, '#b7a8fb', CORAL)
@@ -153,14 +157,14 @@ def _atlas(board):
     history.set_yscale('log')
     history.xaxis.set_major_locator(dates.YearLocator(2))
     history.xaxis.set_major_formatter(dates.DateFormatter('%Y'))
-    history.legend(loc='upper left', fontsize=7, frameon=False, labelcolor=TEXT, ncol=2)
+    history.legend(loc='lower left', fontsize=7, frameon=True, facecolor=PANEL, edgecolor=GRID, labelcolor=TEXT, ncol=2)
     return fig
 
 
 def _comparison(board):
     rows = _ranked(board)
     fig = _figure(board, 'Where the managers differ', 'Risk percentiles and overlap across disclosed equity books')
-    g = fig.add_gridspec(2, 1, left=.265, right=.93, bottom=.12, top=.78, hspace=.73, height_ratios=[1.1, 1])
+    g = fig.add_gridspec(1, 2, left=.13, right=.978, bottom=.108, top=.705, wspace=.40)
     score = fig.add_subplot(g[0])
     chosen = rows[:10]
     fields = [('annualized_return', 'RETURN'), ('volatility', 'LOW VOL'), ('sharpe_ratio', 'SHARPE'),
@@ -172,7 +176,7 @@ def _comparison(board):
     else:
         score.axis('off')
         score.text(.0, .5, 'Comparable histories are still being built', transform=score.transAxes, color=TEXT)
-    fig.text(.065, .82, 'Rank percentile  /  Higher is better', color=GOLD, fontsize=12, fontweight='bold')
+    fig.text(.017, .857, 'Rank percentile · higher is better', color=GOLD, fontsize=11, fontweight='bold')
 
     overlap = fig.add_subplot(g[1])
     candidates = sorted((r for r in board['rows'] if r['latest_tops']), key=lambda r: -r['size'])
@@ -188,8 +192,7 @@ def _comparison(board):
                 [[f'{100 * v:.0f}%' for v in row] for row in matrix])
     else:
         overlap.axis('off')
-    overlap.text(-.30, 1.25, 'Shared weight  /  Positions of at least 0.5%',
-                 transform=overlap.transAxes, color=GOLD, fontsize=12, fontweight='bold')
+    fig.text(.55, .857, 'Shared weight · positions of at least 0.5%', color=GOLD, fontsize=11, fontweight='bold')
     return fig
 
 
@@ -198,7 +201,8 @@ FEATURED = {'atlas': ('Anatomy of the long book', _atlas),
 
 
 def chart_file(board, key, ext):
-    return CACHE_DIR / 'charts' / f"{board['revision']}-{board['cohort']}-{key}.{ext}"
+    revision = board.get('charts_revision', board['revision'])
+    return CACHE_DIR / 'charts' / f"{revision}-{board['cohort']}-{key}.{ext}"
 
 
 def _png(board, key):

@@ -3,7 +3,7 @@
 {% block body_class %}research-page{% endblock %}
 {% block title %}Fund leaderboard | Portfolio Optimizer{% endblock %}
 {% block extra_css %}
-<link rel="stylesheet" href="{{ url_for('static', filename='leaderboard/leaderboard.css', v='report-windows-2') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='leaderboard/leaderboard.css', v='research-layout-3') }}">
 {% endblock %}
 
 {% macro percent(value, signed=false) -%}
@@ -20,14 +20,14 @@
 
 {% macro figure(key, label, hero=false) %}
 <figure class="research-chart">
-  <a href="{{ url_for('leaderboard_chart', key=key, ext='png', period=board.cohort, v=board.revision, view='1') }}" target="_blank" rel="noopener">
-    <img src="{{ url_for('leaderboard_chart', key=key, ext='webp', period=board.cohort, v=board.revision) }}"
+  <a href="{{ url_for('leaderboard_chart', key=key, ext='png', period=board.cohort, v=board.charts_revision or board.revision, view='1') }}" target="_blank" rel="noopener">
+    <img src="{{ url_for('leaderboard_chart', key=key, ext='webp', period=board.cohort, v=board.charts_revision or board.revision) }}"
          alt="{{ label }}" loading="lazy" decoding="async"
-         {% if hero %}width="850" height="1062"{% endif %}>
+         {% if hero %}width="850" height="478"{% endif %}>
   </a>
   <figcaption>
     <span>{{ label }}</span>
-    <a class="research-link" href="{{ url_for('leaderboard_chart', key=key, ext='png', period=board.cohort, v=board.revision) }}"
+    <a class="research-link" href="{{ url_for('leaderboard_chart', key=key, ext='png', period=board.cohort, v=board.charts_revision or board.revision) }}"
        aria-label="Download {{ label }} as PNG" download>PNG</a>
   </figcaption>
 </figure>
@@ -279,6 +279,6 @@
 {% block extra_js %}
 <script defer src="https://cdn.plot.ly/plotly-basic-2.27.0.min.js"></script>
 <script defer src="{{ url_for('static', filename='report/chart-theme.js') }}"></script>
-<script defer src="{{ url_for('static', filename='leaderboard/explorer.js', v='report-windows-2') }}"></script>
-<script defer src="{{ url_for('static', filename='leaderboard/leaderboard.js', v='report-windows-2') }}"></script>
+<script defer src="{{ url_for('static', filename='leaderboard/explorer.js', v='research-layout-3') }}"></script>
+<script defer src="{{ url_for('static', filename='leaderboard/leaderboard.js', v='research-layout-3') }}"></script>
 {% endblock %}

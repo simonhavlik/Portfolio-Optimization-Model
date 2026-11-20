@@ -15,7 +15,7 @@ from models.database import AppCache, db
 from services import fund_archive
 from services.example_portfolio import _finite_json, example_portfolio_service, serialize_for_template
 from services.holdings_style import INDUSTRIES
-from services.leaderboard import CACHE_DIR, RISK_FREE, _book_positions, _mapping, _read_prices, _series, build_board
+from services.leaderboard import CACHE_DIR, RISK_FREE, _book_positions, _mapping, _read_prices, _series, build_board, scheduled_returns
 from services.leaderboard_funds import BENCHMARK, FUNDS, ISSUER_ALIASES
 from services.leaderboard_storage import published_snapshot
 from services.portfolio_timeline import FUND_REPORT_PREFIX
@@ -125,6 +125,45 @@ def compact_report(analysis):
     return report
 
 
+def _serialize_report(analysis):
+    if simulation := analysis.get('monte_carlo'):
+        analysis['monte_carlo'] = {name: getattr(simulation, name) for name in (
+            'probability_profit', 'mean_final', 'median_final', 'var_95', 'confidence_interval_95',
+        )}
+    return _finite_json(serialize_for_template(analysis))
+
+
+def dated_upload_report(timeline, schedule, prices, *, n_simulations, horizon_days):
+    name, symbol = timeline['name'], timeline['benchmark']
+    positions = [{'ticker': ticker, 'weight': weight, 'sector': 'Unclassified'}
+                 for ticker, weight in sorted(schedule[-1][1].items(), key=lambda item: -item[1])]
+    calendar = prices[symbol].dropna().index
+    cutoff = calendar[-252:]
+    meta = {'name': name, 'period': 'Dated allocations', 'computed_at': datetime.now(timezone.utc).isoformat(),
+            'benchmark': symbol, 'n_assets': len(positions), 'risk_free_rate': timeline['risk_free'],
+            'description': 'Performance reconstructed from your dated allocations'}
+    result = {'meta': meta, 'holdings': positions, 'metrics': {}, 'charts': {}}
+    matrix = [p for p in positions if p['ticker'] in prices
+              and prices[p['ticker']].reindex(cutoff).notna().all()][:12]
+    if not timeline['metrics'] or len(matrix) < 2:
+        return result
+    daily, _ = scheduled_returns(schedule, prices, calendar)
+    analysis = _serialize_report(example_portfolio_service.compute_custom(
+        matrix, name=name, benchmark=symbol, n_simulations=n_simulations, horizon_days=horizon_days,
+        period=f"{timeline['metric_start']} to {timeline['metric_end']}",
+        description=meta['description'], risk_free_rate=timeline['risk_free'], market_snapshot=prices,
+        historical_returns=daily.loc[timeline['metric_start']:timeline['metric_end']],
+        factor_returns=_factor_snapshot(False),
+    ))
+    if not analysis['metrics']:
+        return result
+    analysis['disclosed_holdings'] = positions
+    analysis['meta'].update(disclosed_assets=len(positions), matrix_coverage=sum(p['weight'] for p in matrix),
+                            matrix_start=cutoff[0].date().isoformat(), matrix_end=cutoff[-1].date().isoformat(),
+                            disclosed_quarter=schedule[-1][0])
+    return compact_report(analysis)
+
+
 def standard_report(fund, timeline, *, prices, factors, mapping, industries, revision):
     books = fund_archive.timeline(fund_archive.documents(fund['slug']))
     if not books:
@@ -171,12 +210,7 @@ def standard_report(fund, timeline, *, prices, factors, mapping, industries, rev
         description=meta['description'], n_simulations=5000, market_snapshot=snapshot,
         historical_returns=daily, factor_returns=factors,
     )
-    if analysis.get('monte_carlo'):
-        simulation = analysis['monte_carlo']
-        analysis['monte_carlo'] = {name: getattr(simulation, name) for name in (
-            'probability_profit', 'mean_final', 'median_final', 'var_95', 'confidence_interval_95',
-        )}
-    analysis = _finite_json(serialize_for_template(analysis))
+    analysis = _serialize_report(analysis)
     if not analysis.get('metrics'):
         return result
     analysis['meta'].update(n_assets=len(matrix_positions), disclosed_assets=len(positions),

@@ -333,7 +333,11 @@ _example_chart_response = None
 def _report_cache_entry(report):
     if report.startswith('fund-'):
         return db.session.get(AppCache, f'fund_analysis:{report[5:]}')
-    return db.session.get(AppCache, f'custom_analysis:{report}')
+    entry = db.session.get(AppCache, f'custom_analysis:{report}')
+    if entry and entry.payload and entry.payload.get('portfolio_timeline'):
+        if 'user_id' not in session or not SavedReport.query.filter_by(token=report, user_id=session['user_id']).first():
+            return None
+    return entry
 
 
 @app.route('/api/example-charts')
@@ -466,6 +470,7 @@ def analyse_custom():
 
 
 def _analyse_dated_portfolio(data):
+    from services.fund_reports import dated_upload_report
     from services.leaderboard import _read_prices
     from services.portfolio_history_import import allocation_csv, validate_snapshots
     from services.portfolio_timeline import allocation_changes, report
@@ -520,11 +525,12 @@ def _analyse_dated_portfolio(data):
     name = str(data.get('name') or 'Your portfolio')[:120]
     timeline = report(name, schedule, changes, prices, benchmark=benchmark,
                       risk_free=risk_free, n_simulations=n_sims, horizon_days=horizon)
+    analysis = dated_upload_report(timeline, schedule, prices, n_simulations=n_sims, horizon_days=horizon)
     token = uuid4().hex
     holdings = [{'ticker': ticker, 'weight': weight} for ticker, weight in schedule[-1][1].items()]
     metrics = timeline['metrics']
     db.session.add(AppCache(key=f'custom_analysis:{token}', computed_at=datetime.utcnow(),
-                            payload={'portfolio_timeline': timeline, 'snapshots': snapshots}))
+                            payload={**analysis, 'portfolio_timeline': timeline, 'snapshots': snapshots}))
     db.session.add(SavedReport(user_id=session['user_id'], token=token, name=name, period='history',
                                holdings=holdings, summary={**metrics, 'n_assets': len(holdings)}))
     db.session.commit()
@@ -561,15 +567,21 @@ def extract_holdings_history():
 @app.route('/report/<token>')
 @page_login_required
 def custom_report(token):
-    row = db.session.get(AppCache, f'custom_analysis:{token}')
+    row = _report_cache_entry(token)
     if not row or not row.payload:
         abort(404)
     example_data = row.payload
-    if example_data.get('portfolio_timeline'):
-        if not SavedReport.query.filter_by(token=token, user_id=session['user_id']).first():
-            abort(404)
-        return render_template('portfolio_timeline.html', timeline=example_data['portfolio_timeline'],
-                               computed_at=row.computed_at, fund=None)
+    if timeline := example_data.get('portfolio_timeline'):
+        if not example_data.get('meta'):
+            saved = SavedReport.query.filter_by(token=token, user_id=session['user_id']).first()
+            holdings = saved.holdings or []
+            example_data = {'meta': {'name': timeline['name'], 'period': 'Dated allocations',
+                                     'computed_at': row.computed_at.isoformat(), 'benchmark': timeline['benchmark'],
+                                     'n_assets': len(holdings)}, 'metrics': {}, 'holdings': holdings, 'charts': {}}
+        return render_template('index.html', example_data=example_data, timeline=timeline, report_id=token,
+                               valuation=None, cca=None,
+                               appendix=build_appendix(example_data) if example_data['metrics'] else None,
+                               show_analysis=bool(example_data['metrics']))
     valuation = None
     appendix = None
     cca = None
@@ -889,7 +901,7 @@ def leaderboard_chart(key, ext):
     if revision:
         if not re.fullmatch(r'[0-9]{20}', revision):
             abort(404)
-        board = {**board, 'revision': revision}
+        board = {**board, 'charts_revision': revision}
     elif key not in board.get('charts', []):
         abort(404)
     path = chart_file(board, key, ext).resolve()

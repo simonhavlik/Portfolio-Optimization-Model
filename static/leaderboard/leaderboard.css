@@ -52,7 +52,7 @@
 .research-read a:hover { color: var(--research-aqua); }
 .research-read b { color: var(--research-gold); font-size: 1.02rem; font-variant-numeric: tabular-nums; }
 #ranking { margin-top: 2.75rem; }
-.research-featured img { aspect-ratio: 4 / 5; }
+.research-featured img { aspect-ratio: 16 / 9; }
 .research-chart { min-width: 0; background: var(--research-panel); border: 1px solid var(--research-line); border-radius: .6rem; overflow: hidden; }
 .research-chart img { display: block; width: 100%; height: auto; object-fit: contain; background: var(--research-bg); }
 .research-gallery .research-chart img { aspect-ratio: 16 / 10; }

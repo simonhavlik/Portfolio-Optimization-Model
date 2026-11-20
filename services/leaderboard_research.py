@@ -678,39 +678,38 @@ def _disclosure_chart(fig, data):
         _note(fig, "SEC 13F · Dots mark filing dates. Labels show weight changes.")
 
 
-def _table(fig, top, bottom, columns, rows, boundaries):
+def _table(fig, top, bottom, columns, rows, boundaries, *, left=0, right=1):
+    from matplotlib.font_manager import FontProperties
+    from matplotlib.lines import Line2D
     from matplotlib.patches import Rectangle
 
     height = (top - bottom) / (len(rows) + 1)
+    width = right - left
+    size = min(9.3, height * fig.get_figheight() * 72 * 0.80)
+    renderer = fig.canvas.get_renderer()
     for i, row in enumerate([columns, *rows]):
         y = top - i * height
         if i == 0 or i % 2:
-            fig.add_artist(
-                Rectangle(
-                    (0, y - height),
-                    1,
-                    height,
-                    transform=fig.transFigure,
-                    facecolor="#1b272e" if i == 0 else "#131e24",
-                    edgecolor="none",
-                    zorder=-2,
-                )
-            )
-        _rule(fig, y)
-        for j, text in enumerate(row):
-            left = j == 0
-            x = boundaries[j] + 0.014 if left else boundaries[j + 1] - 0.015
-            fig.text(
-                x,
-                y - height * 0.52,
-                str(text),
-                va="center",
-                ha="left" if left else "right",
-                fontsize=9.3 if i else 8.8,
-                color=SOFT if i == 0 else PAPER,
-                fontfamily="DejaVu Sans" if left or i == 0 else "DejaVu Sans Mono",
-            )
-    _rule(fig, bottom)
+            fig.add_artist(Rectangle((left, y - height), width, height,
+                                     transform=fig.transFigure, facecolor="#1b272e" if i == 0 else "#131e24",
+                                     edgecolor="none", zorder=-2))
+        fig.add_artist(Line2D([left, right], [y, y], transform=fig.transFigure, color=RULE, linewidth=.45))
+        for j, item in enumerate(row):
+            first = j == 0
+            font = FontProperties(family="DejaVu Sans" if first or i == 0 else "DejaVu Sans Mono",
+                                  size=size if i else min(8.5, size))
+            margin = 0.013 * width
+            x = left + boundaries[j if first else j+1] * width + (margin if first else -margin)
+            available = fig.bbox.width * (width * (boundaries[j+1] - boundaries[j]) - 2*margin)
+            value = str(item)
+            if renderer.get_text_width_height_descent(value, font, False)[0] > available:
+                base = value
+                while base and renderer.get_text_width_height_descent(base + "…", font, False)[0] > available:
+                    base = base[:-1]
+                value = base.rstrip() + "…"
+            fig.text(x, y - height*.51, value, va="center", ha="left" if first else "right",
+                     fontproperties=font, color=SOFT if i == 0 else PAPER)
+    fig.add_artist(Line2D([left, right], [bottom, bottom], transform=fig.transFigure, color=RULE, linewidth=.45))
 
 
 def _export(fig, revision, key, panel):

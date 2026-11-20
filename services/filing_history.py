@@ -170,8 +170,16 @@ def parse_filing(raw: bytes, filing: dict, manager_cik: str | None = None) -> di
         entry_count = re.search(r'Information Table Entry Total\s*:\s*([\d,]+)', text, re.I)
         if entry_count and len(lines) == int(entry_count[1].replace(',', '')) + 1:
             summed = sum(Decimal(row['value']) for row in lines)
+            declared_total = re.search(r'Information Table Value Total\s*:\s*\$?\s*([\d,]+)', text, re.I)
+            declared = Decimal(declared_total[1].replace(',', '')) if declared_total else None
+            rounding = Decimal(len(lines) - 1) / 2
             lines = [row for row in lines
-                     if not (row.get('_continuation') and Decimal(row['value']) * 2 == summed)]
+                     if not (row.get('_continuation') and (
+                         Decimal(row['value']) * 2 == summed or (
+                            declared is not None and Decimal(row['value']) == declared
+                            and abs(summed - 2 * declared) <= rounding
+                         )
+                     ))]
 
     mode = 'original'
     if filing['form'].endswith('/A'):

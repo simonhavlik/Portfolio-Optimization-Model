@@ -169,7 +169,7 @@
       <figure>
         {% if report_id %}<img data-print-chart="{{ image }}" alt="{{ caption }}"{% if fund %} decoding="sync"{% endif %}>
         {% else %}<img src="/static/report/{{ image }}" alt="{{ caption }}">{% endif %}
-        <figcaption>{{ 'Performance across all priced intervals' if fund and image == 'performance.png' else caption }}</figcaption>
+        <figcaption>{{ 'Performance across all priced intervals' if timeline and image == 'performance.png' else caption }}</figcaption>
       </figure>
       {% endfor %}
     </div>

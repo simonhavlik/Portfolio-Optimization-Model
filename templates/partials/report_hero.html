@@ -48,7 +48,7 @@
                 <p class="rep-kicker">
                     <span class="dot" aria-hidden="true"></span>Saved analysis
                     <span class="sep">&middot;</span>{{ example_data.meta.computed_at[:16]|replace('T', ' ') }} UTC
-                    <span class="sep">&middot;</span>{{ 'Analytics window · ' if fund and m else '' }}{{ example_data.meta.period }}
+                    <span class="sep">&middot;</span>{{ 'Analytics window · ' if timeline and m else '' }}{{ example_data.meta.period }}
                 </p>
                 <h1 id="rep-title" class="rep-title">{{ example_data.meta.name }}</h1>
                 <p class="rep-sub">
@@ -72,10 +72,10 @@
                 <div><dt>Beta</dt><dd>{{ "%.2f"|format(m.beta) }}</dd></div>
                 <div><dt>CVaR 95</dt><dd class="down">{{ "%.2f"|format(m.cvar_95 * 100) }}%</dd></div>
             </dl>
-            {% else %}<p class="rep-sub">The filing history and allocation are available. The reported holdings do not have enough continuous prices for return and risk statistics.</p>{% endif %}
+            {% else %}<p class="rep-sub">The allocation history is available. Summary risk statistics require a continuously priced interval and sufficient constituent prices.</p>{% endif %}
         </header>
 
-        {% if fund and timeline and timeline.chart.dates %}
+        {% if timeline and timeline.chart.dates %}
         <div class="rep-chart rep-timeline">
             <div class="rep-chart-head">
                 <h2 class="rep-chart-title mono">Performance across all priced intervals</h2>
@@ -95,7 +95,7 @@
                 </div>
             </div>
             <div id="timeline-plot" class="timeline-plot" role="region" aria-label="Portfolio and benchmark across all priced intervals"></div>
-            <p id="timeline-caption" class="rep-timeline-caption" role="status">Each filing updates the modeled portfolio. Each priced interval starts at 0%. Gaps indicate unavailable pricing.</p>
+            <p id="timeline-caption" class="rep-timeline-caption" role="status">{{ 'Each filing' if fund else 'Each dated allocation' }} updates the modeled portfolio. Each priced interval starts at 0%. Gaps indicate unavailable pricing.</p>
             <script id="timeline-data" type="application/json">{{ {'chart': timeline.chart, 'benchmark': timeline.benchmark} | tojson }}</script>
         </div>
         {% elif m %}<div class="rep-chart">

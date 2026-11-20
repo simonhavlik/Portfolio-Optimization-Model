@@ -3,7 +3,7 @@
 import numpy as np
 
 from services.holdings_style import INDUSTRIES
-from services.leaderboard_research import PAGE, PAPER, RULE, SOFT, _rule, _short, _table
+from services.leaderboard_research import PAGE, PAPER, RULE, SOFT, _axis, _rule, _short, _table
 
 TOPICS = {
     'sectors': ('Where the largest 13F books are invested', 'Reported value by industry'),
@@ -28,7 +28,7 @@ def main_chart(fig, study, data):
     fig.text(.012, .92, f'{len(universe)} managers  /  {metric}', va='top', color=SOFT, fontsize=11)
     fig.text(.987, .92, latest, va='top', ha='right', color=SOFT, fontsize=10)
     categorical = mode in {'sectors', 'shared-stocks', 'crowding'}
-    bottom = .168 if categorical else .084
+    bottom = .157 if categorical else .084
     left, right = (.084, .937) if mode == 'style-test' else (.112, .969)
     ax = fig.add_axes((left, bottom, right - left, .825 - bottom), facecolor=PAGE)
     ax.tick_params(length=0, colors=SOFT, labelsize=8)
@@ -88,7 +88,9 @@ def main_chart(fig, study, data):
     bar.ax.tick_params(colors=SOFT, labelsize=8)
     ax.set_yticks(range(len(names)), names)
     ax.tick_params(axis='y', labelsize=7.0)
-    ax.set_xticks(range(len(labels)), labels, rotation=90 if categorical else 0, ha='center')
+    angle = {'crowding': 48, 'sectors': 48, 'shared-stocks': 61}.get(mode, 0)
+    ax.set_xticks(range(len(labels)), labels, rotation=angle,
+                  ha='right' if angle else 'center', rotation_mode='anchor')
 
 
 def report(fig, study, data):
@@ -97,23 +99,68 @@ def report(fig, study, data):
     fig.text(.018, .948, f"{data['start']} to {data['as_of']}  /  {len(data['universe'])} managers",
              va='top', color=SOFT, fontsize=8)
     latest = data['as_of']
-    rows = []
-    for slug in data['universe']:
-        item = data['history'][slug][latest]
-        primary = max((s for s in INDUSTRIES if s != 'Unknown'), key=item['sectors'].get)
-        industry_label = INDUSTRIES[primary].replace('Business equipment','Equipment').replace('Other industries','Other')
-        last_return = data.get('annual_returns', {}).get(slug, {}).get('2025')
-        reshuffle = item.get('weight_shift')
-        rows.append([_short(slug), f"${item.get('value',0)/1e9:,.1f}B",
-                     f"{item['positions']:,}", f"{item['effective']:,.1f}", f"{item['top']:.0%}",
-                     f"{item['top10']:.0%}", f"{item['sector_coverage']:.0%}", industry_label,
-                     '—' if reshuffle is None else f'{reshuffle:.1%}',
-                     f"{item.get('new','—')} / {item.get('exited','—')}",
-                     '—' if last_return is None else f'{last_return:+.1%}'])
-    _table(fig, .91, .325,
-           ['Manager','13F value','Names','Effective','Largest','Top 10','Classified','Top industry','Shift','In / out','2025 return'],
-           rows, [0,.14,.23,.30,.38,.445,.504,.588,.718,.789,.886,1])
     key = study.key
+    headers = {
+        'sectors': ('Top industry', 'Classified'), 'sector-history': ('Tech weight', 'Change'),
+        'shared-stocks': ('Max overlap', 'Shared names'), 'style-test': ('Max overlap', 'Industry match'),
+        'crowding': ('Of top 22', 'Total weight'), 'concentration': ('Top 10', 'Effective'),
+        'turnover': ('Weight shift', 'Top 10'), 'entry-exit': ('Added', 'Exited'),
+        'sector-gaps': ('Classified', 'Unclassified'),
+    }
+    best = {}
+    for pair in data['pairs']:
+        for slug in (pair['left'], pair['right']):
+            if slug not in best or pair['overlap'] > best[slug]['overlap']:
+                best[slug] = pair
+    rows, observations = [], []
+    for slug in data['universe']:
+        history = data['history'][slug]
+        item = history[latest]
+        reading = None
+        if key == 'sectors':
+            primary = max((k for k in INDUSTRIES if k != 'Unknown'), key=item['sectors'].get)
+            reading = item['sector_coverage']
+            cells = (INDUSTRIES[primary].replace('Business equipment', 'Equipment')
+                     .replace('Other industries', 'Other'), f'{reading:.0%}')
+        elif key == 'sector-history':
+            reading = item['sectors']['BusEq']
+            start = history[min(history)]['sectors']['BusEq']
+            cells = (f'{reading:.1%}', f'{(reading - start) * 100:+.1f} pp')
+        elif key in {'shared-stocks', 'style-test'}:
+            pair = best.get(slug)
+            if pair:
+                reading = pair['overlap']
+                other = f"{pair['shared']:,}" if key == 'shared-stocks' else f"{pair['sectors']:.1%}"
+                cells = (f'{reading:.1%}', other)
+            else:
+                cells = ('—', '—')
+        elif key == 'crowding':
+            weights = [stock['weights'].get(slug, 0) for stock in data['crowded'][:22]]
+            reading = sum(weights)
+            cells = (sum(weight > 0 for weight in weights), f'{reading:.1%}')
+        elif key == 'concentration':
+            reading = item['top10']
+            cells = (f'{reading:.1%}', f"{item['effective']:.1f}")
+        elif key == 'turnover':
+            reading = item.get('weight_shift')
+            cells = ('—' if reading is None else f'{reading:.1%}', f"{item['top10']:.1%}")
+        elif key == 'entry-exit':
+            if 'new' in item and item['positions']:
+                reading = min(1.0, (item['new'] + item['exited']) / (2 * item['positions']))
+            cells = (item.get('new', '—'), item.get('exited', '—'))
+        else:
+            reading = item['sector_coverage']
+            cells = (f'{reading:.1%}', f"{item['sectors']['Unknown']:.1%}")
+        if reading is not None:
+            observations.append(reading)
+        value = item.get('value', 0)
+        amount = '$' + (f'{value / 1e9:,.1f}B' if value >= 1e9 else f'{value / 1e6:,.1f}M')
+        rows.append([_short(slug), amount, f"{item['positions']:,}", *cells])
+
+    split = (len(rows) + 1) // 2
+    for table, left, right in [(rows[:split], .012, .493), (rows[split:], .507, .988)]:
+        _table(fig, .907, .390, ['Manager', '13F value', 'Names', *headers[key]],
+               table, [0,.32,.49,.62,.835,1], left=left, right=right)
     if key in {'shared-stocks', 'style-test'}:
         by_overlap = sorted(data['pairs'], key=lambda p: -p['overlap'])
         strongest = by_overlap[:6] if key == 'shared-stocks' else sorted(
@@ -158,8 +205,27 @@ def report(fig, study, data):
             top = sorted(stats, key=lambda row: -row[2])[:6]
             detail = [[name, n, f'{score:.1%}' if metric == 'BusEq' else v] for name,n,score,v in top]
             cols, sizes = ['Manager','Quarters','Value'], [0,.50,.73,1]
-    fig.text(.015, .295, heading, color=PAPER, fontsize=9)
-    _table(fig,.278,.067,cols,detail,sizes)
-    _rule(fig,.052)
-    fig.text(.012,.028,'SEC Form 13F · Shift measures disclosed weights · 2025 modeled returns require continuous 75% price coverage.',
+    fig.text(.019, .355, heading, color=PAPER, fontsize=9.4, fontweight='bold')
+    _table(fig, .329, .067, cols, detail, sizes, left=.012, right=.561)
+    heading = {
+        'sectors': 'Classified equity weight', 'sector-history': 'Business equipment weight',
+        'shared-stocks': 'Largest stock overlap per manager', 'style-test': 'Industry match minus stock overlap',
+        'crowding': 'Weight in the 22 most widely held names', 'concentration': 'Weight in the top ten holdings',
+        'turnover': 'Weight shifted in the latest quarter', 'entry-exit': 'Scaled entries and exits',
+        'sector-gaps': 'Classified equity weight',
+    }[key]
+    if key == 'style-test':
+        observations = [pair['sectors'] - pair['overlap'] for pair in data['pairs']]
+    if observations:
+        from matplotlib.ticker import MaxNLocator, PercentFormatter
+        median = float(np.median(observations))
+        ax = _axis(fig, (.603, .112, .378, .19))
+        ax.hist(observations, bins=10, color='#7fc8cc', alpha=.85, edgecolor=PAGE)
+        ax.axvline(median, ls='--', color='#e6bd76', linewidth=1.1)
+        ax.xaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
+        ax.yaxis.set_major_locator(MaxNLocator(nbins=4, integer=True))
+        fig.text(.586, .355, heading, color=PAPER, fontsize=9.4, fontweight='bold')
+        fig.text(.586, .330, f"{len(observations)} observations · median {median:.1%}", color=SOFT, fontsize=8)
+    _rule(fig, .052)
+    fig.text(.012, .028, 'SEC Form 13F · Portfolio weights at the latest disclosure. The bottom panels show selected comparisons and the distribution.',
              fontsize=7, color=SOFT, va='center')

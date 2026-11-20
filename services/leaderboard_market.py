@@ -17,7 +17,7 @@ from services.leaderboard import CACHE_DIR, PRICE_PERIOD, _book_positions, _mapp
 from services.leaderboard_funds import FUNDS, BENCHMARK
 
 MAP_FILE = CACHE_DIR / 'cusip_map.json'
-CUTOFF = '2020-06-01'
+CUTOFF = '2009-01-01'
 
 
 def _priorities():
@@ -84,11 +84,11 @@ def refresh_missing_prices(limit: int = 80, *, refresh_existing: bool = False) -
     out = CACHE_DIR / f'prices_{PRICE_PERIOD}.pkl'
     added = 0
     for ticker in todo:
-        data = market_data_service.fetch_historical_data(ticker, period=PRICE_PERIOD, use_cache=False)
+        data = market_data_service.fetch_historical_data(ticker, period='max', use_cache=False)
         if data is not None and len(data.returns):
             returns = data.returns.copy()
             returns.index = returns.index.tz_localize(None)
-            prices[ticker] = returns
+            prices[ticker] = returns.combine_first(prices[ticker]) if ticker in prices else returns
             atomic_write(out, pickle.dumps(prices))
             added += 1
         time.sleep(.8)

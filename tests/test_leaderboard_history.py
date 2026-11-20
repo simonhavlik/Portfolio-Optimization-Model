@@ -248,3 +248,19 @@ def test_quarter_allocation_uses_disclosed_long_equity_and_saved_changes(monkeyp
     assert allocation['rows'][0]['shares_change'] == 12
     assert allocation['sectors'] == {'Business equipment': 1}
     assert allocation['exits'] == ['B']
+
+
+def test_legacy_footer_total_can_round_independently_of_positions():
+    raw = b"""CONFORMED PERIOD OF REPORT: 20121231
+Information Table Entry Total: 2
+Information Table Value Total: $ 1,500
+<TABLE>
+NAME TITLE CUSIP VALUE SHARES
+ALPHA INC                   COM        052800109      800    1,500 SH      SOLE  1,500
+BETA INC                    COM        05329W102      701    2,500 SH      SOLE  2,500
+                                                  -------  -------
+                                                    1,500    4,000
+</TABLE>"""
+    filing = parse_filing(raw, {'filed': '2013-02-14', 'form': '13F-HR'})
+    assert [row['value'] for row in filing['positions']] == [800_000, 701_000]
+    assert filing['reconciliation']['status'] == 'rounded'

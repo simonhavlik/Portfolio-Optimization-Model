@@ -116,7 +116,7 @@ def publish(*, board_path, studies_path, prices, drafts=None):
     assets = []
     for board in boards.values():
         for key in board.get('charts', []):
-            assets.extend(chart_store / f"{board['revision']}-{board['cohort']}-{key}.{ext}" for ext in ('png', 'webp'))
+            assets.extend(chart_store / f"{board.get('charts_revision', board['revision'])}-{board['cohort']}-{key}.{ext}" for ext in ('png', 'webp'))
     for key, study in studies.items():
         for panel in ('chart', 'report'):
             assets.extend(studies_path.parent / f"{study['revision']}-{key}-{panel}.{ext}" for ext in ('png', 'webp'))
